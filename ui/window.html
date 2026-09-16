@@ -1,0 +1,215 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Sudor</title>
+<!--
+  MCP App panel for an Echo Show: the heat for this person right now, and the
+  hours of the day that are fine, need care, or are better spent inside.
+  A status is never carried by colour alone. Every hour also carries a word
+  and a fill pattern, because the hues used for "care" and "stay in" are hard
+  to tell apart for colour blind readers.
+-->
+<style>
+  :root {
+    color-scheme: light;
+    --ground: #fbfaf7;
+    --ink: #1b1a17;
+    --muted: #5f5b53;
+    --rule: #e3dfd6;
+    --good: #2f6f5e;
+    --care: #b7791f;
+    --stay: #b4461f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #171613;
+      --ink: #f1ede4;
+      --muted: #b3ac9f;
+      --rule: #34312b;
+      --good: #6fbfa6;
+      --care: #e0a64a;
+      --stay: #ec7a52;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #171613;
+    --ink: #f1ede4;
+    --muted: #b3ac9f;
+    --rule: #34312b;
+    --good: #6fbfa6;
+    --care: #e0a64a;
+    --stay: #ec7a52;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .panel { padding: 16px 18px 18px; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .place { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .hi { font-size: 2.6rem; font-weight: 700; line-height: 1; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
+  .cat { font-size: 0.85rem; color: var(--muted); }
+  .chip { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 10px; border: 1.5px solid currentColor; border-radius: 3px; white-space: nowrap; }
+  .chip.good { color: var(--good); }
+  .chip.caution { color: var(--care); }
+  .chip.avoid { color: var(--stay); }
+  .why { margin: 12px 0 14px; font-size: 0.9rem; color: var(--muted); max-width: 60ch; }
+  .strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(34px, 1fr); gap: 3px; overflow-x: auto; padding-bottom: 4px; }
+  .hour { display: grid; grid-template-rows: 64px auto auto; align-items: end; text-align: center; font-size: 0.66rem; color: var(--muted); }
+  .bar { position: relative; height: 64px; border-bottom: 1px solid var(--rule); }
+  .bar i { position: absolute; left: 3px; right: 3px; bottom: 0; border-radius: 3px 3px 0 0; }
+  .good .bar i { background: var(--good); }
+  .caution .bar i { background: repeating-linear-gradient(135deg, var(--care) 0 5px, transparent 5px 8px); border: 1px solid var(--care); }
+  .avoid .bar i { background: repeating-linear-gradient(45deg, var(--stay) 0 3px, transparent 3px 5px); border: 1px solid var(--stay); }
+  .hour em { font-style: normal; font-weight: 600; color: var(--ink); }
+  .spans { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; font-size: 0.85rem; }
+  .spans b { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+</style>
+
+<div class="panel">
+  <div class="top">
+    <div>
+      <div class="place" id="place">Example</div>
+      <div class="hi" id="hi">--</div>
+      <div class="cat" id="cat">heat index</div>
+    </div>
+    <span class="chip" id="chip">Waiting</span>
+  </div>
+  <p class="why" id="why"></p>
+  <div class="strip" id="strip" role="img" aria-label="Hourly heat for today"></div>
+  <div class="spans">
+    <div><b>Best</b><span id="best">not yet known</span></div>
+    <div><b>Avoid</b><span id="avoid">not yet known</span></div>
+  </div>
+</div>
+
+<script>
+  const WORD = { good: 'Fine for you', caution: 'Take care', avoid: 'Better inside' };
+  const SHORT = { good: 'ok', caution: 'care', avoid: 'stay in' };
+  const CATEGORY = { none: 'not a heat concern', caution: 'caution', extreme_caution: 'extreme caution', danger: 'danger', extreme_danger: 'extreme danger' };
+
+  // Example state, clearly labelled, so the panel shows what it does before any tool runs.
+  const EXAMPLE = (() => {
+    const shape = [[6, 78, 'good'], [7, 80, 'good'], [8, 84, 'caution'], [9, 89, 'caution'], [10, 94, 'avoid'], [11, 98, 'avoid'],
+      [12, 101, 'avoid'], [13, 104, 'avoid'], [14, 106, 'avoid'], [15, 106, 'avoid'], [16, 104, 'avoid'], [17, 100, 'avoid'],
+      [18, 95, 'avoid'], [19, 90, 'caution'], [20, 86, 'caution'], [21, 83, 'caution']];
+    return {
+      place: 'Example: Phoenix, Arizona',
+      because: 'with multiple sclerosis',
+      hours: shape.map(([h, hi, status]) => ({ local: '2026-09-14T' + String(h).padStart(2, '0') + ':00', heatIndexF: hi, status })),
+      best: { label: '6 to 8 am' },
+      worst: { label: '10 am to 7 pm' },
+    };
+  })();
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const clock = (local) => {
+    const h = Number(String(local).slice(11, 13));
+    return (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? 'a' : 'p');
+  };
+
+  function render(d) {
+    $('place').textContent = d.place || 'Your heat check';
+    const hours = Array.isArray(d.hours) ? d.hours : [];
+    const hi = typeof d.heatIndexF === 'number' ? d.heatIndexF : hours.length ? Math.max(...hours.map((h) => h.heatIndexF)) : null;
+    $('hi').textContent = hi == null ? '--' : Math.round(hi) + '°F';
+    $('cat').textContent = typeof d.heatIndexF === 'number' ? 'heat index, ' + (CATEGORY[d.category] || 'now') : hours.length ? 'peak heat index' : 'heat index';
+
+    const status = d.status || (hours.length && d.best ? 'good' : hours.length ? 'avoid' : null);
+    const chip = $('chip');
+    chip.hidden = !status;
+    chip.className = 'chip ' + (status || '');
+    chip.textContent = status ? WORD[status] : '';
+
+    $('why').textContent = d.because ? 'Judged for you, ' + d.because + '.' : '';
+
+    $('strip').innerHTML = hours
+      .map((h) => {
+        const pct = Math.max(8, Math.min(100, ((h.heatIndexF - 60) / 60) * 100));
+        return '<div class="hour ' + esc(h.status) + '"><div class="bar"><i style="height:' + pct.toFixed(0) + '%"></i></div>' +
+          '<span>' + esc(clock(h.local)) + '</span><em>' + esc(SHORT[h.status] || '') + '</em></div>';
+      })
+      .join('');
+    $('strip').setAttribute('aria-label', hours.length
+      ? 'Hourly heat: ' + hours.map((h) => clock(h.local) + ' ' + SHORT[h.status]).join(', ')
+      : 'No hourly forecast in this answer');
+
+    $('best').textContent = d.best && d.best.label ? d.best.label : hours.length ? 'no comfortable stretch' : 'ask me to plan your day';
+    $('avoid').textContent = d.worst && d.worst.label ? d.worst.label : hours.length ? 'nothing to avoid' : '';
+  }
+
+  /*
+   * MCP Apps bridge, specification 2026-01-26. The host may not send this view
+   * anything, the tool result included, until the view has sent ui/initialize,
+   * had it answered, and confirmed with ui/notifications/initialized.
+   */
+  const bridge = (() => {
+    let nextId = 1;
+    const pending = new Map();
+    const handlers = {};
+    const post = (msg) => window.parent.postMessage(Object.assign({ jsonrpc: '2.0' }, msg), '*');
+    window.addEventListener('message', (event) => {
+      const m = event.data;
+      if (!m || m.jsonrpc !== '2.0') return;
+      if (m.id != null && !m.method && pending.has(m.id)) {
+        const p = pending.get(m.id);
+        pending.delete(m.id);
+        if (m.error) p.reject(new Error(m.error.message || 'request failed'));
+        else p.resolve(m.result);
+        return;
+      }
+      if (m.method && handlers[m.method]) handlers[m.method](m.params || {});
+    });
+    return {
+      request(method, params) {
+        return new Promise((resolve, reject) => {
+          const id = nextId++;
+          pending.set(id, { resolve, reject });
+          post({ id, method, params });
+          setTimeout(() => {
+            if (pending.delete(id)) reject(new Error(method + ' timed out'));
+          }, 10000);
+        });
+      },
+      notify(method, params) { post({ method, params }); },
+      on(method, fn) { handlers[method] = fn; },
+    };
+  })();
+
+  const applyTheme = (theme) => {
+    if (theme === 'dark' || theme === 'light') document.documentElement.setAttribute('data-theme', theme);
+  };
+  const reportSize = () =>
+    bridge.notify('ui/notifications/size-changed', {
+      width: document.documentElement.scrollWidth,
+      height: document.documentElement.scrollHeight,
+    });
+
+  bridge.on('ui/notifications/tool-result', (result) => {
+    const d = result.structuredContent;
+    if (d && typeof d === 'object' && (typeof d.heatIndexF === 'number' || Array.isArray(d.hours) || typeof d.uvIndex === 'number')) {
+      render(d);
+      reportSize();
+    }
+  });
+  bridge.on('ui/notifications/host-context-changed', (ctx) => applyTheme(ctx.theme));
+
+  render(EXAMPLE);
+
+  if (window.parent && window.parent !== window) {
+    bridge
+      .request('ui/initialize', {
+        protocolVersion: '2026-01-26',
+        appInfo: { name: 'sudor-window', version: '0.2.0' },
+        appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] },
+      })
+      .then((result) => {
+        applyTheme(result && result.hostContext && result.hostContext.theme);
+        bridge.notify('ui/notifications/initialized', {});
+        reportSize();
+      })
+      .catch(() => {
+        // No host answered: keep the example rather than showing nothing.
+      });
+  }
+</script>

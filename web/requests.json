@@ -1,0 +1,222 @@
+{
+  "_comment": "The demo page's requests live here so a test can call every one of them and prove each button is a real tool with real arguments.",
+  "groups": [
+    {
+      "name": "Right now",
+      "requests": [
+        {
+          "say": "Is it safe for me outside right now?",
+          "tool": "weather_check",
+          "args": {}
+        },
+        {
+          "say": "I have to go out anyway. What should I do?",
+          "tool": "going_out_now",
+          "args": {}
+        },
+        {
+          "say": "Tell me the rest of the precautions.",
+          "tool": "going_out_now",
+          "args": {
+            "step": 3
+          }
+        },
+        {
+          "say": "Will I burn faster today?",
+          "tool": "sun_check",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "name": "Planning the day",
+      "requests": [
+        {
+          "say": "When should I walk the dog today?",
+          "tool": "plan_my_day",
+          "args": {
+            "activity": "a walk",
+            "minutes": 30
+          }
+        },
+        {
+          "say": "I need an hour of errands tomorrow.",
+          "tool": "plan_my_day",
+          "args": {
+            "activity": "groceries",
+            "minutes": 60,
+            "day": "tomorrow"
+          }
+        },
+        {
+          "say": "I want to garden for two hours.",
+          "tool": "plan_my_day",
+          "args": {
+            "activity": "gardening",
+            "minutes": 120
+          }
+        }
+      ]
+    },
+    {
+      "name": "When something is wrong",
+      "requests": [
+        {
+          "say": "What are the warning signs I should watch for?",
+          "tool": "warning_signs",
+          "args": {}
+        },
+        {
+          "say": "I feel dizzy and I have a headache.",
+          "tool": "warning_signs",
+          "args": {
+            "symptoms": "dizzy with a headache, sweating a lot",
+            "lastedMinutes": 20
+          }
+        },
+        {
+          "say": "He is confused and has stopped sweating.",
+          "tool": "warning_signs",
+          "args": {
+            "symptoms": "confused, slurring words, hot dry skin, not sweating"
+          }
+        },
+        {
+          "say": "I got back and felt unwell.",
+          "tool": "log_outing",
+          "args": {
+            "felt": "unwell",
+            "minutes": 25,
+            "note": "felt faint at the bus stop"
+          }
+        },
+        {
+          "say": "Should I shovel the snow?",
+          "tool": "should_i_shovel",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "name": "About this person",
+      "requests": [
+        {
+          "say": "What do you know about me?",
+          "tool": "my_profile",
+          "args": {}
+        },
+        {
+          "say": "Has any of my medicine been recalled?",
+          "tool": "medicine_recalls",
+          "args": {}
+        },
+        {
+          "say": "I started taking hydrochlorothiazide.",
+          "tool": "register_medication",
+          "args": {
+            "name": "hydrochlorothiazide"
+          }
+        },
+        {
+          "say": "I have multiple sclerosis.",
+          "tool": "register_condition",
+          "args": {
+            "condition": "multiple sclerosis"
+          }
+        },
+        {
+          "say": "Someone else is in the room, keep it private.",
+          "tool": "set_privacy",
+          "args": {
+            "on": true
+          }
+        },
+        {
+          "say": "Check the heat again, privately.",
+          "tool": "weather_check",
+          "args": {}
+        },
+        {
+          "say": "I am alone now, turn privacy off.",
+          "tool": "set_privacy",
+          "args": {
+            "on": false
+          }
+        },
+        {
+          "say": "I stopped taking hydrochlorothiazide.",
+          "tool": "remove_medication",
+          "args": {
+            "name": "hydrochlorothiazide"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Family",
+      "requests": [
+        {
+          "say": "Tell my daughter if it gets dangerous.",
+          "tool": "add_contact",
+          "args": {
+            "name": "Priya",
+            "email": "priya@example.com",
+            "relation": "daughter",
+            "when": "both"
+          }
+        },
+        {
+          "say": "Yes, confirm her.",
+          "tool": "confirm_contact",
+          "args": {
+            "name": "Priya"
+          }
+        },
+        {
+          "say": "Actually, remove her.",
+          "tool": "remove_contact",
+          "args": {
+            "name": "Priya"
+          }
+        },
+        {
+          "say": "What can you do?",
+          "tool": "what_can_you_do",
+          "args": {}
+        }
+      ]
+    }
+  ],
+  "tools": [
+    "weather_check",
+    "plan_my_day",
+    "going_out_now",
+    "warning_signs",
+    "sun_check",
+    "what_can_you_do",
+    "register_location",
+    "register_medication",
+    "remove_medication",
+    "register_condition",
+    "remove_condition",
+    "my_profile",
+    "set_privacy",
+    "log_outing",
+    "add_contact",
+    "confirm_contact",
+    "remove_contact",
+    "medicine_recalls",
+    "should_i_shovel"
+  ],
+  "seed": {
+    "location": {
+      "place": "Phoenix, Arizona"
+    },
+    "medications": [
+      "doxycycline"
+    ],
+    "conditions": [
+      "multiple sclerosis"
+    ]
+  }
+}

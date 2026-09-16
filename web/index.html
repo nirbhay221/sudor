@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sudor, the heat, your medicines, and your day</title>
+<meta name="description" content="Sudor is an MCP add-on. It reads the live forecast for one address and answers for one person: when to go out, what to do when it cannot wait, and what the warning signs of heat illness mean.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='6.5' fill='%23b85c15'/%3E%3Cg stroke='%23b85c15' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M16 3v3.5M16 25.5V29M3 16h3.5M25.5 16H29M6.8 6.8l2.5 2.5M22.7 22.7l2.5 2.5M25.2 6.8l-2.5 2.5M9.3 22.7l-2.5 2.5'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip" href="#demo">Skip to the live demo</a>
+
+<header class="top">
+  <div class="wrap top-inner">
+    <a class="brand" href="/">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="6.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M16 3v3.5M16 25.5V29M3 16h3.5M25.5 16H29M6.8 6.8l2.5 2.5M22.7 22.7l2.5 2.5M25.2 6.8l-2.5 2.5M9.3 22.7l-2.5 2.5"/></g></svg>
+      <span class="brand-name">Sudor</span>
+      <span class="brand-tag">heat, medicines, and the hours in between</span>
+    </a>
+    <nav class="top-nav">
+      <a href="#demo">Demo</a>
+      <a href="#how">How it works</a>
+      <a href="#limits">Limits</a>
+      <a href="#run">Run it</a>
+      <button id="theme-toggle" type="button" class="ghost" aria-pressed="false">Dark</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero wrap">
+    <p class="eyebrow">MCP add-on, Streamable HTTP, spec 2025-11-25</p>
+    <h1>Heat is not the same danger for everyone.</h1>
+    <p class="lede">
+      A water pill, a beta blocker, an antipsychotic, multiple sclerosis, a spinal cord injury, dialysis: each changes
+      how a body sheds heat, and the forecast does not know any of it. Sudor reads the live forecast for one address
+      and answers for that person. When to go out today. What to do when it cannot wait. What the warning signs mean,
+      and when to call 911.
+    </p>
+    <div class="hero-actions">
+      <a class="button primary" href="#demo">Try it live</a>
+      <a class="button" href="#limits">Read the limits first</a>
+    </div>
+
+    <dl class="stats" id="stats">
+      <div class="stat"><dt>Heat index now</dt><dd id="stat-hi">checking</dd></div>
+      <div class="stat"><dt>Right now, for this profile</dt><dd id="stat-status">checking</dd></div>
+      <div class="stat"><dt>UV index</dt><dd id="stat-uv">checking</dd></div>
+      <div class="stat"><dt>Answer time</dt><dd id="stat-latency">checking</dd></div>
+    </dl>
+    <p class="stats-note" id="stats-note">Live from this server, not a recording.</p>
+  </section>
+
+  <section id="demo" class="section wrap">
+    <div class="section-head">
+      <h2>Live demo</h2>
+      <p>
+        Every answer is computed here, from the live forecast for the demo address. Nothing on this page is scripted.
+        Alexa is not in the loop: the page calls the same tools an Alexa+ add-on would call, and shows what comes back.
+        This is not medical advice, and it is not a doctor.
+      </p>
+    </div>
+
+    <div class="console">
+      <div class="panel-card requests">
+        <p class="label">This browser's profile</p>
+        <p class="farm-note" id="profile-note">Setting up a profile for this browser.</p>
+        <div id="request-groups"></div>
+
+        <details class="advanced">
+          <summary>Call any tool directly</summary>
+          <label class="field">
+            <span>Tool</span>
+            <select id="adv-tool"></select>
+          </label>
+          <label class="field">
+            <span>Arguments, JSON</span>
+            <textarea id="adv-args" rows="3" spellcheck="false">{}</textarea>
+          </label>
+          <div class="advanced-actions">
+            <button class="button primary small" id="adv-run" type="button">Send</button>
+            <button class="button small" id="reset-demo" type="button">Reset profile</button>
+          </div>
+        </details>
+      </div>
+
+      <div class="results">
+        <div class="panel-card answer-card">
+          <div class="answer-head">
+            <p class="label">Spoken answer</p>
+            <p class="meta" id="answer-meta"></p>
+          </div>
+          <p class="answer" id="answer" aria-live="polite">Pick a request on the left and it runs against live weather.</p>
+          <details class="raw" id="raw-wrap" hidden>
+            <summary>Raw response</summary>
+            <pre id="raw"></pre>
+          </details>
+        </div>
+
+        <div class="panel-card screen-card">
+          <div class="answer-head">
+            <p class="label">What an Echo Show would display</p>
+            <p class="meta">MCP Apps, spec 2026-01-26</p>
+          </div>
+          <iframe id="panel" title="Heat and medication panel" src="/ui/window.html" sandbox="allow-scripts"></iframe>
+          <p class="caption">
+            The same panel file the add-on serves, driven through the real handshake. Good, careful and stay inside are
+            never colour alone: each hour carries its own word.
+          </p>
+        </div>
+
+        <div class="panel-card log-card">
+          <p class="label">Recent calls</p>
+          <ol class="log" id="log"><li class="log-empty">Nothing yet.</li></ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="section wrap">
+    <div class="section-head">
+      <h2>How it works</h2>
+      <p>Four decisions shape everything else.</p>
+    </div>
+    <div class="cards">
+      <article class="panel-card">
+        <h3>It answers for one body, not for a city</h3>
+        <p>
+          The same 96 degrees is a fine afternoon for one person and a hospital visit for another. Medications are
+          matched to the way they act, sweating less, holding less water, a heart that cannot speed up, and conditions
+          are matched to how they break the body's cooling, so the answer says which one is driving the risk.
+        </p>
+      </article>
+      <article class="panel-card">
+        <h3>The weather is polled, never fetched mid answer</h3>
+        <p>
+          One forecast call takes about half a second on its own, which is the entire budget for a voice turn. So each
+          registered place is refreshed on a background timer and every answer is served from memory.
+        </p>
+      </article>
+      <article class="panel-card">
+        <h3>A home is not a private room</h3>
+        <p>
+          An aide, a neighbour or a grandchild may be listening. In privacy mode the answer says that something in the
+          health profile makes the heat riskier, without naming it, and holds personal precautions until they are
+          asked for. The heat stroke line is never held back.
+        </p>
+      </article>
+      <article class="panel-card">
+        <h3>It learns only in the safe direction</h3>
+        <p>
+          Saying you felt unwell out there sets that heat index as your limit from then on. Saying you felt fine never
+          loosens it, because one comfortable afternoon is not evidence the next one is safe.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section id="limits" class="section wrap">
+    <div class="section-head">
+      <h2>What it will not do</h2>
+      <p>The honest list. This one matters more than most, because people act on it.</p>
+    </div>
+    <ul class="limits">
+      <li><b>It is not a doctor and not medical advice.</b> It never tells anyone to stop, start or change a medication. It says to ask a doctor or pharmacist.</li>
+      <li><b>Heat stroke goes to 911 first.</b> Confusion, slurred speech or collapse gets the emergency line before anything else, and family are emailed after.</li>
+      <li><b>It will not guess.</b> If the weather service is unreachable it says so.</li>
+      <li><b>It cannot speak first.</b> An add-on answers when called, so the evening warning for tomorrow goes to confirmed contacts by email instead.</li>
+      <li><b>Places are US only</b>, because Alexa+ is.</li>
+      <li><b>This demo profile is temporary.</b> It belongs to this browser and is cleared when the server restarts.</li>
+    </ul>
+  </section>
+
+  <section id="data" class="section wrap">
+    <div class="section-head">
+      <h2>Where the numbers come from</h2>
+      <p>Public sources, called live. No sample files.</p>
+    </div>
+    <ul class="sources">
+      <li><a href="https://open-meteo.com/">Open-Meteo forecast</a><span>hourly temperature and humidity, in the local clock of the place</span></li>
+      <li><a href="https://open-meteo.com/en/docs/air-quality-api">Open-Meteo air quality</a><span>the US air quality index</span></li>
+      <li><a href="https://www.weather.gov/safety/heat-index">NWS heat index</a><span>the Rothfusz equation and the categories</span></li>
+      <li><a href="https://www.cdc.gov/heat-health/hcp/clinical-guidance/heat-and-medications-guidance-for-clinicians.html">CDC, heat and medications</a><span>which drug classes raise heat risk, and why</span></li>
+      <li><a href="https://www.cdc.gov/heat-health/signs-symptoms/index.html">CDC and NWS first aid</a><span>the warning signs and what to do about each</span></li>
+    </ul>
+  </section>
+
+  <section id="run" class="section wrap">
+    <div class="section-head">
+      <h2>Run it yourself</h2>
+      <p>Node 20 or newer. No keys, no accounts, no paid services.</p>
+    </div>
+    <pre class="code"><code>git clone https://github.com/nirbhay221/sudor
+cd sudor
+npm install
+npm run build
+node dist/server.js        # serves this page and the MCP endpoint on 8789</code></pre>
+    <p class="code-note">Call a tool the way a host would:</p>
+    <pre class="code"><code>curl -s http://localhost:8789/mcp \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call",
+       "params":{"name":"heat_check","arguments":{}}}'</code></pre>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-inner">
+    <p>Sudor, an MCP add-on for Alexa+. Built for the Build, Ship, Shape Amazon Developer Hackathon 2026.</p>
+    <p class="foot-links">
+      <a href="https://github.com/nirbhay221/sudor">Source</a>
+      <a href="https://www.cdc.gov/heat-health/">CDC heat health</a>
+      <a href="/health">Server health</a>
+    </p>
+    <p class="disclaimer">
+      Not medical advice, and not a substitute for a doctor or pharmacist. In an emergency call 911. Weather from
+      Open-Meteo; guidance from the CDC and the National Weather Service, used as published. Not affiliated with any
+      of them, or with Amazon.
+    </p>
+  </div>
+</footer>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>

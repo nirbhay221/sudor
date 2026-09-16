@@ -1,0 +1,27 @@
+[Unit]
+Description=Sudor MCP server and demo page
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sudor
+WorkingDirectory=/opt/sudor
+Environment=NODE_ENV=production
+# Above 1024, so this one needs no capability to bind at all. Orbita holds 80 on
+# this host and the gateway in front reaches Sudor on this port.
+Environment=PORT=8081
+Environment=SUDOR_DATA=/var/lib/sudor/people.json
+Environment=SUDOR_OUTBOX=/var/lib/sudor/outbox.jsonl
+Environment=AWS_REGION=us-east-1
+ExecStart=/usr/bin/node /opt/sudor/dist/server.js
+Restart=always
+RestartSec=3
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+ReadWritePaths=/var/lib/sudor
+
+[Install]
+WantedBy=multi-user.target
