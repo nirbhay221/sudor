@@ -98,10 +98,10 @@ const fresh = await call('my_profile', {}, 'freshaaa0002');
 check('a fresh visitor has no location', !fresh.structured?.location, JSON.stringify(fresh.structured));
 check('the seed place is accepted', !(await call('register_location', catalogue.seed.location)).error);
 for (const name of catalogue.seed.medications) {
-  check(`the seed medication "${name}" is accepted`, !(await call('register_medication', { name })).error);
+  check(`the seed medication "${name}" is accepted`, !(await call('medication', { action: 'add', name })).error);
 }
 for (const condition of catalogue.seed.conditions) {
-  check(`the seed condition "${condition}" is accepted`, !(await call('register_condition', { condition })).error);
+  check(`the seed condition "${condition}" is accepted`, !(await call('health_condition', { action: 'add', condition })).error);
 }
 // The place is geocoded in the background and the weather fetched after it, so
 // give that the time a real visitor's browser would give it.
@@ -123,7 +123,7 @@ check('heat stroke signs put 911 first', /call 911/i.test(stroke.text.slice(0, 1
 
 console.log('\nTwo visitors are two profiles');
 await call('register_location', { place: 'Miami, Florida' }, 'otheraaa0003');
-await call('register_medication', { name: 'lithium' }, 'otheraaa0003');
+await call('medication', { action: 'add', name: 'lithium' }, 'otheraaa0003');
 const mine = await call('my_profile', {}, 'testaaaa0001');
 const theirs = await call('my_profile', {}, 'otheraaa0003');
 check('one visitor never sees the other visitor\'s medications',
@@ -138,6 +138,53 @@ const stream = await fetch(`${BASE}/mcp`, { headers: { accept: 'text/event-strea
 const streamMs = Date.now() - streamStarted;
 check('GET /mcp answers 405 rather than hanging', stream.status === 405 && streamMs < 3000, `${stream.status} in ${streamMs} ms`);
 check('...and says which method to use', (stream.headers.get('allow') ?? '').includes('POST'), stream.headers.get('allow') ?? '(none)');
+
+console.log('\nClients that do not send the header the spec asks for');
+const wildcard = await fetch(`${BASE}/mcp`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', accept: '*/*' },
+  body: JSON.stringify({ jsonrpc: '2.0', id: 900, method: 'tools/list' }),
+});
+const wildcardBody = await wildcard.text();
+check('a plain curl, which sends Accept: */*, gets the tool list rather than a 406',
+  wildcard.status === 200 && wildcardBody.includes('"tools"'), `${wildcard.status} ${wildcardBody.slice(0, 90)}`);
+const jsonOnly = await fetch(`${BASE}/mcp`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', accept: 'application/json' },
+  body: JSON.stringify({ jsonrpc: '2.0', id: 901, method: 'tools/list' }),
+});
+check('...while a client that says it cannot read an event stream is still told so',
+  jsonOnly.status === 406, String(jsonOnly.status));
+
+console.log('\nHosts still speaking an older version of the protocol');
+for (const version of ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25']) {
+  const res = await fetch(`${BASE}/mcp`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 902,
+      method: 'initialize',
+      params: { protocolVersion: version, capabilities: {}, clientInfo: { name: 'era-test', version: '0' } },
+    }),
+  });
+  const raw = await res.text();
+  const line = raw.split('\n').find((l) => l.startsWith('data: '));
+  const body = JSON.parse(line ? line.slice(6) : raw);
+  check(`a host on ${version} is answered on ${version}`,
+    res.status === 200 && body.result?.protocolVersion === version, `${res.status} ${JSON.stringify(body).slice(0, 100)}`);
+}
+const stale = await fetch(`${BASE}/mcp`, {
+  method: 'POST',
+  headers: {
+    'content-type': 'application/json',
+    accept: 'application/json, text/event-stream',
+    'mcp-session-id': 'a-session-this-server-never-issued',
+  },
+  body: JSON.stringify({ jsonrpc: '2.0', id: 903, method: 'tools/list' }),
+});
+check('a session id from some other server is ignored rather than refused, because we keep no sessions',
+  stale.status === 200, String(stale.status));
 
 stop();
 rmSync(DATA, { force: true });

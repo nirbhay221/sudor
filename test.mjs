@@ -1,4 +1,4 @@
-import { heatIndexF, heatCategory, assess, photoRisk } from './dist/domain.js';
+import { heatIndexF, heatCategory, assess, photoRisk, GUIDANCE } from './dist/domain.js';
 import { findMedication, MECHANISM_LABEL } from './dist/meds.js';
 
 let pass = 0, fail = 0;
@@ -36,9 +36,25 @@ check('brand name resolves to the generic', findMedication('lasix')?.generic ===
 check('common brand for an SSRI resolves', findMedication('zoloft')?.generic === 'sertraline');
 check('dosage noise is stripped before matching', findMedication('metoprolol 50mg')?.generic === 'metoprolol');
 check('an unknown medication returns null, not a guess', findMedication('made up drug xyz') === null);
-check('a thiazide diuretic carries both mechanisms the CDC assigns it',
+check('a thiazide diuretic carries the two mechanisms the CDC assigns it, and the low-sodium one',
   findMedication('hydrochlorothiazide')?.mechanisms.sort().join(',') ===
-  ['electrolyte_imbalance', 'photosensitivity'].sort().join(','));
+  ['electrolyte_imbalance', 'hyponatremia_risk', 'photosensitivity'].sort().join(','));
+// The advice for this one runs against the usual hot-day line, so it has to say
+// the opposite thing plainly rather than adding a caveat to drink more.
+check('...and its guidance warns about too much plain water rather than too little',
+  /plain water at once can push it lower/.test(GUIDANCE.hyponatremia_risk) && /salty/.test(GUIDANCE.hyponatremia_risk),
+  GUIDANCE.hyponatremia_risk);
+/*
+ * Every guidance line is spliced in after ", so", and a live listen caught two
+ * that read "so and heavy sweating" and "so so drinking" out loud. One rule
+ * covers the whole table: a guidance line never opens with a connective.
+ */
+const doubled = Object.entries(GUIDANCE).filter(([, line]) => /^(and|so|but|then)/i.test(line));
+check('no guidance line doubles the connective it is spliced onto', !doubled.length, doubled.map(([k]) => k).join(', '));
+check('an SSRI carries it too, because that is the other class the reviews name',
+  findMedication('sertraline')?.mechanisms.includes('hyponatremia_risk'));
+check('a loop diuretic does not, because its problem is a different one',
+  !findMedication('furosemide')?.mechanisms.includes('hyponatremia_risk'));
 
 console.log('\nThe verdict: no medications, and a mild day, must not manufacture a risk');
 check('no heat concern and no medications: quiet, not alarming',

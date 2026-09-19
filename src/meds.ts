@@ -25,6 +25,7 @@ export type Mechanism =
   | 'increased_sweating'
   /** Disturbs sodium, potassium or fluid balance, worse once heavy sweating starts. */
   | 'electrolyte_imbalance'
+  | 'hyponatremia_risk'
   /** Blunts thirst or judgement, so the person does not notice they need water
    *  until they are already behind on it. */
   | 'reduced_thirst_or_sedation'
@@ -93,8 +94,8 @@ export function articleFor(drugClass: string): 'a' | 'an' {
 export const MEDICATIONS: Medication[] = [
   // ---- Diuretics: electrolyte imbalance; thiazides also photosensitise ----
   { generic: 'furosemide', aliases: ['lasix'], drugClass: 'loop diuretic', mechanisms: ['electrolyte_imbalance'] },
-  { generic: 'hydrochlorothiazide', aliases: ['hctz', 'microzide'], drugClass: 'thiazide diuretic', mechanisms: ['electrolyte_imbalance', 'photosensitivity'] },
-  { generic: 'chlorthalidone', aliases: ['thalitone'], drugClass: 'thiazide-like diuretic', mechanisms: ['electrolyte_imbalance', 'photosensitivity'] },
+  { generic: 'hydrochlorothiazide', aliases: ['hctz', 'microzide'], drugClass: 'thiazide diuretic', mechanisms: ['electrolyte_imbalance', 'hyponatremia_risk', 'photosensitivity'] },
+  { generic: 'chlorthalidone', aliases: ['thalitone'], drugClass: 'thiazide-like diuretic', mechanisms: ['electrolyte_imbalance', 'hyponatremia_risk', 'photosensitivity'] },
   { generic: 'acetazolamide', aliases: ['diamox'], drugClass: 'diuretic', mechanisms: ['electrolyte_imbalance'] },
 
   // ---- Beta blockers: electrolyte imbalance AND reduced sweating ----
@@ -132,8 +133,8 @@ export const MEDICATIONS: Medication[] = [
   { generic: 'clomipramine', aliases: ['anafranil'], drugClass: 'tricyclic antidepressant', mechanisms: ['reduced_sweating'], cold: ['reduced_awareness_cold']  },
 
   // ---- SSRIs and SNRIs: increased sweating, and reduced thirst/sedation ----
-  { generic: 'fluoxetine', aliases: ['prozac'], drugClass: 'SSRI', mechanisms: ['increased_sweating', 'reduced_thirst_or_sedation'] },
-  { generic: 'sertraline', aliases: ['zoloft'], drugClass: 'SSRI', mechanisms: ['increased_sweating', 'reduced_thirst_or_sedation'] },
+  { generic: 'fluoxetine', aliases: ['prozac'], drugClass: 'SSRI', mechanisms: ['increased_sweating', 'hyponatremia_risk', 'reduced_thirst_or_sedation'] },
+  { generic: 'sertraline', aliases: ['zoloft'], drugClass: 'SSRI', mechanisms: ['increased_sweating', 'hyponatremia_risk', 'reduced_thirst_or_sedation'] },
   { generic: 'duloxetine', aliases: ['cymbalta'], drugClass: 'SNRI', mechanisms: ['increased_sweating', 'reduced_thirst_or_sedation'] },
   { generic: 'venlafaxine', aliases: ['effexor'], drugClass: 'SNRI', mechanisms: ['increased_sweating', 'reduced_thirst_or_sedation'] },
 
@@ -189,6 +190,7 @@ export function findMedication(spoken: string): Medication | null {
 
 export const MECHANISM_LABEL: Record<Mechanism, string> = {
   reduced_sweating: 'blocks your sweating',
+  hyponatremia_risk: 'can send your sodium too low',
   increased_sweating: 'makes you sweat more than usual',
   electrolyte_imbalance: 'disturbs your electrolytes',
   reduced_thirst_or_sedation: 'blunts your thirst or alertness',
@@ -201,6 +203,7 @@ export const MECHANISM_BASE: Record<Mechanism, string> = {
   reduced_sweating: 'block your sweating',
   increased_sweating: 'make you sweat more than usual',
   electrolyte_imbalance: 'disturb your electrolytes',
+  hyponatremia_risk: 'send your sodium too low',
   reduced_thirst_or_sedation: 'blunt your thirst or alertness',
   increased_heat_production: 'raise your own heat production',
   photosensitivity: 'make your skin burn faster in the sun',

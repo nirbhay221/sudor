@@ -39,9 +39,9 @@ for (let i = 0; i < 20 && !ready; i++) {
 }
 show('Heat check, nothing registered yet', ready);
 
-show('Add metoprolol', await tool('register_medication', { name: 'metoprolol 50mg' }));
-show('Add lisinopril', await tool('register_medication', { name: 'lisinopril' }));
-show('Add a condition, the way it is said', await tool('register_condition', { condition: 'I have multiple sclerosis' }));
+show('Add metoprolol', await tool('medication', { action: 'add', name: 'metoprolol 50mg' }));
+show('Add lisinopril', await tool('medication', { action: 'add', name: 'lisinopril' }));
+show('Add a condition, the way it is said', await tool('health_condition', { action: 'add', condition: 'I have multiple sclerosis' }));
 
 const heat = await tool('weather_check');
 show('Is it safe for me outside right now', heat);

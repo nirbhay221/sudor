@@ -1,0 +1,10 @@
+node_modules/
+dist/
+data/
+.deploy/
+.git/
+.github/
+deploy/
+test*.mjs
+probe.mjs
+FRICTION.md

@@ -8,7 +8,10 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "npm run build && npm run test:unit && npm run test:live",
+    "test:unit": "node test.mjs && node test-personal.mjs && node test-cold.mjs && node test-actions.mjs && node test-recalls.mjs && node test-warnings.mjs && node test-spaceweather.mjs && node test-shelters.mjs && node test-panel.mjs && node test-auth.mjs && node test-static-client.mjs",
+    "test:live": "node test-web.mjs && node test-contract.mjs && node test-latency.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-sesv2": "^3.1131.0",

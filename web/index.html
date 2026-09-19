@@ -67,6 +67,7 @@
       <div class="panel-card requests">
         <p class="label">This browser's profile</p>
         <p class="farm-note" id="profile-note">Setting up a profile for this browser.</p>
+        <button class="button small" id="use-location" type="button">Use my location</button>
         <div id="request-groups"></div>
 
         <details class="advanced">
@@ -197,6 +198,7 @@ cd sudor
 npm install
 npm run build
 node dist/server.js        # serves this page and the MCP endpoint on 8789</code></pre>
+    <p class="code-note">Or, with nothing installed but Docker: <code>docker build -t sudor . &amp;&amp; docker run -p 8789:8789 sudor</code></p>
     <p class="code-note">Call a tool the way a host would:</p>
     <pre class="code"><code>curl -s http://localhost:8789/mcp \
   -H 'content-type: application/json' \

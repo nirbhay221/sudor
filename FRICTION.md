@@ -137,3 +137,103 @@ with no `Z`. `new Date()` reads a string without a zone as the machine's local t
 in Central time "when does it ease off" was five hours out, and would be wrong by a different amount
 on every host. The server now requests `timezone=auto`, keeps the location's wall clock for what it
 says, and converts each hour to a true UTC instant with the `utc_offset_seconds` Open-Meteo returns.
+
+---
+
+## 7. "Detect and prevent duplicate transactions" is a requirement, and the protocol gives a stateless server nothing to detect them with
+
+**Severity: medium. The requirement is right, and meeting it is left entirely to guesswork.**
+
+**Task.** Meet the functional requirement *"Detect and prevent duplicate transactions"*, whose own
+example is a customer who already has a booking being offered a modification rather than a second one.
+
+**Expected.** Somewhere in the add-on documentation, a sentence saying whether Alexa+ retries a tool
+call it believes failed, and if so, what arrives with the retry that a server can recognise.
+
+**Actual.** Nothing in the MCP add-on pages, the QuickStart or the functional requirements says
+whether the host retries, on what timeout, or how many times. The protocol does not close the gap
+either: a JSON-RPC id is unique per connection, and a stateless Streamable HTTP server sees a new
+connection for every call, so the id is no help. There is no idempotency key in `tools/call`. The
+result is that a server cannot tell a retried request from a customer saying the same sentence
+twice, and both have to be handled the same way whether that is right or not.
+
+The newest specification, 2026-07-28, confirms this rather than fixing it. It states plainly that
+"MCP has no protocol-level session, so a server cannot rely on implicit per-connection state to
+relate one tool call to the next", its guidance on carrying state is explicitly non-normative, and
+where it does define a retry, for multi round-trip input, it requires the opposite of what
+deduplication needs: "the JSON-RPC `id` MUST be different between the initial request and the
+retry".
+
+This was not theoretical here. Until this week, "I just got back and I felt unwell" said twice recorded two outings, because the write had no condition on it at all. The second answer was identical to the first, so nothing about it looked wrong.
+
+**Workaround.** Treat identical writes inside a two minute window as one: an outing reported twice is recorded once, which matters here because an unwell outing sets the personal heat limit and a duplicate would weigh one bad afternoon twice. A retry
+arrives in seconds, and nobody does the same thing twice that fast. The second answer says what
+happened, in the shape the requirement's own example uses.
+
+**Suggestion.** One sentence in the add-on documentation about host retry behaviour, and, if
+retries happen, a stable request identifier carried in `_meta` so a server can recognise one. Until
+then, every add-on that writes anything is inventing the same window, and choosing it differently.
+
+---
+
+## 8. Nothing says which Accept header the host sends, and the reference transport refuses the wildcard
+
+**Severity: medium for anyone testing by hand. It reads as a broken endpoint.**
+
+**Task.** Confirm the MCP endpoint answers, the way anyone would: `curl` it.
+
+**Expected.** A JSON-RPC answer, or an error that says what is wrong.
+
+**Actual.** `406 Not Acceptable: Client must accept both application/json and text/event-stream`.
+The Streamable HTTP specification does ask clients to send both types, and the reference TypeScript
+SDK enforces it by string match, so `Accept: */*`, which is curl's default and is what several HTTP
+clients send, is refused although it accepts both types by definition. A developer's first contact
+with their own server is a 406 that looks like a fault in the server.
+
+The Alexa+ documentation does not say what its host sends, so there is no way to know from the docs
+whether this matters in production or only on the bench.
+
+**Workaround.** A wildcard, or a missing Accept, is widened to the pair the transport wants before
+the request reaches it; an Accept that names `application/json` and nothing else is still refused,
+because that client genuinely cannot read the event stream we answer with. Tested both ways in
+`test-web.mjs`.
+
+**Suggestion.** State the headers the Alexa+ host sends, and the protocol versions it will
+negotiate, on the MCP Toolkit page. One table would remove an entire class of guesswork. The
+wildcard case belongs upstream in the SDK, but the documentation gap is Amazon's to close.
+
+---
+
+## 9. When arguments fail validation, the protocol's own error text is what the customer hears
+
+**Severity: medium. It breaks two functional requirements at once, and the default is to do nothing.**
+
+**Task.** Make sure a mis-heard word produces something a customer can act on, as
+*"Provide actionable next step for every error"* and *"Surface no API codes, tool names, JSON, or
+internal IDs in any customer-facing response"* both require.
+
+**Expected.** That a schema mismatch produces an error the host turns into a question.
+
+**Actual.** The tool result that comes back is, verbatim:
+`MCP error -32602: Input validation error: Invalid arguments for tool medication: Invalid enum value.
+Expected 'add' | 'remove', received 'stopped'`. That string is the tool's output, so it
+is what the host has to work from, and it contains an error code, a tool name and an internal enum.
+Nothing in the documentation mentions this, and the default behaviour of the reference SDK breaks
+both requirements without the developer doing anything wrong.
+
+**Workaround.** The `tools/call` handler is wrapped, and a validation failure is rewritten into the
+plainest true sentence: the choices we do have, at most five of them because the voice requirements
+cap spoken options at five, with underscores removed and the rejected word never offered back as a
+choice. `test-contract.mjs` calls every tool with arguments it never asked for and fails the build
+if protocol text reaches the answer.
+
+The specification is on the side of rewriting it. It sorts errors into protocol errors, for
+"issues with the request structure itself that models are less likely to be able to fix", and tool
+execution errors, which "contain actionable feedback that language models can use to self-correct",
+and it lists "input validation errors (e.g., date in wrong format, value out of range)" under the
+second kind. A schema mismatch arriving as a protocol error, with the code and the tool name in the
+text, is the case the specification says should read as actionable feedback instead.
+
+**Suggestion.** Say in the certification pages that a schema validation failure is customer-facing,
+and recommend rewriting it. Better still, have the toolkit offer a hook for it, since every add-on
+built on the reference SDK has this exact behaviour until someone notices.

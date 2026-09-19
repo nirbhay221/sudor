@@ -117,8 +117,15 @@ Free sources, no API keys.
   for today and tomorrow, requested in the location's own timezone
 * Open-Meteo air quality: hourly US AQI, joined to the forecast by hour
 * Open-Meteo geocoding: a spoken city and state, or a US zip code, into coordinates
+* [api.weather.gov](https://www.weather.gov/documentation/services-web-api): official watches, warnings and
+  advisories for each registered address, polled every ten minutes, including the instruction text written by the
+  forecast office that issued them
 * [openFDA drug enforcement reports](https://open.fda.gov/apis/drug/enforcement/): open recalls,
   matched against the medicines this person takes, checked every six hours in the background
+* [FEMA and Red Cross National Shelter System](https://gis.fema.gov/arcgis/rest/services/NSS/FEMA_NSS/MapServer):
+  the shelters open right now, nationally, with whether each has a generator, step-free access or takes
+  pets. On an ordinary day that is a handful for the whole country, so the list is small enough to hold
+  in memory and the distance arithmetic happens here
 
 Measured before choosing the architecture: a forecast call took 420 to 480 ms, the forecast and air
 quality calls together 772 ms, and a geocoding lookup 740 to 1000 ms. Alexa+ allows roughly 500 ms
@@ -134,9 +141,20 @@ instant for comparing.
 The heat index is the NWS Rothfusz regression, the formula behind the official chart, not
 Open-Meteo's apparent temperature, because the NWS categories were built on the NWS number.
 
+**Where the medication advice bends the usual rule.** A 2026 scoping review of medication and
+heat-related illness in older adults, covering 61 primary studies, groups thiazides, SSRIs and the
+renin-angiotensin drugs together as the class where ordinary hot-day advice can do harm: their risk
+is hyponatremia, so the danger is too much plain water rather than too little
+([Pharmacy 14(3):74, 2026](https://doi.org/10.3390/pharmacy14030074)). Those medicines now carry
+their own mechanism here, and it outranks the general electrolyte line, so someone on a thiazide is
+told to sip through the day and take something salty rather than to drink more water. A loop
+diuretic, whose problem is a different one, still gets the ordinary advice.
+
 ## Tools
 
-Seventeen tools.
+Eighteen tools. Fewer than there were, deliberately: published benchmarks put tool selection above 90 percent
+up to about twenty tools and falling away after that, so adding and removing the same thing is one tool with an
+action, not two.
 
 **Answers**
 * `plan_my_day` the best time to go out today or tomorrow for an errand of a given length, and the
@@ -148,22 +166,95 @@ Seventeen tools.
 * `weather_check` whether right now is fine, a time for care, or better spent inside, and why
 * `sun_check` sunburn risk from UV for a photosensitising medication
 * `medicine_recalls` open FDA recalls on the medicines this person actually takes, worst first
+* `weather_warnings` official National Weather Service alerts for their address, with the weather service's own
+  instructions, and why this one is worse for them
+* `storm_prep` what a storm or a power cut means for their medicines: refrigeration, dialysis, oxygen, supply
+* `should_i_shovel` whether heavy work in the cold is a risk for this person
+* `somewhere_to_go` open shelters near this address when the house is too cold or too hot to stay in,
+  which ones have a generator, step-free access or take pets, and the 211 line for the local warming
+  and cooling centres no federal list carries
 * `what_can_you_do` including that it is not a doctor and not medical advice
 
 **About you**
 * `register_location` by city and state or zip code
-* `register_medication` and `remove_medication` by generic or brand name
-* `register_condition` and `remove_condition` the way people say it, "I have MS", "my husband is on
-  dialysis"
-* `my_profile` reads back everything it has been told
+* `medication` adds or removes one, by generic or brand name
+* `health_condition` adds or removes one, the way people say it, "I have MS", "my husband is on dialysis"
+* `my_profile` reads back everything it has been told, and `action forget` deletes all of it: the fresh
+  start the certification requirements ask for, said back as counts rather than a list of medicines, and
+  only done when asked a second time
+
+Every tool also declares what it does to the world, in the annotations the specification carries:
+whether it only reads, whether it can take something away, whether saying it twice changes anything,
+and whether its answer depends on a service outside this process.
 * `set_privacy` keeps medications and conditions out of spoken answers
 * `log_outing` records how a trip outside went
 
 **Family**
-* `add_contact` stages a family member or caregiver to email in an emergency, the evening before a
-  stay-inside day, or both, and `confirm_contact` confirms them. Nothing is sent to anyone
-  unconfirmed
-* `remove_contact`
+* `contact` adds, confirms or removes a family member or caregiver to email in an emergency or the evening
+  before a stay-inside day. Nothing is sent to anyone unconfirmed
+
+## When the house is the problem
+
+A power cut in winter is not an inconvenience for everyone. The CDC puts the indoor floor at 68F and
+says a house sitting at 60 to 65F can bring on hypothermia in an older adult, which is a temperature
+most people would call chilly rather than dangerous, and it happens slowly enough not to register.
+Their first answer is to go and stay with a relative or a friend. `somewhere_to_go` is for the person
+who has nobody to ask.
+
+It reads two sources because neither is enough alone. FEMA and the Red Cross publish the shelters
+that are **open right now**, which is authoritative, national, free, and carries the three things that
+decide whether a building is any use to a particular person: a generator, step-free access, and
+whether a pet can come. Someone who will not leave a dog behind is someone who stays in a cold house.
+What that feed does not carry is the city hall that opened its library for a cold snap, because it is
+built for declared disasters. So every answer also gives 211, by phone and by text, which is the line
+that does know about the library.
+
+Three rules, all tested:
+
+* **A failed check is never "nothing is open".** That sentence would send someone back into a cold
+  house on the strength of a timeout. It says it could not find out, and hands over 211.
+* **A blank in the feed is not a no.** If the generator field is empty and this person runs an oxygen
+  concentrator, the answer says the list does not record one and to ask when they ring, rather than
+  quietly leaving it out.
+* **The relative or friend comes first**, because that is the CDC's own first line, and a test fails
+  the build if a shelter name ever appears before it.
+
+## One add-on asking another
+
+The National Weather Service does not forecast the sun. A severe geomagnetic storm is the other way
+a power grid gets into trouble, and NOAA's own scale says a G4 can bring "possible widespread
+voltage control problems" and that at G5 "some grid systems may experience complete collapse or
+blackouts" ([NOAA space weather scales](https://www.swpc.noaa.gov/noaa-scales-explanation)). For a
+person keeping insulin between 36 and 46 degrees, or running an oxygen concentrator, that is a
+medical question rather than an astronomical one.
+
+Orbita already reads that forecast, and it is an MCP server, so Sudor talks to it the way a host
+would: it opens a Streamable HTTP MCP client, calls the public `storm_status` tool twice an hour,
+and reads the NOAA scale out of the answer. `storm_prep` then leads with the storm when one is
+coming. `SUDOR_ORBITA_URL` points at the Orbita to ask; without it the feature is simply off.
+
+Two rules make it safe, and both are tested against a stand-in Orbita that records everything it
+receives:
+
+* **Nothing personal goes the other way.** The call carries no arguments at all: no location, no
+  medicines, no identifier. `test-spaceweather.mjs` reads the wire and fails if the word
+  "medication", "lat", "email" or the demo city appears anywhere in the transcript.
+* **A failure is silence, never an all clear.** Unreachable, slow, or an answer in an unexpected
+  shape all mean the same thing: say nothing about space weather. Telling someone on home oxygen
+  that the grid looks fine because a request timed out would be the worst thing this could do.
+
+**And it stays quiet below G4, because the history says so.** The bar started at G3 until the record
+was checked properly, and G3's grid line in the NOAA scale is "voltage corrections may be required,
+false alarms triggered on some protection devices", which is a control room's afternoon, not a
+household's. Even at G4 and G5 the base rate is that nothing happens: since the Quebec collapse of
+March 1989 there has been one small regional outage from a geomagnetic storm in the developed world,
+Malmo in October 2003, and North America has come through every storm since with the lights on,
+including the G5 of May 2024, where the grid held across three days of G3 to G5 conditions. GMD
+planning has been a mandatory NERC standard since 2016.
+
+So the line is a nudge to charge things, never a forecast about anyone's street, it carries that
+base rate every time it is said, and it comes at the end of the answer rather than in front of the
+insulin. A test fails the build if it ever leads.
 
 ## Family, privacy, and learning from a bad afternoon
 
@@ -186,6 +277,25 @@ will be safe, so feeling fine never loosens anything.
 
 **Taking things back out.** Medications, conditions and contacts can all be removed. Before this, a
 stopped medication kept shaping every answer forever.
+
+## Warnings, and what a storm means for a medicine cabinet
+
+Sudor does not write safety advice for a flood. The forecast office that issued the alert already did, and their
+words are better than anything this project would invent, so the weather service is quoted and the personal half
+is added on top: which of these alerts is worse because of the medicines and conditions on file.
+
+That personal half is the part nobody else can do:
+
+* **Insulin needs 36 to 46 degrees.** If the power goes, the FDA's own guidance is that insulin kept too warm can
+  still be used when there is nothing else, and that frozen insulin cannot. Telling someone to throw it away would be
+  the dangerous answer.
+* **Dialysis needs a clinic that is open.** Before the storm, ring the unit. If a treatment is missed, the National
+  Kidney Foundation's three day emergency diet exists for exactly that.
+* **Anything that plugs in needs a plan.** Oxygen concentrators and nebulisers stop when the power does.
+* **A week of everything, written on paper**, because a phone with a flat battery cannot tell a paramedic anything.
+
+A cold outage adds the warning that kills people after the storm rather than during it: no generator, grill or
+camping stove indoors or in the garage.
 
 ## Recalls on the medicines you take
 
@@ -247,15 +357,38 @@ failing quietly in front of someone.
 npm install
 npm run build
 npm start                   # demo page on http://localhost:8789, MCP endpoint on /mcp
+```
 
-node test.mjs               # 31 tests: heat index formula, categories, medications
-node test-personal.mjs      # 74 tests: conditions, sensitivity, planning, precautions, first aid, places, timezones, tools
-node test-actions.mjs       # 28 tests: removing, privacy mode, learned limits, contacts, emergency and stay-inside emails
-node test-panel.mjs         # 14 tests: the MCP Apps handshake against a simulated host
-node test-auth.mjs          # 23 tests: OAuth 2.1 with PKCE against a running server
-node test-static-client.mjs # 8 tests: the account linking shape Alexa+ actually uses
-node test-recalls.mjs       # 21 tests: FDA recalls, severity, privacy, and never a false all clear
-node test-web.mjs           # 48 tests: the demo page, every request on it, one profile per visitor
+Or without installing Node at all:
+
+```bash
+docker build -t sudor . && docker run -p 8789:8789 sudor
+```
+
+`npm test` runs everything, 573 checks. It is also what CI runs on every push, on Node 20 and 22,
+with the live suite in its own job so an outage at a weather service is never mistaken for a
+regression here.
+
+```bash
+npm run test:unit           # 340 checks, no live data
+npm run test:live           # 233 checks, against the real forecast
+
+node test.mjs               # 35: heat index formula, categories, medications, how the lines read aloud
+node test-personal.mjs      # 84: conditions, an age said aloud, sensitivity, planning, precautions, first aid
+node test-actions.mjs       # 47: removing, privacy, learned limits, contacts, emails, repeats, forgetting, retention
+node test-panel.mjs         # 14: the MCP Apps handshake against a simulated host
+node test-auth.mjs          # 23: OAuth 2.1 with PKCE against a running server
+node test-static-client.mjs # 8: the account linking shape Alexa+ actually uses
+node test-cold.mjs          # 27: wind chill against the NWS chart, frostbite times, hypothermia first aid
+node test-recalls.mjs       # 21: FDA recalls, severity, privacy, and never a false all clear
+node test-warnings.mjs      # 29: official alerts, the personal half, and storm prep by medicine
+node test-spaceweather.mjs  # 30: asking Orbita over MCP, what crosses the wire, the base rate, silence on failure
+node test-shelters.mjs      # 22: open shelters, distances, what the feed does not say, and 211
+node test-web.mjs           # 58: the demo page, every request on it, one profile per visitor, older hosts
+node test-contract.mjs      # 147: every listed tool invoked for real, on an empty profile and a half set
+                            #       up one, with junk arguments, annotations checked, and every answer read
+                            #       back for sentences that would stumble out loud
+node test-latency.mjs       # 14: the voice budget, measured per tool, written to LATENCY.md
 node probe.mjs              # end to end against live Open-Meteo and geocoding
 ```
 
@@ -273,6 +406,26 @@ export SUDOR_AUTH=on
 Expose it with `cloudflared tunnel --url http://localhost:8789`, then link it through
 [`KayLerch/alexa-skill-mcp-bridge`](https://github.com/KayLerch/alexa-skill-mcp-bridge), the same
 way as its sibling project [Orbita](https://github.com/nirbhay221/orbita).
+
+## What it keeps, and for how long
+
+A public endpoint holds records for anyone who calls it, so three limits exist and each one is tested:
+
+* **Reading never creates a record.** Any string can arrive as a demo id, and a read that created a
+  record would be a tap a stranger could leave running.
+* **Nothing grows without a ceiling.** Outings and the record of alerts already sent are both capped. The oldest entries go first, and the caps are far
+  past what real use produces.
+* **Demo profiles expire after a week.** Anything with a demo id and no write for seven days is swept daily,
+  and these hold medicines, conditions and how somebody felt on a hot afternoon. A record belonging to a linked account is never swept: that one was asked for, and there is
+  a tool to clear it on request.
+
+Writes go to a temporary file and are renamed over the real one, which is atomic on a single
+filesystem. A crash partway through a direct write leaves a truncated file that still parses, which
+is worse than losing it outright because nothing complains.
+
+The endpoint is rate limited per caller, a burst of 600 refilling at ten a second, which is far
+above anything a conversation does and far below a script. The specification asks for it and we had
+nothing.
 
 ## Performance
 

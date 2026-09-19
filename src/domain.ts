@@ -88,6 +88,7 @@ const MECHANISM_SEVERITY: Record<Mechanism, number> = {
   reduced_sweating: 5,
   increased_heat_production: 4,
   reduced_thirst_or_sedation: 3,
+  hyponatremia_risk: 4,
   electrolyte_imbalance: 3,
   increased_sweating: 2,
   photosensitivity: 0, // tracked, but this is a UV question, never a heat-index one
@@ -106,7 +107,15 @@ export const GUIDANCE: Record<Exclude<Mechanism, 'photosensitivity'>, string> = 
   reduced_thirst_or_sedation:
     "you can be behind on fluids well before you feel it. Drink on a schedule, not on thirst.",
   electrolyte_imbalance:
-    "and heavy sweating pushes it further in the same direction. Plain water alone is not enough today; an electrolyte drink is worth having.",
+    "heavy sweating pushes it further in the same direction. Plain water alone is not enough today; an electrolyte drink is worth having.",
+  // The one place where the standard hot-day advice is the thing that hurts.
+  // A 2026 scoping review of medication and heat illness in older adults puts
+  // thiazides, SSRIs and the renin-angiotensin drugs together as the group where
+  // dehydration advice has to be given carefully, because their own risk is
+  // hyponatremia: too much plain water, not too little.
+  // https://doi.org/10.3390/pharmacy14030074
+  hyponatremia_risk:
+    "drinking a lot of plain water at once can push it lower rather than help. Sip through the day instead of drinking a lot in one go, have something salty with your food, and ask your pharmacist what you should be drinking on hot days.",
   increased_sweating:
     "which is a faster route to dehydration even though your cooling itself is working fine.",
 };

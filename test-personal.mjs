@@ -30,6 +30,19 @@ check('"type 2 diabetes" is diabetes', findCondition('type 2 diabetes')?.id === 
 check('"erythromelalgia" is recognised', findCondition('Erythromelalgia')?.id === 'erythromelalgia');
 check('"arms" does not match MS', findCondition('I hurt my arms') === null);
 check('something unknown is not guessed', findCondition('a sore thumb') === null);
+
+/*
+ * The aliases were all categories, "older adult", "senior", "over 65", and
+ * nobody describes themselves that way. A shelter test written in a real
+ * sentence, "I am 80 years old", matched nothing at all, which meant the whole
+ * indoor-hypothermia half of the cold advice never reached the people it was
+ * written for. Sixty-five is where the CDC and the NIA draw the line, and "is"
+ * is in the pattern because a daughter setting this up says "my mother is 88".
+ */
+for (const said of ['I am 80 years old', "I'm 78", 'aged 91', '65 years old', 'my mother is 88', 'she is 91'])
+  check(`"${said}" is heard as age 65 or over`, findCondition(said)?.id === 'older_adult', String(findCondition(said)?.id));
+for (const said of ['I am 40', '64 years old', 'I take 80 mg of something', 'I am 7'])
+  check(`"${said}" is not`, findCondition(said)?.id !== 'older_adult', String(findCondition(said)?.id));
 check('every condition names an https source',
   CONDITIONS.every((c) => c.sources.length && c.sources.every((s) => /^https:\/\//.test(s.url))));
 check('no em dashes in condition advice', !/[\u2013\u2014]/.test(JSON.stringify(CONDITIONS)));
@@ -173,7 +186,7 @@ store.update('tester', (p) => {
 const heat = await handlers.weather_check({});
 check('a heat check that names a medication warns not to stop it', /doctor or pharmacist/.test(heat.content[0].text), heat.content[0].text);
 check('...and tells this person to stay in', /better to stay in/.test(heat.content[0].text));
-const cond = await handlers.register_condition({ condition: 'I have MS' });
+const cond = await handlers.health_condition({ action: 'add', condition: 'I have MS' });
 check('registering MS reads back its plan', /Added multiple sclerosis/.test(cond.content[0].text), cond.content[0].text);
 const signs = await handlers.warning_signs({ symptoms: 'he is slurring his words' });
 check('the warning signs tool answers an emergency with 911', /Call 911/.test(signs.content[0].text));

@@ -45,7 +45,7 @@ recalls.configureForTest(fakeFda);
 
 console.log('\nBefore anything is known');
 check('with no medicines it asks for them', /Tell me your medications/.test(text(await tools.medicine_recalls({}))));
-await tools.register_medication({ name: 'lisinopril' });
+await tools.medication({ action: 'add', name: 'lisinopril' });
 recalls.configureForTest(fakeFda); // clears the cache, so nothing has been checked yet
 check('a medicine nobody has checked yet is honest about that, rather than clear',
   /haven't managed to check/.test(text(await tools.medicine_recalls({}))), text(await tools.medicine_recalls({})));
@@ -60,7 +60,7 @@ check('it never tells anyone to stop taking it', /Don't stop taking it on your o
 check('one medicine means no headline count', !/of your medicines/.test(text(one)), text(one));
 
 console.log('\nA class one recall is treated as more urgent');
-await tools.register_medication({ name: 'Lasix' });
+await tools.medication({ action: 'add', name: 'Lasix' });
 await recalls.refresh('furosemide', true);
 const serious = await tools.medicine_recalls({});
 check('the most serious recall is read first', /Furosemide has an open recall/.test(text(serious)), text(serious));
@@ -69,7 +69,7 @@ check('the milder one is mentioned briefly rather than read out in full', /Lisin
 check('two affected medicines are counted as two, not as notices', /^2 of your medicines have open recalls/.test(text(serious)), text(serious));
 
 console.log('\nA medicine the heat table does not know is still watched');
-const unknown = await tools.register_medication({ name: 'my special pills' });
+const unknown = await tools.medication({ action: 'add', name: 'my special pills' });
 check('an unrecognised medicine says so, and says it will still watch recalls',
   /I don't have "my special pills" in my list yet/.test(text(unknown)) && /still watch the FDA recall list/.test(text(unknown)), text(unknown));
 check('...and it is kept by name', store.get(who).recallWatch.includes('my special pills'), JSON.stringify(store.get(who).recallWatch));

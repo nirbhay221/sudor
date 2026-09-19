@@ -1,0 +1,95 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Base URL to smoke test after a deploy'
+        required: false
+        type: string
+
+jobs:
+  tests:
+    name: tests on node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 is what the server runs in production. 22 is there to catch a
+        # break before the box is ever moved to it.
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run build
+      - run: npm run test:unit
+
+  live-data:
+    # The suite that starts the real server and reads the forecast, the air
+    # quality and the weather service warnings for real. It is kept in its own
+    # job so an outage upstream is never mistaken for a regression in here.
+    name: against live weather
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:live
+        env:
+          # Runners are shared and noisy; the laptop figure is in LATENCY.md.
+          LATENCY_BUDGET_MS: '200'
+
+  container:
+    name: docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t sudor:ci .
+      - name: it answers on /health
+        run: |
+          docker run -d --name sudor -p 8789:8789 sudor:ci
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8789/health && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8789/health
+          docker rm -f sudor
+
+  # A deploy that nobody checked is a deploy that might be down. Run this by hand
+  # after pushing to the box, or point it at any URL that should be serving.
+  smoke:
+    name: smoke test a live deployment
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: it is up, it knows the protocol, and it lists its tools
+        run: |
+          BASE="${{ inputs.url || vars.SUDOR_URL }}"
+          if [ -z "$BASE" ]; then echo "no url given and no SUDOR_URL variable set"; exit 1; fi
+          echo "checking $BASE"
+          curl -fsS --max-time 10 "$BASE/health" | tee /tmp/health.json
+          grep -q '"ok":true' /tmp/health.json
+          grep -q '2025-11-25' /tmp/health.json
+          # Counted by parsing the answer, not by grepping for a word that also
+          # appears inside every tool's schema: that first version said 21 tools
+          # for a server with 15.
+          TOOLS=$(curl -fsS --max-time 10 -X POST "$BASE/mcp"             -H 'content-type: application/json'             -H 'accept: application/json, text/event-stream'             -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'             | sed -n 's/^data: //p'             | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["result"]["tools"]))')
+          echo "tools listed: $TOOLS"
+          [ "$TOOLS" -ge 18 ]
+          # A stream request must answer rather than hang: a probe once found a
+          # GET holding the connection open, which the gateway reported as a 503.
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H 'accept: text/event-stream' "$BASE/mcp")
+          echo "GET /mcp -> $code"
+          [ "$code" = "405" ]

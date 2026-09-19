@@ -15,6 +15,25 @@ const SESSION_KEY = 'sudor.demo.session';
 const THEME_KEY = 'sudor.demo.theme';
 
 const el = (id) => document.getElementById(id);
+/**
+ * The visitor's own place, if they offer it.
+ *
+ * A demo that answers about a farm in Iowa, or a person in Phoenix, is answering
+ * about nobody. One click makes every number on this page about where the
+ * visitor actually is, which is the only way the answers can be checked against
+ * what they can see out of the window.
+ */
+function askForLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: Number(p.coords.latitude.toFixed(3)), lon: Number(p.coords.longitude.toFixed(3)) }),
+      () => resolve(null),
+      { timeout: 10000, maximumAge: 600000 },
+    );
+  });
+}
+
 const session = (() => {
   let id = null;
   try { id = localStorage.getItem(SESSION_KEY); } catch { /* private mode */ }
@@ -258,8 +277,30 @@ function buildRequests() {
  * ------------------------------------------------------------------ */
 
 const PROFILE_NOTE =
-  `${SEED.location.place}, taking ${SEED.medications.join(' and ')}, living with ${SEED.conditions.join(' and ')}. ` +
-  'This profile belongs to your browser alone, and the requests below can change it.';
+  `Stand-in profile, not a real person: ${SEED.location.place}, taking ${SEED.medications.join(' and ')}, living ` +
+  `with ${SEED.conditions.join(' and ')}. Use your own location and the weather half becomes real for you. ` +
+  'The medicines stay a stand-in, because nobody should type their prescriptions into a demo.';
+
+/** Replace the stand-in place with the visitor's real coordinates. */
+async function useMyLocation() {
+  const note = el('profile-note');
+  const button = el('use-location');
+  button.disabled = true;
+  button.textContent = 'Asking your browser...';
+  const where = await askForLocation();
+  if (!where) {
+    button.disabled = false;
+    button.textContent = 'Use my location';
+    note.textContent = `${PROFILE_NOTE} Your browser did not share a location, so the stand-in place is still in use.`;
+    return;
+  }
+  await callTool('register_location', { place: 'your location', lat: where.lat, lon: where.lon });
+  note.textContent =
+    `Now using your own coordinates, ${where.lat}, ${where.lon}, with the stand-in medicines still on the list. ` +
+    'The heat, cold, air and warnings below are the real ones where you are.';
+  button.textContent = 'Added';
+  setTimeout(() => void refreshNow(), 2500);
+}
 
 async function ensureProfile() {
   const note = el('profile-note');
@@ -271,8 +312,8 @@ async function ensureProfile() {
     }
     note.textContent = 'Setting up a profile for this browser.';
     await callTool('register_location', SEED.location);
-    for (const name of SEED.medications) await callTool('register_medication', { name });
-    for (const condition of SEED.conditions) await callTool('register_condition', { condition });
+    for (const name of SEED.medications) await callTool('medication', { action: 'add', name });
+    for (const condition of SEED.conditions) await callTool('health_condition', { action: 'add', condition });
     note.textContent = PROFILE_NOTE;
     // The place is looked up in the background, because geocoding on its own
     // costs most of a voice turn, so the first weather answer lands a moment
@@ -331,6 +372,8 @@ el('adv-run').addEventListener('click', async () => {
   }
   await run(tool, args, null);
 });
+
+el('use-location').addEventListener('click', () => void useMyLocation());
 
 el('reset-demo').addEventListener('click', () => {
   try { localStorage.removeItem(SESSION_KEY); } catch { /* nothing to do */ }

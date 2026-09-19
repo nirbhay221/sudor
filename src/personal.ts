@@ -53,6 +53,7 @@ const SEVERITY: Record<Mechanism, number> = {
   reduced_sweating: 5,
   increased_heat_production: 4,
   reduced_thirst_or_sedation: 3,
+  hyponatremia_risk: 4,
   electrolyte_imbalance: 3,
   increased_sweating: 2,
   photosensitivity: 0,

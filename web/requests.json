@@ -10,6 +10,21 @@
           "args": {}
         },
         {
+          "say": "Are there any warnings where I live?",
+          "tool": "weather_warnings",
+          "args": {}
+        },
+        {
+          "say": "A storm is coming. What about my medicines?",
+          "tool": "storm_prep",
+          "args": {}
+        },
+        {
+          "say": "The power is out and the house is freezing. Where can I go?",
+          "tool": "somewhere_to_go",
+          "args": {}
+        },
+        {
           "say": "I have to go out anyway. What should I do?",
           "tool": "going_out_now",
           "args": {}
@@ -112,15 +127,17 @@
         },
         {
           "say": "I started taking hydrochlorothiazide.",
-          "tool": "register_medication",
+          "tool": "medication",
           "args": {
+            "action": "add",
             "name": "hydrochlorothiazide"
           }
         },
         {
           "say": "I have multiple sclerosis.",
-          "tool": "register_condition",
+          "tool": "health_condition",
           "args": {
+            "action": "add",
             "condition": "multiple sclerosis"
           }
         },
@@ -145,8 +162,9 @@
         },
         {
           "say": "I stopped taking hydrochlorothiazide.",
-          "tool": "remove_medication",
+          "tool": "medication",
           "args": {
+            "action": "remove",
             "name": "hydrochlorothiazide"
           }
         }
@@ -157,8 +175,9 @@
       "requests": [
         {
           "say": "Tell my daughter if it gets dangerous.",
-          "tool": "add_contact",
+          "tool": "contact",
           "args": {
+            "action": "add",
             "name": "Priya",
             "email": "priya@example.com",
             "relation": "daughter",
@@ -167,15 +186,17 @@
         },
         {
           "say": "Yes, confirm her.",
-          "tool": "confirm_contact",
+          "tool": "contact",
           "args": {
+            "action": "confirm",
             "name": "Priya"
           }
         },
         {
           "say": "Actually, remove her.",
-          "tool": "remove_contact",
+          "tool": "contact",
           "args": {
+            "action": "remove",
             "name": "Priya"
           }
         },
@@ -192,21 +213,20 @@
     "plan_my_day",
     "going_out_now",
     "warning_signs",
+    "should_i_shovel",
+    "weather_warnings",
+    "storm_prep",
+    "somewhere_to_go",
     "sun_check",
+    "medicine_recalls",
     "what_can_you_do",
     "register_location",
-    "register_medication",
-    "remove_medication",
-    "register_condition",
-    "remove_condition",
+    "medication",
+    "health_condition",
     "my_profile",
     "set_privacy",
     "log_outing",
-    "add_contact",
-    "confirm_contact",
-    "remove_contact",
-    "medicine_recalls",
-    "should_i_shovel"
+    "contact"
   ],
   "seed": {
     "location": {

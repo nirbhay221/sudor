@@ -307,6 +307,18 @@ export function findCondition(spoken: string): Condition | null {
   for (const { c, a } of pairs) {
     if (new RegExp(`\\s${escape(a)}\\s`).test(text)) return c;
   }
+  /*
+   * Nobody describes themselves as an "older adult". They say how old they are,
+   * and a test written the way a person actually speaks is what found this: "I
+   * am 80 years old" matched nothing at all, so the entire indoor-hypothermia
+   * half of the cold advice never reached the people it was written for.
+   * Sixty-five is the line the CDC and the National Institute on Aging draw, and
+ * "is" is in there because half of these profiles are set up by a daughter
+ * saying "my mother is 88" rather than by the person themselves.
+   */
+  const age = text.match(/\s(?:i am|i m|im|aged|age|is|are)\s(\d{2,3})\s/) ?? text.match(/\s(\d{2,3})\s(?:years? old|yo)\s/);
+  const years = age ? Number(age[1]) : NaN;
+  if (years >= 65 && years <= 120) return conditionById('older_adult') ?? null;
   return null;
 }
 
