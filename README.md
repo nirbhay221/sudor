@@ -14,6 +14,22 @@ Built for the [Build, Ship, Shape: Amazon Developer Hackathon](https://amazonapp
 Alexa+ track, plus the Open Source and AWS Builder mini challenges. Self-hosted MCP server,
 spec 2025-11-25, Streamable HTTP, with an MCP Apps panel for the Echo Show.
 
+## Start here
+
+This file is long because the reasoning is the work. If you are reading it to evaluate the project,
+these are the things worth your time:
+
+| If you want | Read |
+|---|---|
+| What it does, in one exchange | [What it does](#what-it-does) |
+| Why it is not a wrapper around a weather app | [Why it is not a wrapper around a weather app](#why-it-is-not-a-wrapper-around-a-weather-app) |
+| The correctness argument for the heat number | [The number that knows the sun is out](#the-number-that-knows-the-sun-is-out) |
+| What the protocol is doing that is unusual | [Asking, instead of guessing](#asking-instead-of-guessing), [One add-on asking another](#one-add-on-asking-another) |
+| Where it is wrong, or cannot know | [Honest limitations](#honest-limitations) |
+
+Free sources, no API keys. Every tool call is answered from memory; nothing external is called inside
+a turn, because two of the sources blow the whole turn budget on their own. `npm test` runs 753 checks.
+
 ## The problem
 
 A heat advisory is written for everyone, and everyone is the wrong threshold for a lot of people.
@@ -106,7 +122,7 @@ lists and is treated as the emergency.
 | Pregnancy | sensitive | even one day of high heat raises risk | CDC |
 | Age 65 or over | sensitive | cooler hours, keep it short | CDC |
 
-Plus 48 medications classified by heat mechanism from the CDC's clinical guidance on heat and
+Plus 57 medications classified by heat mechanism from the CDC's clinical guidance on heat and
 medications.
 
 ## Data
@@ -122,6 +138,11 @@ Free sources, no API keys.
   forecast office that issued them
 * [openFDA drug enforcement reports](https://open.fda.gov/apis/drug/enforcement/): open recalls,
   matched against the medicines this person takes, checked every six hours in the background
+* [openFDA device enforcement reports](https://open.fda.gov/apis/device/enforcement/): the same, for
+  the equipment a hot day is dangerous without. See [Equipment, not only
+  medicines](#equipment-not-only-medicines)
+* Open-Meteo radiation and wet bulb, on the call already being made, which is what turns a heat index
+  into a WBGT. See [The number that knows the sun is out](#the-number-that-knows-the-sun-is-out)
 * [FEMA and Red Cross National Shelter System](https://gis.fema.gov/arcgis/rest/services/NSS/FEMA_NSS/MapServer):
   the shelters open right now, nationally, with whether each has a generator, step-free access or takes
   pets. On an ordinary day that is a handful for the whole country, so the list is small enough to hold
@@ -149,6 +170,103 @@ is hyponatremia, so the danger is too much plain water rather than too little
 their own mechanism here, and it outranks the general electrolyte line, so someone on a thiazide is
 told to sip through the day and take something salty rather than to drink more water. A loop
 diuretic, whose problem is a different one, still gets the ordinary advice.
+
+## The two classes that were missing
+
+Until recently this table had 48 medications and none of them were GLP-1 agonists or
+SGLT2 inhibitors. Between them that is Ozempic, Wegovy, Mounjaro, Zepbound, Jardiance
+and Farxiga: the most prescribed new drugs in the country and a first line diabetes
+class, absent from a product whose entire premise is that a person's own medicines
+change what heat does to them. That was a hole rather than a rounding error, and it is
+recorded here rather than quietly filled.
+
+Both lose fluid, and neither does it by sweating, which is why they needed a mechanism
+of their own rather than being folded into the electrolyte case.
+
+A **GLP-1 agonist** delays gastric emptying, and the reported consequence is nausea,
+vomiting or loose stools. That loses fluid twice over: once out, and once because
+somebody who feels sick does not want to drink. The literature ties it to significant
+dehydration and secondary acute renal impairment, and the standing advice is to drink
+plenty to avoid volume depletion.
+
+An **SGLT2 inhibitor** does it through the kidney. Glucose in the urine drives an
+osmotic diuresis and free water goes with it. Volume depletion events are measurably
+more common in patients over 75, which is much of this audience, and the published note
+is explicit that type 2 diabetes already carries a raised dehydration risk in hot
+weather. Nobody calls these water pills, so they will not come up when somebody is
+asked whether they take a diuretic.
+
+**The advice had to be different, and that is the whole reason this is a section.**
+For a thiazide, salt is what left, so an electrolyte drink is the correction. Here
+water left by a route that took no salt with it, so the thiazide line would be
+confidently wrong. What these get instead is steady plain fluid whether or not they
+feel like it, and one escalation: not being able to keep fluids down in heat is a
+reason to call somebody rather than wait it out. Forty eight tests exist to hold those
+two pieces of advice apart.
+
+## The number that knows the sun is out
+
+Sudor answered with the NWS heat index for a long time. The heat index is the right tool for a great
+many things and it is the scale the public knows, and the Rothfusz regression it comes from assumes a
+person standing in the shade with a light breeze.
+
+Nobody in this product is standing in the shade. That is the thing they are asking whether to leave.
+
+WBGT, the wet bulb globe temperature, accounts for the rest of it: radiant load from direct sun, and
+wind. On a clear afternoon the two disagree by 10 to 15 degrees Fahrenheit, and they disagree in the
+dangerous direction, because the heat index is the lower one. For somebody whose medication has taken
+their sweating away, being told 88 when the load on their body is 100 is not a rounding error.
+
+It also settles a standards question. OSHA, NIOSH and the ACGIH all write occupational heat limits
+against WBGT, not the heat index. The proposed OSHA heat rule triggers at a heat index of 80F *or* a
+WBGT at the NIOSH recommended alert limit, and its high heat trigger at 90F *or* the recommended
+exposure limit. A product that knows only one of those numbers can answer only half of its own rule.
+
+**Where the numbers come from, and how much to trust them.** True WBGT is a measurement taken with
+three physical thermometers, and nobody has those in their garden, so it has to be estimated. Every
+estimate is somebody's published approximation with a stated error, so each one is named rather than
+blended into a number nobody can check. The dry bulb and the wet bulb are not estimated at all:
+Open-Meteo publishes the psychrometric wet bulb directly, on the same call. Globe temperature follows
+Hunter and Minyard (1999). Natural wet bulb follows Malchaire (1976). The authoritative method is
+Liljegren et al. (2008), which solves the heat balance iteratively rather than fitting a line through
+it; this is deliberately not that, it sits within one or two degrees Celsius of it outdoors, and
+`approximate: true` rides on every result so nothing downstream can forget.
+
+**What is never said.** A WBGT and a heat index are not the same scale, and this is the easiest thing
+here to get wrong. A heat index of 95 is a warm afternoon. A WBGT of 95 is past every occupational
+limit there is. "Wet bulb globe temperature 97, against a heat index of 118" is true, reads as
+reassuring, and is the reverse of the truth. So the raw WBGT number is never spoken next to the heat
+index and never offered as a temperature to compare with the one on somebody's phone. What is safe to
+say is the difference between sun and shade, because that is one scale, and it is the only part a
+person can act on: stand somewhere else.
+
+## Equipment, not only medicines
+
+A drug recall is half of what can be pulled out from under this customer. The other half is the
+equipment a power cut already makes dangerous, and this README already names it: insulin that has to
+stay below 86 degrees, an oxygen concentrator that needs a socket, a dialysis chair that needs a
+working clinic.
+
+The FDA publishes device enforcement reports on the same API in the same shape, and a Class I device
+recall means a reasonable probability of serious injury or death. Live, today, there are ongoing Class
+I recalls affecting oxygen concentrators, insulin pumps, CPAP and ventilator equipment, and dialysis
+catheters.
+
+The matching problem is genuinely different from drugs, which is why it is a separate module. A drug
+has a generic name and openFDA indexes it, so "lisinopril" is a precise query. Devices have no such
+field: the only searchable text is `product_description`, free text written by the manufacturer, which
+reads like "MAHURKAR 12 Fr High Pressure Triple Lumen Acute Dialysis Catheter, 24 cm, Straight
+Extensions, IC Tray REF: 8888102004HP".
+
+Nobody says that to a voice assistant. They say "my oxygen concentrator".
+
+So this matches on equipment category, and the wording is built around that limit rather than
+apologising for it afterwards. It can say there is an ongoing Class I recall affecting oxygen
+concentrators from a named firm, with the reason, and that the customer should check their model
+against the notice. It cannot say "your concentrator is recalled", and pretending otherwise would
+either frighten somebody whose device is fine or reassure somebody whose is not. Nine of the tests
+exist only to hold that line, because a false alarm lands hardest on exactly the person least able to
+absorb one. Only Class I is ever volunteered inside an answer about going outside.
 
 ## Tools
 
@@ -255,6 +373,77 @@ planning has been a mandatory NERC standard since 2016.
 So the line is a nudge to charge things, never a forecast about anyone's street, it carries that
 base rate every time it is said, and it comes at the end of the answer rather than in front of the
 insulin. A test fails the build if it ever leads.
+
+## Asking, instead of guessing
+
+`findMedication` is an exact lookup. Anything it does not recognise is told, honestly, that it is not
+in the table and might still matter. That is the right answer for a drug this genuinely does not know,
+and the wrong one for a drug it knows perfectly well under a name that arrived slightly mangled.
+
+Drug names are the worst case for speech transcription there is. They are long, they are not words,
+and several in this table differ by one syllable while doing entirely different things to a body in
+heat. Lisinopril blunts thirst; liraglutide does not. Being told "I don't have that in my list"
+because a microphone heard one letter wrong loses advice the customer needed and had asked for.
+
+Elicitation, new in spec 2025-11-25, closes that: when a name is one or two edits from something known,
+the server asks. Levenshtein rather than a phonetic key, because the failure being corrected is a
+letter-level transcription slip and phonetic matching would happily collapse names that need to stay
+apart. The budget scales with length, one edit for a short name and two for a longer one, or four
+letter names would match half the table.
+
+**A medication is added because the customer confirmed the name, never because an edit distance looked
+close enough.** There is a "none of these" option, and declining or an unsupported host both land back
+on the honest unknown answer without ever naming the drug that was suspected. Substituting a drug
+somebody did not say is the worst failure this product could have, and the tests exist to hold that
+line rather than to demonstrate the feature.
+
+## An Alexa+ stand-in
+
+MCP add-on support is in preview and access has to be requested, so this cannot be demonstrated on a
+real Echo. The demo page's answer until now was a catalogue of buttons, each hardcoded to a tool and a
+set of arguments. That proves the server answers and proves nothing about the part of MCP that is hard,
+because a human wrote the tool name and filled in the arguments.
+
+The interesting step is a model reading `tools/list` cold and working out that "I just started taking
+water pills" means the medication tool with a generic name it had to infer. Certification tests that
+and little else: clear descriptions mapping to distinct intents, synonyms and alternate spellings in
+the parameter descriptions, every example utterance working when spoken.
+
+So `/agent` is a test of the tool descriptions, not of the tools, and it matters more here than in most
+products because the descriptions carry clinical vocabulary. The gap between what somebody says and
+what the table calls it is exactly what a description has to close.
+
+The stand-in's prompt carries two rules this add-on needs and a farm one would not. Never invent a
+medication, a dose, a condition or a location the customer did not say: pass their own words through
+and let the server decide what they match, because it is built to ask when it is unsure and it knows
+things about drug names a model should not second-guess. And if what they describe sounds like somebody
+in trouble right now, confusion, fainting, hot dry skin, reach for the tool that handles symptoms
+rather than the one that plans a day.
+
+It is not Alexa, and that disclaimer travels in the response payload rather than living here. Off
+unless `SUDOR_ANTHROPIC_KEY` is set.
+
+## Hearing it
+
+Every sentence this server produces is written to be heard once, and here the listener is often the
+reason. Somebody with multiple sclerosis deciding whether to go out. Somebody whose medication has
+taken their sweating away. Somebody reading the signs of heat stroke in another person, which is the
+whole argument:
+
+> If they become confused, slur their words or faint, that can be heat stroke: call 911.
+
+That has to land at the speed of speech, once, to somebody frightened. Whether it does is not
+something a page of text can show.
+
+`/speak` runs the same string the tool returned through Polly. Joanna, neural, chosen over the default
+because a neural voice handles the drug names far better than a standard one, and "hydrochlorothiazide"
+appears in real advice. For the demo and the video only; Alexa+ does its own speech, and nothing in the
+MCP path synthesises audio.
+
+Polly charges per character, so it is fenced: a content-hash cache, a 2,000 character ceiling, and
+angle brackets refused outright rather than escaped, because passing caller text through as SSML would
+let anyone who can reach the endpoint change the voice, insert silence, or spell text out at a
+different rate and price.
 
 ## Family, privacy, and learning from a bad afternoon
 
@@ -427,6 +616,60 @@ The endpoint is rate limited per caller, a burst of 600 refilling at ten a secon
 above anything a conversation does and far below a script. The specification asks for it and we had
 nothing.
 
+### Sealing, linking and spend limits
+
+* **Encrypted at rest.** With `SUDOR_DATA_KEY` set, the people file and the token file are sealed with
+  AES-256-GCM, with a key id and the purpose bound in as associated data. These files hold medicines and
+  conditions. The key lives in SSM Parameter Store. Losing it is losing the data, and there is no recovery.
+  `SUDOR_DATA_KEY_PREVIOUS` supports rotation. A wrong key is treated as different from a corrupt file: the
+  server refuses to start rather than quarantine data it could not open. `SUDOR_REQUIRE_ENCRYPTION=on`
+  makes a missing key fatal.
+* **Linking needs a passphrase.** The first person to present a name claims it (trust on first use, so a
+  name can be squatted before its owner arrives; accounts that predate passphrases are claimed by the first
+  presenter). Passphrases are hashed with scrypt at the OWASP parameters, wrong guesses lock out, and the
+  failure messages do not reveal whether a name exists.
+* **Tokens are hashed and persisted.** Access and refresh tokens are stored as SHA-256 digests, so a deploy
+  does not sign anyone out and a stolen file holds no usable token. Refresh tokens rotate, and replaying a
+  spent one revokes the whole family (RFC 9700).
+* **The demo page has its own door.** Ids of the form `demo:<128-bit hex>` live in a separate namespace
+  that cannot reach a linked account. `SUDOR_DEMO=off` closes it. Email, including family emergency alerts,
+  is disabled for sandbox callers, so the endpoint cannot be used to send mail to a stranger.
+* **Spend and size limits.** `/agent` and `/speak` have a per-caller bucket and a daily cap, sandbox callers
+  are keyed by address so rotating ids does not help, and profiles, contacts, followed places and timers
+  have ceilings. These counters are in memory and reset when the service restarts. Feed polling backs off
+  exponentially with jitter when an upstream fails.
+* **Behind API Gateway.** `SUDOR_TRUST_PROXY=1` counts one hop, and the origin secret is armed only after
+  the gateway sends it. See `deploy/README.md` for the order.
+
+## Evaluating tool selection
+
+`npm test` shows the server gives the right answer once a tool is chosen. It cannot show that a host would
+choose that tool from what a person said, which is what Amazon's certification list tests, so there is a
+separate golden eval: 74 spoken sentences, 15 of them expecting no tool at all, each with the tool and
+arguments a correct host should pick. It covers plain requests, speech-recognition noise ("north forty"),
+missing information, indirect phrasing, out-of-scope requests and prompt injection.
+
+```sh
+SUDOR_ANTHROPIC_KEY=... npm run eval                # 3 trials per sentence
+npm run eval -- --trials 5 --save-baseline     # keep this run as the baseline
+```
+
+It reads the server's real `tools/list`, asks a model to choose, scores the choice, and then calls the chosen
+tool if it is read-only to check the extracted arguments are accepted. Routing, declining and arguments have
+separate floors, because a blended number would let a host that always reaches for a tool look fine. Every
+sentence runs several times and is reported as stable, flaky or never right, with pass^k (the chance that all
+k trials succeed), because a sample that works two times in three looks the same as one that works every
+time in a single pass. A sentence that was stable at the saved baseline and is not now fails the run.
+
+It costs one model call per sentence per trial, so it is not part of `npm test`. `npm run eval -- --preflight` asks the API to count the tokens of the real request, which is free, proves the request is accepted, and prints what a full run would cost; the tool list is cached across calls, which cuts the input bill by about nine tenths, and `--budget <dollars>` stops a run that reaches its limit rather than finishing it. What needs no model is: the
+golden file is checked against the live tool list (a renamed tool, an argument that no longer exists or an
+enum value nobody can pass fails the build), and the scorer and the runner are tested against a fake host
+that is deliberately flaky, over-eager or sends bad arguments. Last live run (Opus 5.5, 3 trials, all sentences stable, routing, declining and arguments all 100%, every chosen
+read-only call answered, $0.95). Read that with care: the first live runs missed several sentences, and the
+fixes were tool descriptions plus a few golden sentences that were not fair single-turn tests (a required value only
+the customer knows, so asking back is correct), so 100% is a regression baseline and not a blind score. A golden set is also fixed, so it cannot notice a failure it does not contain, and cases should be
+added from real misses.
+
 ## Performance
 
 Alexa+ allows roughly 500 ms for a full round trip. Measured against live data on 12 September
@@ -454,12 +697,65 @@ Named deliberately, because it exists.
   the abstract. It does not hold a person's medications and conditions against their own hourly
   forecast, and an add-on cannot speak first, so this answers when asked.
 
+## Who this is actually for
+
+It reads like a consumer app and the buyer is probably not a consumer.
+
+The mortality is concentrated in one group. In Louisiana this year, seven of eight
+confirmed heat deaths were people aged 65 or older, and older adults together with
+young children account for nearly all of them. The CDC names adults 65 and over,
+pregnant people and people with chronic conditions as more prone to heat illness, and
+that is the population this table was built around.
+
+The people being told to prepare are agencies. Home and community based services
+providers are being advised to anticipate an increase in heat related illness among
+vulnerable clients, and that medication regimens may need adjusting and self
+monitoring is critical. That is a coordinator with a caseload, not an individual with
+an Echo, and it is the shape of deployment this add-on actually fits: one server, many
+people, each with their own medicines and their own address, already separated by
+subject in the store.
+
+The same argument covers an employer. OSHA's guidance on outdoor work is rest breaks
+in shade or air conditioning, and the proposed federal heat rule triggers on heat index
+or WBGT, which is the pair of numbers this server already computes.
+
+None of that changes a line of code. It changes who the README is addressed to, and
+the honest answer is that a single person is the demo and an agency is the product.
+
+## It runs in more than Alexa+
+
+MCP is client agnostic, and this server is remote and reachable over HTTPS, which is the
+shape every compliant host accepts. It works today in Claude Desktop, Claude Code,
+ChatGPT in developer mode, Cursor, VS Code with Copilot, Windsurf, Cline, Zed and
+Replit, with nothing to build for any of them. ChatGPT matters here because it takes
+only remote HTTPS servers and not the local stdio kind.
+
+```json
+{
+  "mcpServers": {
+    "sudor": {
+      "type": "streamable-http",
+      "url": "https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/mcp"
+    }
+  }
+}
+```
+
+Cursor has a soft ceiling of roughly 40 active tools across all connected servers, and
+past it the agent quietly loses access to some. This publishes 18 and Orbita 15, so the
+pair is 33 before anything else is connected. On a host with a ceiling, connect one.
+
 ## Honest limitations
 
 * The one level offset between sensitivity groups follows HeatRisk's own grouping, applied to the NWS
   heat index categories. That is an approximation, not a clinical threshold for any one person.
-* Ten conditions and 48 medications, not a clinical database. Anything unrecognised is said to be
-  unrecognised, never guessed.
+* Ten conditions and 57 medications, not a clinical database. Anything unrecognised is said to be
+  unrecognised, never guessed. Two whole classes were missing until recently, which is the honest
+  measure of how incomplete a hand-built table can be while looking finished.
+* The fluid-loss mechanism is a class-level statement, not a dose-level one. A GLP-1 at a starting
+  dose that causes no nausea is not losing anybody fluid, and the literature is clear that the
+  gastrointestinal effects are dose related and ease with gradual titration. This does not know
+  somebody's dose, so it says what the class can do and leaves the rest to their pharmacist.
 * It is not a doctor and not medical advice. The warning signs follow NWS and CDC first aid wording
   and send emergencies to 911; they do not diagnose.
 * Air quality is a forecast model, not a monitor on the person's street.
@@ -469,10 +765,29 @@ Named deliberately, because it exists.
 * Family email needs Amazon SES with a verified sender, and while an account is in the SES sandbox
   every recipient must be verified too.
 * A learned limit comes from what the person reports, not a measurement, and it only tightens.
-* Seventeen tools is a lot for a model to choose between. Descriptions carry the words people
+* Eighteen tools is a lot for a model to choose between. Descriptions carry the words people
   actually say, but tool choice on real Alexa+ still has to be tested.
+* The WBGT is estimated from weather variables, not measured with three thermometers. Globe
+  temperature follows Hunter and Minyard (1999) and natural wet bulb follows Malchaire (1976); the
+  authoritative method is Liljegren et al. (2008) and this sits within one or two degrees Celsius of
+  it outdoors. Close enough to change a decision, not close enough to certify a workplace.
+* The NIOSH limits it is compared against were written for acclimatised healthy adults doing light
+  work, which is precisely not this customer. They are used to say "you are past the line drawn for a
+  fit adult at work", which has a source behind it, and never to prescribe a work-rest cycle.
+* Device recalls match on equipment category, not on a product, because openFDA has no structured
+  device field. It can say some oxygen concentrators from a named firm are recalled. It cannot say
+  yours is, and it says so.
+* The near-match suggestion for a mangled drug name is an edit distance, not a phonetic match, so
+  "Lasix" heard as "lasicks" is still missed. Nothing is ever substituted without the customer
+  confirming it.
+* The Alexa+ stand-in on the demo page is a model reading the real tool list, not Alexa. A description
+  that works there can still fail on the device.
+* Spoken answers come from Polly and exist for the demo and the video. Alexa+ does its own speech.
 
 ## Licence
 
-AGPL-3.0. Copyleft, deliberately, the same reasoning as Orbita: this protects the code, not the
-idea, and the commit history is the record of when it was done.
+Apache-2.0. Permissive, deliberately, and the same change of mind as Orbita, for the same reason
+recorded there: copyleft protects the code and taxes the people best placed to make it useful. Here
+that is a pharmacy system, a home care provider, or whoever ends up putting heat advice in front of
+somebody whose medication has taken their sweating away. Apache rather than MIT for the patent
+grant.

@@ -200,6 +200,20 @@ const expired = store.expireDemoRecords(Date.now() + 8 * 24 * 60 * 60 * 1000);
 check('a demo profile untouched for a week is deleted, because it holds health details',
   expired >= 1 && store.get('demo:pruning-test').outings.length === 0, `${expired} expired`);
 check('...and a linked account is never swept', store.get('acct:someone-real').privacy === true);
+/*
+ * The expiry clock used to live in a Map in memory, so a restart forgot every
+ * timestamp and the seven day promise never fired on anything loaded from disk.
+ * Since a deploy restarts the process, that made it decorative. This reloads
+ * the store from the file the way a restart does, and checks the clock survived.
+ */
+store.update('demo:survives-restart', (p) => void (p.privacy = true));
+const onDisk = JSON.parse(readFileSync('./data/test-actions.json', 'utf8'));
+check('the touch timestamp is written into the record, not just remembered',
+  typeof onDisk['demo:survives-restart'].touchedAt === 'string', JSON.stringify(Object.keys(onDisk['demo:survives-restart'])).slice(0, 120));
+check('...so a record older than a week is expired even after a restart forgot it',
+  (store.reloadForTest(),
+    store.expireDemoRecords(Date.parse(onDisk['demo:survives-restart'].touchedAt) + 8 * 24 * 60 * 60 * 1000) >= 1));
+
 check('...and a profile touched today survives',
   (store.update('demo:still-here', (p) => void (p.privacy = true)),
     store.expireDemoRecords(),

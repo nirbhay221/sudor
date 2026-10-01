@@ -12,15 +12,18 @@
 import * as store from './store.js';
 import * as weather from './weather.js';
 import { profileOf, planDay } from './personal.js';
-import { sendEmail, emailConfigured, type Delivery } from './notify.js';
+import { sendEmail, emailConfigured, canEmailFor, type Delivery } from './notify.js';
 
 const recipients = (p: store.Person, reason: store.NotifyReason) =>
   p.contacts.filter((c) => c.confirmedAt && c.notifyOn.includes(reason));
 
 /** Starts the emails and returns straight away, because a tool must answer inside the turn budget. */
-export function alertEmergency(personId: string, description: string): { trying: string[]; configured: boolean } {
+export function alertEmergency(personId: string, description: string): { trying: string[]; configured: boolean; demo?: boolean } {
   const p = store.get(personId);
   const to = recipients(p, 'emergency');
+  // The emergency advice itself, which is to call 911, is never withheld from a
+  // sandbox. Only the email is.
+  if (!canEmailFor(personId)) return { trying: to.map((c) => c.name), configured: false, demo: true };
   const where = p.locationName ? ` near ${p.locationName}` : '';
   for (const c of to) {
     void sendEmail({
@@ -42,6 +45,7 @@ const EVENING_HOUR = 17;
 export async function checkHotDayAlerts(now = new Date()): Promise<Delivery[]> {
   const attempted: Delivery[] = [];
   for (const [id, p] of store.allEntries()) {
+    if (!canEmailFor(id)) continue;
     const to = recipients(p, 'hot_day');
     if (!to.length || p.lat == null || p.lon == null) continue;
     const snap = weather.current(p.lat, p.lon);

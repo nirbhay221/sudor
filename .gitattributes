@@ -1,0 +1,8 @@
+# Normalise line endings so a Windows checkout does not make every diff look
+# like a rewrite. Without this, git warns LF->CRLF on every touched file and a
+# two line change reviews as a whole file change, which is exactly the noise
+# that makes a reviewer stop reading a diff.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.mp3 binary

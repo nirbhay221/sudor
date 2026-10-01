@@ -38,6 +38,10 @@ export type Hour = {
   isDay: boolean;
   /** US AQI, null when the air quality call did not answer. */
   aqi: number | null;
+  /** Downward shortwave radiation, W/m2. Zero at night. The sun's own load. */
+  solarWm2: number;
+  /** Psychrometric wet bulb, Fahrenheit, as Open-Meteo reports it. */
+  wetBulbF: number;
 };
 
 export type LocationSnapshot = {
@@ -53,6 +57,10 @@ export type LocationSnapshot = {
   windMph: number;
   isDay: boolean;
   aqi: number | null;
+  /** Downward shortwave radiation right now, W/m2. */
+  solarWm2: number;
+  /** Psychrometric wet bulb right now, Fahrenheit. */
+  wetBulbF: number;
   /** Today and tomorrow, hourly, in the location's own timezone. */
   hourly: Hour[];
   stale: boolean;
@@ -82,6 +90,8 @@ export function parseForecast(lat: number, lon: number, weather: any, air: any, 
     uvIndex: h.uv_index?.[i] ?? 0,
     windMph: h.wind_speed_10m?.[i] ?? 0,
     isDay: h.is_day?.[i] === 1,
+    solarWm2: h.shortwave_radiation?.[i] ?? 0,
+    wetBulbF: h.wet_bulb_temperature_2m?.[i] ?? h.temperature_2m[i],
     aqi: aqiAt.get(local) ?? null,
   }));
   return {
@@ -95,6 +105,8 @@ export function parseForecast(lat: number, lon: number, weather: any, air: any, 
     uvIndex: weather.current.uv_index ?? 0,
     windMph: weather.current.wind_speed_10m ?? 0,
     isDay: weather.current.is_day === 1,
+    solarWm2: weather.current.shortwave_radiation ?? 0,
+    wetBulbF: weather.current.wet_bulb_temperature_2m ?? weather.current.temperature_2m,
     aqi: air?.current?.us_aqi ?? null,
     hourly,
     stale: false,
@@ -119,8 +131,10 @@ async function refreshOne(lat: number, lon: number): Promise<void> {
   const [weather, air] = await Promise.allSettled([
     fetchJson(
       `${FORECAST}?latitude=${lat}&longitude=${lon}` +
-        '&current=temperature_2m,relative_humidity_2m,uv_index,is_day' +
-        '&hourly=temperature_2m,relative_humidity_2m,uv_index,is_day,wind_speed_10m' +
+        '&current=temperature_2m,relative_humidity_2m,uv_index,is_day,wind_speed_10m,shortwave_radiation,wet_bulb_temperature_2m' +
+        // shortwave_radiation and wet_bulb_temperature_2m are what turn a heat
+        // index, which assumes shade, into a WBGT, which does not. Same call.
+        '&hourly=temperature_2m,relative_humidity_2m,uv_index,is_day,wind_speed_10m,shortwave_radiation,wet_bulb_temperature_2m' +
         '&forecast_days=2&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto',
     ),
     fetchJson(`${AIR}?latitude=${lat}&longitude=${lon}&current=us_aqi&hourly=us_aqi&forecast_days=2&timezone=auto`),
@@ -138,19 +152,65 @@ async function refreshOne(lat: number, lon: number): Promise<void> {
   } else {
     snapshots.set(k, {
       lat, lon, fetchedAt: new Date().toISOString(), timezone: 'UTC', utcOffsetSeconds: 0,
-      tempF: NaN, humidityPct: NaN, uvIndex: NaN, windMph: NaN, isDay: false, aqi: null, hourly: [], stale: true, error,
+      tempF: NaN, humidityPct: NaN, uvIndex: NaN, windMph: NaN, isDay: false, aqi: null,
+      solarWm2: NaN, wetBulbF: NaN, hourly: [], stale: true, error,
     });
   }
 }
 
+/**
+ * How many places this process will follow, and on whose behalf.
+ *
+ * Every followed place is a permanent twenty minute timer and two outbound calls to
+ * a free service per tick, and `register_location` takes a raw latitude and longitude
+ * from whoever is talking. With no ceiling, ten thousand invented coordinates are ten
+ * thousand timers and a hundred thousand requests an hour to Open-Meteo, which is how
+ * a free API decides to stop answering this address, for everybody.
+ *
+ * Two tiers. A place followed for a linked account has a hard ceiling and is never
+ * evicted: that customer asked, and had to set a passphrase to do it. A place followed
+ * only for the public sandbox is capped far lower and evicts the oldest when full, so
+ * a newcomer is never refused and a flood can only ever displace other sandboxes.
+ *
+ * The default is the restrictive tier. A caller that cannot say it is acting for a
+ * linked account gets the evictable one, so forgetting to pass the flag fails safe.
+ */
+const MAX_ACCOUNT_WATCHED = Number(process.env.SUDOR_MAX_WATCHED ?? 1500);
+const MAX_DEMO_WATCHED = Number(process.env.SUDOR_MAX_DEMO_WATCHED ?? 150);
+const demoOnly = new Set<string>();
+
+function stopWatching(k: string): void {
+  const t = timers.get(k);
+  if (t) clearInterval(t);
+  timers.delete(k);
+  snapshots.delete(k);
+  demoOnly.delete(k);
+}
+
 /** Start (or confirm) a background refresh loop for one location. Idempotent. */
-export function watch(lat: number, lon: number): void {
+export function watch(lat: number, lon: number, forAccount = false): void {
   const k = key(lat, lon);
-  if (timers.has(k)) return;
+  if (timers.has(k)) {
+    // A linked account asking for a place a sandbox already followed takes it over,
+    // so it stops being a candidate for eviction.
+    if (forAccount) demoOnly.delete(k);
+    return;
+  }
+  if (forAccount) {
+    if (timers.size - demoOnly.size >= MAX_ACCOUNT_WATCHED) return;
+  } else {
+    while (demoOnly.size >= MAX_DEMO_WATCHED) stopWatching(demoOnly.values().next().value as string);
+    demoOnly.add(k);
+  }
   void refreshOne(lat, lon);
   const timer = setInterval(() => void refreshOne(lat, lon), REFRESH_MS);
   timer.unref?.();
   timers.set(k, timer);
+}
+
+/** For /health: how many places are being followed, split by whose they are. */
+export function watched(): { accounts: number; sandbox: number } {
+  return { accounts: timers.size - demoOnly.size, sandbox: demoOnly.size };
 }
 
 export function current(lat: number, lon: number): LocationSnapshot | null {
@@ -171,4 +231,5 @@ export function seedForTest(snap: LocationSnapshot): void {
 export function stopAll(): void {
   for (const t of timers.values()) clearInterval(t);
   timers.clear();
+  demoOnly.clear();
 }

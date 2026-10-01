@@ -97,6 +97,8 @@ check('...and when the feed does not say, that gap is said out loud rather than 
   /does not say whether it has a generator/.test(unknownPower), unknownPower);
 check('...never claiming a generator that was not recorded',
   !/it has a generator, so equipment/.test(unknownPower), unknownPower);
+check('every sentence in the answer starts with a capital',
+  unknownPower.split(/(?<=\.)\s+/).every((sentence) => !/^[a-z]/.test(sentence.trim())), unknownPower);
 check('a place under a mile away is not "about 0 miles"',
   /less than a mile away/.test(unknownPower) && !/0 miles/.test(unknownPower), unknownPower);
 

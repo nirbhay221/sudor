@@ -13,10 +13,10 @@
   --surface-2:     #f3f3ef;
   --ink:           #12120f;
   --ink-2:         #4a4a44;
-  --muted:         #7a7a71;
+  --muted:         #686860;
   --rule:          #e2e2db;
   --rule-strong:   #d2d2c9;
-  --accent:        #b85c15;
+  --accent:        #a5510f;
   --accent-deep:   #8f440d;
   --good:          #0f7a2e;
   --bad:           #c0392b;
@@ -242,3 +242,43 @@ h1 {
 .foot p { margin: 0 0 8px; }
 .foot-links { display: flex; gap: 18px; flex-wrap: wrap; }
 .disclaimer { max-width: 76ch; font-size: 0.82rem; }
+
+/*
+ * The Alexa+ stand-in box.
+ *
+ * Deliberately quiet against the request catalogue beside it: the chosen tool is
+ * the thing worth reading, so it gets the only emphasis, and the timing line is
+ * muted because it is context rather than the answer. No colour carries meaning
+ * on its own here - "chose" and "failed" are distinguished by their words first.
+ */
+.standin form { display: flex; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; }
+.standin input {
+  flex: 1 1 16rem; min-width: 0; padding: .6rem .7rem; font: inherit;
+  color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--rule); border-radius: 4px;
+}
+.standin input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+.standin .hint { font-size: .85rem; color: var(--text-secondary); margin: .35rem 0 0; }
+.standin-out { margin-top: .85rem; }
+.standin-out p { margin: .3rem 0; }
+.standin-out .chose { font-size: .9rem; }
+.standin-out .chose code { font-size: .85em; word-break: break-word; }
+.standin-out .answer { font-size: 1rem; line-height: 1.5; }
+.standin-out .muted { font-size: .8rem; color: var(--text-muted); }
+.standin-out .thinking { font-size: .9rem; color: var(--text-secondary); }
+.standin-out .bad { font-size: .9rem; }
+
+/* Screen-reader-only label, so the input is named without a visible duplicate. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+@media (prefers-contrast: more) {
+  .standin input { border-color: var(--text-primary); }
+  .standin .hint, .standin-out .muted, .standin-out .thinking { color: var(--text-primary); }
+}
+
+/* The play control. Quiet, and it only exists when the server can speak. */
+.speak { margin-top: .5rem; font-size: .85rem; padding: .3rem .6rem; }
+.speak[disabled] { opacity: .6; cursor: default; }

@@ -7,6 +7,7 @@
  * memory.
  */
 
+import { speakErrorsPlainly } from './plainly.js';
 import express from 'express';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -22,7 +23,29 @@ import * as recalls from './recalls.js';
 import * as warnings from './warnings.js';
 import * as spaceweather from './spaceweather.js';
 import * as shelters from './shelters.js';
-import { AUTH_ON, mountAuth, requireAuth, subjectOf } from './auth.js';
+import { AUTH_ON, demoIdOf, mountAuth, requireAuth, subjectOf } from './auth.js';
+import { requireOrigin, requireOriginSecret, originSecretConfigured } from './origin.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import * as agent from './agent.js';
+import * as speak from './speak.js';
+import * as trace from './trace.js';
+import * as vault from './vault.js';
+import { dailyCap, perCaller } from './budget.js';
+
+/**
+ * Carried in every stand-in response, so the disclaimer travels with the data
+ * rather than living in a README. This is a model playing the part Alexa+ would
+ * play; it does not share Alexa's prompt, its turn budget, or its judgment about
+ * when to call something.
+ */
+const STAND_IN_NOTE =
+  "Alexa+ stand-in: a model reading this server's real tools/list and calling it over MCP. Not Alexa.";
+
+// Before anything reads the people file. With SUDOR_REQUIRE_ENCRYPTION=on a
+// missing key stops the process here, rather than letting it serve medications
+// out of a plaintext file because somebody forgot an environment variable.
+vault.assertRequirementMet();
 
 const PORT = Number(process.env.PORT ?? 8789);
 const WINDOW_HTML = resolve('./ui/window.html');
@@ -31,19 +54,22 @@ const WINDOW_HTML = resolve('./ui/window.html');
 function personFrom(req: express.Request): string {
   const subject = subjectOf(req);
   if (subject) return `acct:${subject}`;
+  // A profile holds medications and conditions, so two visitors must never share
+  // one. Each browser has its own 128 bit id, and it only ever reaches `demo:`.
+  const demo = demoIdOf(req);
+  if (demo) return `demo:${demo}`;
   if (AUTH_ON) throw new Error('unauthenticated request reached the MCP handler');
-  // The demo page gives every browser its own id. A profile holds medications
-  // and conditions, so sharing one between visitors would mean showing one
-  // person's health list to another. Anything that is not a plain id falls back
-  // to the development profile.
-  const demo = String(req.get('x-sudor-demo') ?? '');
-  if (/^[a-z0-9-]{8,64}$/.test(demo)) return `demo:${demo}`;
   return 'local-dev';
 }
 
 function build(personId: string): McpServer {
   const server = new McpServer(
-    { name: 'sudor', version: '0.1.0' },
+    {
+      name: 'sudor',
+      title: 'Sudor',
+      description: 'Checks heat and cold against your own medicines and conditions, and says what to do about it.',
+      version: '0.1.0',
+    },
     {
       capabilities: { tools: {}, resources: {} },
       instructions:
@@ -70,60 +96,24 @@ function build(personId: string): McpServer {
   return server;
 }
 
-/**
- * A refusal in words a person can act on, instead of the protocol's own.
- *
- * When arguments do not match a tool's schema, the SDK answers with its own
- * sentence: "MCP error -32602: Input validation error: Invalid arguments for
- * tool can_i_run: Invalid enum value. Expected 'planting' | 'tillage'...".
- * That text is what the host reads, and Amazon's functional requirements are
- * explicit that no API codes, tool names or JSON reach a customer-facing
- * response, and that every error carries an actionable next step. The MCP
- * specification agrees: it files input validation errors under tool execution
- * errors, which "contain actionable feedback that language models can use to
- * self-correct", not under protocol errors. So the tools/call handler is
- * wrapped and those two cases are put back into English:
- * a word we did not recognise, where the choices are worth offering, and
- * anything else, where the honest answer is that the detail did not arrive.
- *
- * Five choices at most, because the voice requirements cap spoken options at
- * five. If the SDK ever stops reporting errors this way, the wrapper simply
- * finds nothing to rewrite, and test-contract.mjs is what notices.
- */
-function plainly(message: string): string {
-  // Only the part before "received": the word that was rejected is in the same
-  // message, and offering it back as a choice is worse than saying nothing. The
-  // options are spoken, so an id like strip_till has to lose its underscore.
-  const expectedPart = message.split(/,\s*received/)[0];
-  const options = [...expectedPart.matchAll(/'([a-z_]{2,})'/g)].map((m) => m[1].replace(/_/g, ' '));
-  const expected = /Invalid enum value|Invalid literal/.test(message) && options.length > 1;
-  if (expected) {
-    const few = options.slice(0, 5).join(', ');
-    return `I didn't catch which one you meant. I can do ${few}${options.length > 5 ? ', and a few more' : ''}. Which is it?`;
-  }
-  if (/not found/i.test(message)) {
-    return "I can't do that one. Ask me what I can do and I'll tell you what I have.";
-  }
-  return "I didn't get one of the details I need for that. Tell me again in your own words and I'll have another go.";
-}
-
-/** Swap the protocol's error text for that, leaving every other answer alone. */
-function speakErrorsPlainly(server: McpServer): void {
-  const handlers = (server.server as unknown as { _requestHandlers?: Map<string, Function> })._requestHandlers;
-  const inner = handlers?.get('tools/call');
-  if (!handlers || !inner) return;
-  handlers.set('tools/call', async (request: unknown, extra: unknown) => {
-    const result = (await inner(request, extra)) as { isError?: boolean; content?: { type: string; text?: string }[] };
-    const spoken = result?.content?.[0]?.text;
-    if (result?.isError && typeof spoken === 'string' && /^MCP error/.test(spoken)) {
-      return { ...result, content: [{ type: 'text', text: plainly(spoken) }] };
-    }
-    return result;
-  });
-}
-
 const app = express();
 app.set('trust proxy', true);
+// Spec 2025-11-25: a Streamable HTTP server must answer 403 to an Origin it
+// does not accept. Mounted before the body parser so a rejected request never
+// has its payload read, which matters when the body may name a medication.
+// Behind API Gateway, every request reaches this process from the gateway. Left alone,
+// req.ip is then the same address for every visitor, and a limiter keyed on it would
+// let one noisy visitor lock everyone out. Setting the number of trusted hops makes
+// Express read the client address the gateway recorded. It must stay at 0 when the
+// process is reachable directly, because X-Forwarded-For is then whatever the caller
+// says it is. The origin secret is what makes one hop safe to trust.
+const trustedHops = Number(process.env.SUDOR_TRUST_PROXY ?? 0);
+if (trustedHops > 0) app.set('trust proxy', trustedHops);
+
+app.use(requireOrigin);
+// And that it came through the gateway rather than off the street. See origin.ts
+// for why a security group rule cannot express this.
+app.use(requireOriginSecret);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false }));
 
@@ -138,6 +128,10 @@ app.get('/health', (_req, res) => {
     sheltersOpenNationally: shelters.openNationally(),
     medicationsKnown: MEDICATIONS.length,
     conditionsKnown: CONDITIONS.length,
+    speech: speak.status(),
+    storage: vault.status(),
+    budgets: { agent: agentDaily.status(), speechCharacters: speakDaily.status() },
+    followedPlaces: weather.watched(),
     // Whether the link to Orbita is alive, and what it last saw. Absent when
     // this server has not been pointed at one.
     spaceWeather: spaceweather.configured()
@@ -173,6 +167,33 @@ app.delete('/mcp', (_req, res) => {
     id: null,
   });
 });
+
+/**
+ * Strips the three keys that break argument parsing.
+ *
+ * Found by fuzzing: a tools/call whose arguments contain a key named "constructor" is answered with
+ * "-32603 Internal error" and a raw dump of a validation library's issue list, from any tool, because the
+ * SDK's schema parsing trips over a key that collides with Object.prototype. That is an upstream bug, and
+ * the effect for us is the thing Amazon's requirements say never to do: expose an internal error. No
+ * tool takes arguments with these names, so they are removed from the arguments before the request
+ * reaches the SDK, and the call then behaves exactly like any other call with an argument nobody asked for.
+ */
+const UNSAFE_KEYS = ['constructor', 'prototype', '__proto__'];
+function stripUnsafeKeys(value: unknown, depth = 0): void {
+  if (!value || typeof value !== 'object' || depth > 8) return;
+  for (const key of UNSAFE_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(value, key)) delete (value as Record<string, unknown>)[key];
+  }
+  for (const child of Object.values(value as Record<string, unknown>)) stripUnsafeKeys(child, depth + 1);
+}
+const dropUnsafeArguments: express.RequestHandler = (req, _res, next) => {
+  const body = req.body as unknown;
+  for (const message of Array.isArray(body) ? body : [body]) {
+    const params = (message as { params?: { arguments?: unknown } } | null)?.params;
+    if (params?.arguments) stripUnsafeKeys(params.arguments);
+  }
+  next();
+};
 
 /**
  * A client that will take anything does take both of the two types the
@@ -229,9 +250,16 @@ function withinRate(key: string): boolean {
  */
 const callerKey = (req: express.Request): string => {
   try {
-    return personFrom(req) || req.ip || 'unknown';
+    const who = personFrom(req);
+    // A linked account is a stable identity and is charged as itself. A sandbox
+    // identity is not: anyone can invent a new 128 bit id for free, so keying the
+    // limiter on it gives every request a fresh bucket and turns every per caller
+    // limit, including the ones on the paid endpoints, into decoration. Sandbox
+    // callers are charged by network address instead.
+    if (who.startsWith('acct:')) return who;
+    return `ip:${req.ip ?? 'unknown'}`;
   } catch {
-    return req.ip ?? 'unknown';
+    return `ip:${req.ip ?? 'unknown'}`;
   }
 };
 
@@ -245,8 +273,152 @@ const rateLimit: express.RequestHandler = (req, res, next) => {
   });
 };
 
-app.all('/mcp', widenWildcardAccept, rateLimit, requireAuth, async (req, res) => {
+
+/**
+ * What the paid endpoints are allowed to cost. See budget.ts for why there are two
+ * kinds of limit and what each one is for.
+ *
+ * A model call is a few cents; 300 a day is roughly the price of a coffee and is far
+ * more than a judge clicking through a demo will use. Speech is metered in characters
+ * because that is what Polly bills, and a cache hit is free, so the same six canned
+ * answers replayed all day cost six syntheses.
+ */
+const agentDaily = dailyCap(Number(process.env.SUDOR_AGENT_DAILY_MAX ?? 300));
+const speakDaily = dailyCap(Number(process.env.SUDOR_SPEAK_DAILY_CHARS ?? 100_000));
+// Burst and sustained rate per caller. A person typing into the stand-in does not
+// send six requests a minute; the defaults are for people and the knobs are for tests
+// and for an operator who has a reason.
+const agentPerCaller = perCaller(Number(process.env.SUDOR_AGENT_BURST ?? 3), Number(process.env.SUDOR_AGENT_PER_MINUTE ?? 6));
+const speakPerCaller = perCaller(Number(process.env.SUDOR_SPEAK_BURST ?? 5), Number(process.env.SUDOR_SPEAK_PER_MINUTE ?? 20));
+
+/**
+ * The Alexa+ stand-in.
+ *
+ * A model reads this server's own `tools/list` cold, decides what the sentence
+ * means, and the chosen call is executed through the real protocol. Both halves
+ * are returned, so a viewer sees the decision and not only the answer, which is
+ * the point: the decision is what a real host would have had to make from the
+ * tool descriptions alone.
+ *
+ * The round trip goes through an in-memory MCP transport rather than calling the
+ * tool handlers directly. That costs a few milliseconds and buys the thing that
+ * makes the demo worth anything: the schemas the model reads are the schemas the
+ * protocol publishes, and the call it makes is validated and dispatched exactly
+ * as a real host's would be.
+ *
+ * Nothing the model says is stored, and nothing it chooses is executed outside
+ * this request. What the tools themselves write, they write for the same person
+ * the request is scoped to, exactly as an Alexa+ call would.
+ */
+app.post('/agent', requireAuth, async (req, res) => {
+  // Identity and spend are checked before anything else, including whether the
+  // stand-in is configured, so an unconfigured server cannot be used to find out
+  // which of the two a caller failed.
+  if (!agentPerCaller.allow(callerKey(req))) {
+    res.status(429).set('Retry-After', '10').json({ error: 'slow_down', detail: 'Too many stand-in requests. Try again in a few seconds.' });
+    return;
+  }
+  if (!agent.configured()) {
+    res.status(503).json({
+      error: 'not_configured',
+      detail: 'Set SUDOR_ANTHROPIC_KEY to enable the Alexa+ stand-in. Every other part of the demo works without it.',
+    });
+    return;
+  }
+  const utterance = typeof req.body?.say === 'string' ? req.body.say.slice(0, 500).trim() : '';
+  if (!utterance) {
+    res.status(400).json({ error: 'say_required' });
+    return;
+  }
+  // Last, so a malformed request never spends a unit of the budget.
+  if (!agentDaily.take(1)) {
+    res.status(429).json({
+      error: 'daily_budget',
+      detail: 'The stand-in has reached its limit for today. Everything else on this page still works, and it resets at midnight UTC.',
+    });
+    return;
+  }
+
+  const server = build(personFrom(req));
+  const client = new Client({ name: 'alexa-plus-stand-in', version: '0.1.0' }, { capabilities: {} });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  try {
+    await Promise.all([server.connect(a), client.connect(b)]);
+    const listed = await client.listTools();
+    const chosen = await agent.choose(utterance, listed.tools as agent.ToolDef[]);
+
+    // A decline is a real outcome. A host that calls nothing when nothing fits is
+    // behaving correctly, and flattening that into an error would hide it.
+    if (!chosen.tool) {
+      res.json({ standIn: STAND_IN_NOTE, utterance, chose: null, said: chosen.said, ms: chosen.ms, model: chosen.model });
+      return;
+    }
+
+    const result = await client.callTool({ name: chosen.tool, arguments: chosen.args });
+    res.json({
+      standIn: STAND_IN_NOTE, utterance,
+      chose: { tool: chosen.tool, args: chosen.args },
+      said: chosen.said, ms: chosen.ms, model: chosen.model, result,
+    });
+  } catch (err) {
+    console.error('[agent]', err);
+    res.status(502).json({ error: 'stand_in_failed', detail: agent.explainError(err) });
+  } finally {
+    await client.close().catch(() => {});
+    await server.close().catch(() => {});
+  }
+});
+
+/**
+ * Speak a sentence this server produced.
+ *
+ * For the demo page and the video only; it is not part of the MCP path, because
+ * Alexa+ does its own speech. The point is narrow and it matters here: the
+ * emergency phrasing has to land at the speed of speech, once, to somebody who is
+ * frightened, and a page of text cannot show whether it does.
+ */
+app.post('/speak', requireAuth, async (req, res) => {
+  if (!speakPerCaller.allow(callerKey(req))) {
+    res.status(429).set('Retry-After', '5').json({ error: 'slow_down' });
+    return;
+  }
+  if (!speak.SPEAK_ON) {
+    res.status(503).json({
+      error: 'not_enabled',
+      detail: 'Set SUDOR_SPEAK=on to enable spoken answers. The demo works as text without it.',
+    });
+    return;
+  }
+  const text = typeof req.body?.text === 'string' ? req.body.text : '';
+  if (!speak.usable(text.trim().replace(/\s+/g, ' '))) {
+    res.status(400).json({ error: 'not_speakable' });
+    return;
+  }
+  // Characters are what Polly bills, and a sentence already held costs nothing, so
+  // only a synthesis is charged against the day.
+  if (!speak.isCached(text) && !speakDaily.take(text.trim().length)) {
+    res.status(429).json({ error: 'daily_budget', detail: 'Spoken answers have reached their limit for today.' });
+    return;
+  }
+  try {
+    const out = await speak.speak(text);
+    res.setHeader('content-type', 'audio/mpeg');
+    // Cached by content hash server side; let the browser hold it too, since the
+    // same canned answers are replayed constantly during a demo.
+    res.setHeader('cache-control', 'public, max-age=3600');
+    res.setHeader('x-sudor-cached', out.cached ? '1' : '0');
+    res.send(Buffer.from(out.audio));
+  } catch (err) {
+    console.error('[speak]', err);
+    res.status(502).json({ error: 'speak_failed' });
+  }
+});
+
+app.all('/mcp', widenWildcardAccept, dropUnsafeArguments, rateLimit, requireAuth, async (req, res) => {
   const started = Date.now();
+  // One id per request, echoed in any error logged while handling it.
+  const traceId = trace.newTraceId();
+  let failure: string | undefined;
   try {
     const server = build(personFrom(req));
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
@@ -257,13 +429,34 @@ app.all('/mcp', widenWildcardAccept, rateLimit, requireAuth, async (req, res) =>
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
   } catch (err) {
-    console.error('[mcp] error', err);
+    failure = trace.errClass(err);
+    // The message goes to stderr for a human; the line below carries only the
+    // class, because a message can contain whatever was interpolated into it and
+    // here that could be a medication.
+    console.error(`[mcp] ${traceId}`, err);
     if (!res.headersSent) {
       res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error' }, id: null });
     }
   } finally {
-    const ms = Date.now() - started;
-    console.log(`[mcp] ${req.method} ${ms}ms${ms > 400 ? '  <-- OVER BUDGET' : ''}`);
+    trace.log({
+      t: new Date().toISOString(),
+      id: traceId,
+      method: typeof req.body?.method === 'string' ? req.body.method : undefined,
+      tool: typeof req.body?.params?.name === 'string' ? req.body.params.name : undefined,
+      ms: Date.now() - started,
+      ok: !failure,
+      who: trace.whoHash(personFrom(req)),
+      err: failure,
+      // Which feed was stale when the answer was given. The storm link is the one
+      // that matters most: a G5 folded into heat advice is only useful if it is current.
+      feeds: {
+        storm: (() => {
+          const seen = spaceweather.lastSeen();
+          return seen ? Math.round((Date.now() - seen.fetchedAt) / 60000) : null;
+        })(),
+        sheltersOpen: shelters.openNationally(),
+      },
+    });
   }
 });
 
@@ -277,7 +470,7 @@ app.use('/ui', express.static(resolve('./ui'), { setHeaders: revalidate }));
 // finish any spoken place lookup the restart cut off.
 for (const [id, person] of store.allEntries()) {
   if (person.lat != null && person.lon != null) {
-    weather.watch(person.lat, person.lon);
+    weather.watch(person.lat, person.lon, !id.startsWith('demo:'));
     warnings.watch(person.lat, person.lon);
   }
   else if (person.locationStatus === 'locating' && person.locationName) resolveLocation(id, person.locationName);

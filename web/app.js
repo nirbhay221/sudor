@@ -34,11 +34,20 @@ function askForLocation() {
   });
 }
 
+const SESSION_FORMAT = /^[a-f0-9]{32}$/;
+
+/*
+ * This id is the only thing protecting a visitor's medication list, so it is 128
+ * bits from the browser's cryptographic generator. It used to be Math.random() in
+ * base 36, roughly 41 bits from a generator documented as unsuitable for secrets,
+ * with a timestamp on the end. An id saved by the old code no longer matches the
+ * format and is quietly replaced; whatever it held expires on its own.
+ */
 const session = (() => {
   let id = null;
   try { id = localStorage.getItem(SESSION_KEY); } catch { /* private mode */ }
-  if (!id || !/^[a-z0-9-]{8,64}$/.test(id)) {
-    id = 'd' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  if (!id || !SESSION_FORMAT.test(id)) {
+    id = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
     try { localStorage.setItem(SESSION_KEY, id); } catch { /* nothing to do */ }
   }
   return id;
@@ -383,3 +392,153 @@ el('reset-demo').addEventListener('click', () => {
 buildRequests();
 await ensureProfile();
 await refreshNow();
+
+/*
+ * The Alexa+ stand-in.
+ *
+ * Posts an utterance to /agent, which asks a model to choose a tool from this
+ * server's own published tools/list and then executes the choice over MCP.
+ *
+ * Both halves are shown, deliberately. The chosen tool and arguments are the
+ * interesting part: they are what a real host would have had to work out from the
+ * tool descriptions, and seeing them wrong is more informative than seeing a
+ * plausible answer. A decline is rendered as a result, not as a failure, because
+ * a host that calls nothing when nothing fits is behaving correctly.
+ */
+const standInForm = el('standin-form');
+if (standInForm) {
+  const input = el('standin-input');
+  const out = el('standin-out');
+  const go = el('standin-go');
+
+  const write = (html) => { out.innerHTML = html; };
+  const esc = (v) =>
+    String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+  standInForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const say = input.value.trim();
+    if (!say) return;
+
+    go.disabled = true;
+    write('<p class="thinking">Choosing a tool...</p>');
+    const started = Date.now();
+
+    try {
+      const res = await fetch('/agent', {
+        method: 'POST',
+        // The identity matters: without it the stand-in ran as one shared profile,
+        // so a medication one visitor added was visible to the next.
+        headers: { 'content-type': 'application/json', 'x-sudor-demo': session },
+        body: JSON.stringify({ say }),
+      });
+      const body = await res.json();
+      const roundTrip = Date.now() - started;
+
+      if (res.status === 503) {
+        write(`<p class="muted">${esc(body.detail ?? 'The stand-in is not configured.')}</p>`);
+        return;
+      }
+      if (!res.ok) {
+        write(`<p class="bad">${esc(body.detail ?? 'The stand-in failed.')}</p>`);
+        return;
+      }
+
+      // Declined: no tool fitted. Shown as an outcome.
+      if (!body.chose) {
+        write(
+          `<p class="chose">Chose <strong>no tool</strong>, because nothing fitted.</p>` +
+          (body.said ? `<p class="answer">${esc(body.said)}</p>` : '') +
+          `<p class="muted">${esc(body.model)}  |  ${body.ms} ms to decide  |  ${roundTrip} ms total</p>`
+        );
+        return;
+      }
+
+      const text = body.result?.content?.[0]?.text ?? '(no text)';
+      write(
+        `<p class="chose">Chose <strong>${esc(body.chose.tool)}</strong> with ` +
+        `<code>${esc(JSON.stringify(body.chose.args))}</code></p>` +
+        `<p class="answer">${esc(text)}</p>` +
+        `<p class="muted">${esc(body.model)}  |  ${body.ms} ms to decide  |  ${roundTrip} ms total  |  ` +
+        `${esc(body.standIn)}</p>`
+      );
+      // The answer is the thing worth hearing, not the tool name.
+      offerSpeech(out, text);
+    } catch (err) {
+      write(`<p class="bad">${esc(String(err))}</p>`);
+    } finally {
+      go.disabled = false;
+    }
+  });
+}
+
+/*
+ * Hearing it.
+ *
+ * Every sentence this server produces is written to be heard once, by someone
+ * with their hands busy, who cannot scroll back. Rendering it as text hides the
+ * one property the whole thing is designed around, and long numbers are where
+ * that shows: a ratio that reads fine is a lot to hold in your head at the speed
+ * of speech.
+ *
+ * Off unless the server has ORBITA_SPEAK=on, and the button simply does not
+ * appear in that case rather than appearing and failing.
+ */
+let speechAvailable = null;
+
+async function canSpeak() {
+  if (speechAvailable !== null) return speechAvailable;
+  try {
+    const res = await fetch('/health');
+    const body = await res.json();
+    speechAvailable = body?.speech?.on === true;
+  } catch {
+    speechAvailable = false;
+  }
+  return speechAvailable;
+}
+
+let playing = null;
+
+/** Attach a play control to a container holding a spoken sentence. */
+async function offerSpeech(container, text) {
+  if (!container || !text || !(await canSpeak())) return;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'ghost speak';
+  button.textContent = 'Hear it';
+  // Named for a screen reader, which would otherwise read only "Hear it" with no
+  // indication of what would be heard.
+  button.setAttribute('aria-label', 'Hear this answer spoken');
+
+  button.addEventListener('click', async () => {
+    if (playing) { playing.pause(); playing = null; }
+    button.disabled = true;
+    button.textContent = 'Loading';
+    try {
+      const res = await fetch('/speak', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-sudor-demo': session },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) { button.textContent = 'Unavailable'; return; }
+      const blob = await res.blob();
+      const audio = new Audio(URL.createObjectURL(blob));
+      playing = audio;
+      button.textContent = 'Playing';
+      audio.addEventListener('ended', () => {
+        button.textContent = 'Hear it';
+        button.disabled = false;
+        playing = null;
+      });
+      await audio.play();
+    } catch {
+      button.textContent = 'Unavailable';
+    } finally {
+      if (button.textContent !== 'Playing') button.disabled = false;
+    }
+  });
+
+  container.appendChild(button);
+}

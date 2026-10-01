@@ -44,6 +44,13 @@ export type Alert = {
 
 type Entry = { checkedAt: number; alerts: Alert[] };
 const cache = new Map<string, Entry>();
+
+/** Oldest out first. Keyed by whatever a caller typed, so it must not grow without limit. */
+const MAX_CACHED = 2000;
+const remember = (k: string, e: Entry): void => {
+  cache.set(k, e);
+  if (cache.size > MAX_CACHED) cache.delete(cache.keys().next().value as string);
+};
 const key = (lat: number, lon: number) => `${lat.toFixed(3)},${lon.toFixed(3)}`;
 
 type Fetcher = (lat: number, lon: number) => Promise<Alert[]>;
@@ -53,7 +60,7 @@ export function configureForTest(fn: Fetcher | null): void {
   cache.clear();
 }
 export function seedForTest(lat: number, lon: number, alerts: Alert[]): void {
-  cache.set(key(lat, lon), { checkedAt: Date.now(), alerts });
+  remember(key(lat, lon), { checkedAt: Date.now(), alerts });
 }
 
 /**
@@ -125,7 +132,7 @@ export async function refresh(lat: number, lon: number, force = false): Promise<
   const held = cache.get(k);
   if (!force && held && Date.now() - held.checkedAt < TTL_MS) return;
   try {
-    cache.set(k, { checkedAt: Date.now(), alerts: await fetcher(lat, lon) });
+    remember(k, { checkedAt: Date.now(), alerts: await fetcher(lat, lon) });
   } catch {
     // Keep the last good answer. A failed check is not an all clear, and with
     // nothing held the tool says it has not managed to look.

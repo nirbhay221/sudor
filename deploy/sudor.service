@@ -7,10 +7,24 @@ Wants=network-online.target
 Type=simple
 User=sudor
 WorkingDirectory=/opt/sudor
+# The + runs the fetch with full privileges despite the sandboxing below, because it
+# has to write /run/sudor. The service itself never runs as root.
+ExecStartPre=+/usr/local/libexec/sudor-secrets
+EnvironmentFile=-/run/sudor/env
 Environment=NODE_ENV=production
 # Above 1024, so this one needs no capability to bind at all. Orbita holds 80 on
 # this host and the gateway in front reaches Sudor on this port.
 Environment=PORT=8081
+# Refuse to start without a data key rather than store medications in the clear.
+Environment=SUDOR_REQUIRE_ENCRYPTION=on
+# Account linking needs a passphrase, and tokens survive a deploy. The demo page keeps
+# working through its own sandbox door, which cannot reach a linked account.
+Environment=SUDOR_AUTH=on
+Environment=SUDOR_AUTH_DATA=/var/lib/sudor/auth.json
+# One hop: API Gateway. Without it every visitor shares the gateway's address and one
+# noisy visitor rate-limits everybody. Safe only because the origin secret, once
+# armed, means nothing else can reach this process to forge the header.
+Environment=SUDOR_TRUST_PROXY=1
 Environment=SUDOR_DATA=/var/lib/sudor/people.json
 Environment=SUDOR_OUTBOX=/var/lib/sudor/outbox.jsonl
 Environment=AWS_REGION=us-east-1

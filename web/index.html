@@ -64,6 +64,30 @@
     </div>
 
     <div class="console">
+
+    <!--
+      The Alexa+ stand-in. Every button below is a hardcoded tool with hardcoded
+      arguments, which proves the server answers but not that the tool
+      descriptions are readable. This box tests that: a model reads this server's
+      real tools/list, decides what the sentence means, and the call it chooses is
+      executed over MCP. It matters most here because the descriptions carry
+      clinical vocabulary, and "water pill" reaching "furosemide" is exactly the
+      gap a tool description has to close. Off unless the server has a key.
+    -->
+    <div class="panel-card standin">
+      <p class="label">Say it in your own words</p>
+      <p class="hint" id="standin-note">
+        A model reads this server's real <code>tools/list</code> and picks the tool. It is not Alexa: it does not
+        share Alexa's prompt or its judgment about when to call something. What it shows is whether the tool
+        descriptions are clear enough to be chosen from.
+      </p>
+      <form id="standin-form" autocomplete="off">
+        <label class="sr-only" for="standin-input">What would you say?</label>
+        <input id="standin-input" type="text" maxlength="500" placeholder="I just started taking water pills, does that change anything?">
+        <button type="submit" class="button primary" id="standin-go">Ask</button>
+      </form>
+      <div id="standin-out" class="standin-out" role="status" aria-live="polite"></div>
+    </div>
       <div class="panel-card requests">
         <p class="label">This browser's profile</p>
         <p class="farm-note" id="profile-note">Setting up a profile for this browser.</p>

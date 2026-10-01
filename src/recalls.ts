@@ -43,6 +43,13 @@ export type Recall = {
 type Entry = { checkedAt: number; recalls: Recall[] };
 const cache = new Map<string, Entry>();
 
+/** Oldest out first. Keyed by whatever a caller typed, so it must not grow without limit. */
+const MAX_CACHED = 2000;
+const remember = (k: string, e: Entry): void => {
+  cache.set(k, e);
+  if (cache.size > MAX_CACHED) cache.delete(cache.keys().next().value as string);
+};
+
 /** Test seam, so tests never touch the FDA. */
 type Fetcher = (generic: string) => Promise<Recall[]>;
 let fetcher: Fetcher = fetchFromFda;
@@ -51,7 +58,7 @@ export function configureForTest(fn: Fetcher | null): void {
   cache.clear();
 }
 export function seedForTest(generic: string, recalls: Recall[]): void {
-  cache.set(generic.toLowerCase(), { checkedAt: Date.now(), recalls });
+  remember(generic.toLowerCase(), { checkedAt: Date.now(), recalls });
 }
 
 const isoDate = (yyyymmdd: string): string =>
@@ -103,7 +110,7 @@ export async function refresh(generic: string, force = false): Promise<void> {
   if (!force && held && Date.now() - held.checkedAt < TTL_MS) return;
   try {
     const recalls = await fetcher(generic);
-    cache.set(key, { checkedAt: Date.now(), recalls });
+    remember(key, { checkedAt: Date.now(), recalls });
   } catch {
     // Keep whatever was known, and when nothing was known, keep knowing nothing.
     //

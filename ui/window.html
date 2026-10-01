@@ -1,5 +1,7 @@
 <!doctype html>
+<html lang="en">
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sudor</title>
 <!--
   MCP App panel for an Echo Show: the heat for this person right now, and the
@@ -16,7 +18,7 @@
     --muted: #5f5b53;
     --rule: #e3dfd6;
     --good: #2f6f5e;
-    --care: #b7791f;
+    --care: #945f12;
     --stay: #b4461f;
   }
   @media (prefers-color-scheme: dark) {
@@ -63,9 +65,28 @@
   .hour em { font-style: normal; font-weight: 600; color: var(--ink); }
   .spans { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; font-size: 0.85rem; }
   .spans b { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+
+  /*
+    Alexa's Color Tools, which certification names explicitly, surfaces to a page
+    as prefers-contrast. The panel's own encoding already avoids leaning on
+    colour: magnitude is bar height, the verdict is position against a drawn
+    line, and blocked blocks are hatched and worded as well as tinted. What high
+    contrast still has to fix is the low-contrast furniture, the muted greys and
+    the hairline rules that carry no meaning on their own but make the ones that
+    do harder to read.
+  */
+  @media (prefers-contrast: more) {
+    .viz {
+      --text-secondary: var(--text-primary);
+      --text-muted:     var(--text-primary);
+      --rule:           var(--text-primary);
+      --surface-2:      var(--surface-1);
+    }
+    .viz svg [stroke-dasharray] { stroke-dasharray: none; }
+  }
 </style>
 
-<div class="panel">
+<main class="panel">
   <div class="top">
     <div>
       <div class="place" id="place">Example</div>
@@ -80,7 +101,7 @@
     <div><b>Best</b><span id="best">not yet known</span></div>
     <div><b>Avoid</b><span id="avoid">not yet known</span></div>
   </div>
-</div>
+</main>
 
 <script>
   const WORD = { good: 'Fine for you', caution: 'Take care', avoid: 'Better inside' };

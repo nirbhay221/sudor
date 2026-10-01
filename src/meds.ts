@@ -33,7 +33,30 @@ export type Mechanism =
   | 'increased_heat_production'
   /** Sensitises skin to UV. A sun-exposure risk, not a heat-illness risk, and it
    *  is tracked and reported separately for exactly that reason. */
-  | 'photosensitivity';
+  | 'photosensitivity'
+  /**
+   * Loses fluid by a route that has nothing to do with sweating.
+   *
+   * This needed its own mechanism rather than being folded into
+   * `electrolyte_imbalance`, because the advice is different and so is the reason.
+   *
+   * A GLP-1 drug slows the stomach and causes nausea, vomiting or loose stools,
+   * and the reported consequence is twofold: fluid goes out, and nausea makes the
+   * person less willing to drink. The literature ties that to significant
+   * dehydration and secondary acute kidney injury, and the standing advice is to
+   * drink plenty to avoid volume depletion.
+   *
+   * An SGLT2 inhibitor does it a different way: glucose in the urine drives an
+   * osmotic diuresis and free water goes with it. Volume depletion events are
+   * measurably more common in patients over 75, which is most of this product's
+   * audience, and the published note is explicit that people with type 2 diabetes
+   * carry an increased risk of dehydration in hot weather.
+   *
+   * Neither is a cooling failure and neither is a salt problem, so telling somebody
+   * to take something salty, which is right for a thiazide, is not the answer here.
+   * Steady plain fluid is.
+   */
+  | 'fluid_loss';
 
 /**
  * The same medicine cabinet, read for cold.
@@ -114,6 +137,31 @@ export const MEDICATIONS: Medication[] = [
   { generic: 'ramipril', aliases: ['altace'], drugClass: 'ACE inhibitor', mechanisms: ['reduced_thirst_or_sedation'] },
   { generic: 'losartan', aliases: ['cozaar'], drugClass: 'ARB', mechanisms: ['reduced_thirst_or_sedation'] },
   { generic: 'valsartan', aliases: ['diovan'], drugClass: 'ARB', mechanisms: ['reduced_thirst_or_sedation'] },
+
+  // ---- GLP-1 receptor agonists: fluid out, and less willingness to put it back ----
+  //
+  // The most-prescribed new drug class in America, and absent from this table until
+  // now, which was a real hole rather than a rounding error. The mechanism is not
+  // sweating: delayed gastric emptying with nausea, vomiting or diarrhoea, which
+  // loses fluid and simultaneously makes somebody not want to drink. Reported to
+  // cause significant dehydration and secondary acute renal impairment.
+  { generic: 'semaglutide', aliases: ['ozempic', 'wegovy', 'rybelsus'], drugClass: 'GLP-1 agonist', mechanisms: ['fluid_loss'] },
+  { generic: 'tirzepatide', aliases: ['mounjaro', 'zepbound'], drugClass: 'GLP-1 and GIP agonist', mechanisms: ['fluid_loss'] },
+  { generic: 'liraglutide', aliases: ['victoza', 'saxenda'], drugClass: 'GLP-1 agonist', mechanisms: ['fluid_loss'] },
+  { generic: 'dulaglutide', aliases: ['trulicity'], drugClass: 'GLP-1 agonist', mechanisms: ['fluid_loss'] },
+  { generic: 'exenatide', aliases: ['byetta', 'bydureon'], drugClass: 'GLP-1 agonist', mechanisms: ['fluid_loss'] },
+
+  // ---- SGLT2 inhibitors: an osmotic diuresis nobody thinks of as a diuretic ----
+  //
+  // Glucose in the urine drags free water with it. Volume depletion events are
+  // measurably more common over 75, which is much of this audience, and the
+  // published guidance is explicit that type 2 diabetes already carries a raised
+  // dehydration risk in hot weather. People do not describe these as water pills,
+  // so they will not mention them when asked about diuretics.
+  { generic: 'empagliflozin', aliases: ['jardiance'], drugClass: 'SGLT2 inhibitor', mechanisms: ['fluid_loss'] },
+  { generic: 'dapagliflozin', aliases: ['farxiga', 'forxiga'], drugClass: 'SGLT2 inhibitor', mechanisms: ['fluid_loss'] },
+  { generic: 'canagliflozin', aliases: ['invokana'], drugClass: 'SGLT2 inhibitor', mechanisms: ['fluid_loss'] },
+  { generic: 'ertugliflozin', aliases: ['steglatro'], drugClass: 'SGLT2 inhibitor', mechanisms: ['fluid_loss'] },
 
   // ---- Anticholinergics: reduced sweating ----
   { generic: 'diphenhydramine', aliases: ['benadryl'], drugClass: 'anticholinergic antihistamine', mechanisms: ['reduced_sweating', 'photosensitivity'], cold: ['reduced_awareness_cold']  },
@@ -196,6 +244,7 @@ export const MECHANISM_LABEL: Record<Mechanism, string> = {
   reduced_thirst_or_sedation: 'blunts your thirst or alertness',
   increased_heat_production: 'raises your own heat production',
   photosensitivity: 'makes your skin burn faster in the sun',
+  fluid_loss: 'makes you lose fluid faster than you notice',
 };
 
 /** The same effects as verb phrases, for "your medications can also ...". */
@@ -207,4 +256,61 @@ export const MECHANISM_BASE: Record<Mechanism, string> = {
   reduced_thirst_or_sedation: 'blunt your thirst or alertness',
   increased_heat_production: 'raise your own heat production',
   photosensitivity: 'make your skin burn faster in the sun',
+  fluid_loss: 'make you lose fluid faster than you notice',
 };
+
+/**
+ * Known medications whose names are close to what was heard.
+ *
+ * For the case `findMedication` cannot serve: a name that is not an exact match
+ * but is one or two characters away from something in the table. Drug names are
+ * the hardest thing a speech system has to transcribe, and several in this table
+ * differ by a syllable while doing opposite things in heat, so a near miss is
+ * worth asking about and never worth assuming.
+ *
+ * Levenshtein rather than a phonetic key: the failure being corrected is usually
+ * a transcription slip of one or two letters, not a homophone, and a phonetic
+ * match would happily collapse names that need to stay apart.
+ */
+function editDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length || !b.length) return Math.max(a.length, b.length);
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      row[j] = Math.min(
+        prev[j] + 1,
+        row[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    prev = row;
+  }
+  return prev[b.length];
+}
+
+export function nearMatches(spoken: string, limit = 3): Medication[] {
+  const want = spoken.toLowerCase().replace(/\b\d+(\.\d+)?\s*(mg|mcg|g|ml)\b/g, '').replace(/\s+/g, ' ').trim();
+  if (want.length < 4) return [];
+
+  // One edit for a short name, two for a longer one. A flat threshold of two
+  // would make four-letter names match most of the table.
+  const budget = want.length <= 7 ? 1 : 2;
+
+  const scored: { med: Medication; d: number }[] = [];
+  const seen = new Set<string>();
+  for (const med of MEDICATIONS) {
+    for (const name of [med.generic, ...med.aliases]) {
+      const d = editDistance(want, name.toLowerCase());
+      if (d > 0 && d <= budget && !seen.has(med.generic)) {
+        scored.push({ med, d });
+        seen.add(med.generic);
+        break;
+      }
+    }
+  }
+  return scored.sort((a, b) => a.d - b.d || a.med.generic.localeCompare(b.med.generic))
+    .slice(0, limit)
+    .map((s) => s.med);
+}

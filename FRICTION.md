@@ -23,6 +23,9 @@ built the shape every generic MCP OAuth library uses: Dynamic Client Registratio
 any caller can self-register a `client_id`, plus a `WWW-Authenticate` 401 challenge pointing at
 protected resource metadata (RFC 9728).
 
+**Expected.** The shape every generic MCP OAuth library uses: a client that can register itself, and a
+challenge pointing at protected resource metadata.
+
 **Actual.** `category-sdk-mcp-account-linking.html` states plainly that Alexa+ "supports only the
 Authorization Code Grant" and that "Dynamic Client Registration isn't supported." The developer
 generates their own `client_id`, runs `alexa-ai configure-account-linking --client-id <id>`, and
@@ -52,12 +55,17 @@ crosses into a dangerous heat category, the way a weather app pushes a heat advi
 **Steps.** Searched the MCP Toolkit Overview and the wider Alexa+ add-on documentation for a
 proactive-notification or push capability equivalent to a skill's Proactive Events API.
 
+**Expected.** A scoped proactive channel for MCP add-ons, equivalent to a skill's Proactive Events API.
+
 **Actual.** The only documented proactive channel, `Alexa.ProactiveNotificationSource`, is scoped
 to smart-home devices signalling their own state ("your washer cycle finished"), and even the
 older skills-era Proactive Events API caps notifications per day and blocks them between 10pm and
 7am local time. Nothing in the MCP add-on surface lets a self-hosted server initiate contact with
 a customer; every tool call runs only because Alexa+ decided, from something the customer said, to
 call it.
+
+**Workaround.** None on the platform side. Every tool is question-and-answer. The one outbound path is Sudor's own
+email to a confirmed family contact, which does not go through Alexa+.
 
 **Consequence for this project.** This is not a missing feature Sudor works around, it is why
 every tool here is a question-and-answer tool rather than an alert. A design that assumed
@@ -78,14 +86,23 @@ kind of thing a customer will not think to ask about on the day it turns dangero
 **Severity: informational, recorded because it decided the architecture and is worth other
 builders knowing before they design around live per-request calls.**
 
-Measured directly, on 12 September 2026, before writing any server code: a single Open-Meteo
-forecast call took 420 to 480 ms, and a single openFDA drug-label lookup took 660 ms. Alexa+
-allows roughly 500 ms total for a round trip. Either number alone exceeds that budget with zero
-room for this server's own logic, so both had to be ruled out for the request path entirely rather
-than optimised. Weather is refreshed per registered location on a 20-minute background timer,
-matching Orbita's approach to the same constraint with NOAA; medication classification never calls
-a live API at all, and is instead a hand-built static table, because a lookup that cannot meet the
-budget is not a fallback option, it is disqualified outright.
+**Task.** Decide where weather and drug-label data come from, within the time Alexa+ allows a turn.
+
+**Steps.** Measured both APIs directly, on 12 September 2026, before writing any server code.
+
+**Expected.** That a live call per request would fit.
+
+**Actual.** A single Open-Meteo forecast call took 420 to 480 ms, and a single openFDA drug-label lookup
+took 660 ms. Alexa+ allows roughly 500 ms total for a round trip. Either number alone exceeds that budget
+with zero room for this server's own logic.
+
+**Workaround.** Both were ruled out for the request path. Weather is refreshed per registered location on
+a 20-minute background timer, matching Orbita's approach to the same constraint with NOAA. Medication
+classification never calls a live API at all, and is a hand-built static table, because a lookup that
+cannot meet the budget is disqualified outright.
+
+**Suggestion.** State the round-trip budget on the MCP Toolkit page, and what an add-on should do about data
+that cannot meet it, so builders do not have to find this out by measuring.
 
 ---
 
@@ -93,13 +110,23 @@ budget is not a fallback option, it is disqualified outright.
 
 **Severity: high.**
 
-The same finding as Orbita's entry 1, hit again here independently. The Alexa+ Display Modes page
+**Task.** Render the Echo Show panel for a tool result.
+
+**Steps.** Followed the Display Modes page: declared support on the tool with a flat `'ui.resourceUri'` key, and
+sent no `ui/initialize` from the view.
+
+**Expected.** A tool-side declaration, as the page says.
+
+**Actual.** The same finding as Orbita's entry 1, hit again here independently. The Alexa+ Display Modes page
 says to "declare in your tool what you support". In the MCP Apps specification (2026-01-26) a tool
 only links its view, with a nested `_meta.ui.resourceUri`; the view declares display modes in
 `appCapabilities.availableDisplayModes` inside the `ui/initialize` request it sends, and the host
 may not send the view anything until the view has also sent `ui/notifications/initialized`. This
 project's first panel used a flat `'ui.resourceUri'` key and never sent `ui/initialize`, so it would
 have stayed blank on a real host. `test-panel.mjs` now plays the host and checks the handshake.
+
+**Workaround.** Nested `_meta.ui.resourceUri` on the tool, the `ui/initialize` handshake in the view, and
+`test-panel.mjs` playing the host.
 
 **Suggestion.** Put the tool metadata, the `ui/initialize` request and the initialized notification
 on the Display Modes page, with a link to the MCP Apps specification by version.
@@ -112,6 +139,10 @@ on the Display Modes page, with a link to the MCP Apps specification by version.
 
 **Task.** Let a customer set their location by saying a city or a zip code, since nobody knows their
 coordinates.
+
+**Steps.** Called Open-Meteo's geocoding API for typed places and timed it.
+
+**Expected.** That a spoken place would resolve within the turn.
 
 **Actual.** Open-Meteo's free geocoding API measured 740 to 1000 ms per lookup, against roughly
 500 ms for a whole Alexa+ turn. The Alexa+ add-on documentation does not say how an add-on should
@@ -132,11 +163,21 @@ honoured, and if not, the recommended way to acknowledge now and answer on the n
 
 **Severity: informational. Not an Amazon issue, recorded because it gave wrong answers.**
 
-Without a `timezone` parameter Open-Meteo returns GMT wall clock strings such as `2026-09-12T15:00`
-with no `Z`. `new Date()` reads a string without a zone as the machine's local time, so on a server
-in Central time "when does it ease off" was five hours out, and would be wrong by a different amount
-on every host. The server now requests `timezone=auto`, keeps the location's wall clock for what it
-says, and converts each hour to a true UTC instant with the `utc_offset_seconds` Open-Meteo returns.
+**Task.** Say when the heat will ease off, in the customer's local time.
+
+**Steps.** Parsed Open-Meteo's hourly times with `new Date()`.
+
+**Expected.** Times that carry their own meaning.
+
+**Actual.** Without a `timezone` parameter Open-Meteo returns GMT wall clock strings such as
+`2026-09-12T15:00` with no `Z`. `new Date()` reads a string without a zone as the machine's local time,
+so on a server in Central time "when does it ease off" was five hours out, and would be wrong by a
+different amount on every host.
+
+**Workaround.** The server now requests `timezone=auto`, keeps the location's wall clock for what it says,
+and converts each hour to a true UTC instant with the `utc_offset_seconds` Open-Meteo returns.
+
+**Suggestion.** For Open-Meteo rather than Amazon: return the offset in the time string by default.
 
 ---
 
@@ -146,6 +187,9 @@ says, and converts each hour to a true UTC instant with the `utc_offset_seconds`
 
 **Task.** Meet the functional requirement *"Detect and prevent duplicate transactions"*, whose own
 example is a customer who already has a booking being offered a modification rather than a second one.
+
+**Steps.** Read the functional requirements and the add-on pages for any statement about host retries, and read the
+MCP specification for a request identifier a stateless server could use.
 
 **Expected.** Somewhere in the add-on documentation, a sentence saying whether Alexa+ retries a tool
 call it believes failed, and if so, what arrives with the retry that a server can recognise.
@@ -182,6 +226,9 @@ then, every add-on that writes anything is inventing the same window, and choosi
 
 **Task.** Confirm the MCP endpoint answers, the way anyone would: `curl` it.
 
+**Steps.** Started the server and sent it an `initialize` request with `curl`, which sends `Accept: */*` by
+default.
+
 **Expected.** A JSON-RPC answer, or an error that says what is wrong.
 
 **Actual.** `406 Not Acceptable: Client must accept both application/json and text/event-stream`.
@@ -211,6 +258,9 @@ wildcard case belongs upstream in the SDK, but the documentation gap is Amazon's
 **Task.** Make sure a mis-heard word produces something a customer can act on, as
 *"Provide actionable next step for every error"* and *"Surface no API codes, tool names, JSON, or
 internal IDs in any customer-facing response"* both require.
+
+**Steps.** Called a tool with a value its schema does not allow, `stopped` for an action, and read the result
+the way the host would.
 
 **Expected.** That a schema mismatch produces an error the host turns into a question.
 

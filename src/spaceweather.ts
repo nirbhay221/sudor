@@ -29,6 +29,7 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { backoff } from './backoff.js';
 
 export type Outlook = {
   /** NOAA G scale, 0 to 5, the worst of today and the three day outlook. */
@@ -85,9 +86,11 @@ async function askOrbita(): Promise<Outlook | null> {
     const when = worstAhead && worstAhead.g > today ? worstAhead.date : 'today';
     const peakKp = typeof result.structuredContent?.peak?.kp === 'number' ? result.structuredContent.peak.kp : null;
     return { g, when, peakKp, fetchedAt: Date.now() };
-  } catch {
+  } catch (err) {
     // Unreachable, slow, or answering something this does not understand. All
-    // three mean the same thing here: say nothing.
+    // three mean the same thing to a customer, silence, but an operator reading
+    // the log should be able to tell which it was.
+    console.error('[spaceweather] could not reach the space weather server:', err instanceof Error ? err.message : err);
     return null;
   } finally {
     clearTimeout(cutOff);
@@ -99,8 +102,14 @@ async function askOrbita(): Promise<Outlook | null> {
   }
 }
 
+/** After a run of failures, stop asking a server that is not answering. See backoff.ts. */
+const gate = backoff();
+
 async function poll(): Promise<void> {
+  if (!gate.ready()) return;
   const fresh = await ask();
+  if (fresh) gate.ok();
+  else gate.fail();
   if (fresh) held = fresh;
   else if (held && Date.now() - held.fetchedAt > STALE_MS) held = null;
 }

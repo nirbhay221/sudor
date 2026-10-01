@@ -2,7 +2,7 @@
   "name": "sudor-mcp",
   "version": "0.1.0",
   "private": true,
-  "license": "AGPL-3.0-or-later",
+  "license": "Apache-2.0",
   "type": "module",
   "description": "Alexa+ MCP add-on: tells you whether today's heat is dangerous for the medications you actually take.",
   "scripts": {
@@ -10,10 +10,13 @@
     "start": "node dist/server.js",
     "dev": "tsc --watch",
     "test": "npm run build && npm run test:unit && npm run test:live",
-    "test:unit": "node test.mjs && node test-personal.mjs && node test-cold.mjs && node test-actions.mjs && node test-recalls.mjs && node test-warnings.mjs && node test-spaceweather.mjs && node test-shelters.mjs && node test-panel.mjs && node test-auth.mjs && node test-static-client.mjs",
+    "eval": "npm run build && node eval.mjs",
+    "test:unit": "node test-registry.mjs && node test-a11y.mjs && node test-deploy.mjs && node test-fuzz.mjs && node test-validation.mjs && node test-output-schema.mjs && node evals/audit.mjs && node test-golden.mjs && node test-eval-runner.mjs && node test.mjs && node test-origin.mjs && node test-wbgt.mjs && node test-fluid.mjs && node test-vault.mjs && node test-linking.mjs && node test-demo-door.mjs && node test-budget.mjs && node test-bounds.mjs && node test-claims.mjs && node test-backoff.mjs && node test-email-guard.mjs && node test-devices.mjs && node test-agent.mjs && node test-speak.mjs && node test-trace.mjs && node test-elicit.mjs && node test-personal.mjs && node test-cold.mjs && node test-actions.mjs && node test-recalls.mjs && node test-warnings.mjs && node test-spaceweather.mjs && node test-shelters.mjs && node test-panel.mjs && node test-auth.mjs && node test-static-client.mjs",
     "test:live": "node test-web.mjs && node test-contract.mjs && node test-latency.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.129.0",
+    "@aws-sdk/client-polly": "^3.1143.0",
     "@aws-sdk/client-sesv2": "^3.1131.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "express": "^5.1.0",
@@ -22,6 +25,11 @@
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "axe-core": "^4.13.0",
+    "jsdom": "^24.1.3",
+    "playwright-core": "^1.63.0",
     "typescript": "^5.7.0"
   }
 }

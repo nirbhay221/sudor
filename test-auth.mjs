@@ -8,6 +8,7 @@
  * a replayed refresh token.
  */
 
+process.env.SUDOR_AUTH_DATA = './data/test-auth-auth.json';
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { pkceS256, verifyPkce } from './dist/auth.js';
@@ -99,7 +100,7 @@ try {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: reg.client_id, redirect_uri: redirectUri, code_challenge: challenge,
-      state: 'xyz', account: 'Red River',
+      state: 'xyz', account: 'Red River', passphrase: 'correct horse battery',
     }),
   });
   const back = new URL(consent.headers.get('location') ?? 'https://x.invalid');
@@ -121,7 +122,7 @@ try {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: reg.client_id, redirect_uri: redirectUri, code_challenge: challenge,
-      state: 'xyz', account: 'Red River',
+      state: 'xyz', account: 'Red River', passphrase: 'correct horse battery',
     }),
   });
   const code2 = new URL(consent2.headers.get('location')).searchParams.get('code');

@@ -40,7 +40,7 @@ for (let i = 0; i < 60 && !up; i++) {
 if (!up) { console.log('  FAIL  the server never came up'); stop(); process.exit(1); }
 
 let rpcId = 0;
-async function call(name, args = {}, sessionId = 'testaaaa0001') {
+async function call(name, args = {}, sessionId = '42816a48288988c1b90e06066deea01d') {
   const res = await fetch(`${BASE}/mcp`, {
     method: 'POST',
     headers: {
@@ -124,7 +124,7 @@ check('heat stroke signs put 911 first', /call 911/i.test(stroke.text.slice(0, 1
 console.log('\nTwo visitors are two profiles');
 await call('register_location', { place: 'Miami, Florida' }, 'otheraaa0003');
 await call('medication', { action: 'add', name: 'lithium' }, 'otheraaa0003');
-const mine = await call('my_profile', {}, 'testaaaa0001');
+const mine = await call('my_profile', {}, '42816a48288988c1b90e06066deea01d');
 const theirs = await call('my_profile', {}, 'otheraaa0003');
 check('one visitor never sees the other visitor\'s medications',
   !theirs.structured.medications.includes('doxycycline') && !mine.structured.medications.includes('lithium'),

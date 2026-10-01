@@ -74,3 +74,22 @@ export function configureForTest(opts: { from?: string; transport?: Transport })
   from = opts.from;
   if (opts.transport) transport = opts.transport;
 }
+
+/**
+ * Whether this identity may cause an email to be sent.
+ *
+ * Never a sandbox. A demo visitor can add any address as a contact, confirm it
+ * themselves (the confirmation is on the caller's side, not the recipient's), and
+ * then trigger an alert whose text they wrote, so without this the server is a relay
+ * for sending attacker-chosen words to an arbitrary inbox from this operator's own
+ * domain. SES sandbox mode, which only delivers to verified addresses, is the only
+ * thing that has been standing between the demo and that, and it is a setting
+ * somebody changes the day they ask for production access.
+ *
+ * Checked where the send is decided, by identity, rather than in the transport: the
+ * transport has no idea who asked.
+ */
+export const canEmailFor = (id: string): boolean => !id.startsWith('demo:');
+
+/** What is said to a sandbox visitor who tries. Spoken aloud, so plain words. */
+export const DEMO_NO_EMAIL = 'Email is turned off in the public demo, so I have not sent anything. A linked account can use it.';

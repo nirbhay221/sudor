@@ -7,6 +7,7 @@
  * DCR does not produce, so it needed its own path and its own test, not just
  * "the old DCR tests still pass."
  */
+process.env.SUDOR_AUTH_DATA = './data/test-static-client-auth.json';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { pkceS256 } from './dist/auth.js';
@@ -76,7 +77,7 @@ try {
   const consent = await fetch(`${BASE}/oauth/authorize`, {
     method: 'POST', redirect: 'manual',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: REDIRECT_A, code_challenge: challenge, state: 's1', account: 'jordan' }),
+    body: new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: REDIRECT_A, code_challenge: challenge, state: 's1', account: 'jordan', passphrase: 'correct horse battery' }),
   });
   const code = new URL(consent.headers.get('location')).searchParams.get('code');
   check('consent issues a code for the static client', !!code);
@@ -96,7 +97,7 @@ try {
   const consent2 = await fetch(`${BASE}/oauth/authorize`, {
     method: 'POST', redirect: 'manual',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: REDIRECT_B, code_challenge: challenge, state: 's2', account: 'jordan' }),
+    body: new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: REDIRECT_B, code_challenge: challenge, state: 's2', account: 'jordan', passphrase: 'correct horse battery' }),
   });
   check("a second, different registered redirect_uri is accepted, not just the first one",
     consent2.status === 302 && new URL(consent2.headers.get('location')).searchParams.get('code'), String(consent2.status));

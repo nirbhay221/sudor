@@ -91,6 +91,10 @@ const MECHANISM_SEVERITY: Record<Mechanism, number> = {
   hyponatremia_risk: 4,
   electrolyte_imbalance: 3,
   increased_sweating: 2,
+  // Between electrolyte trouble and sweating more. A real fluid deficit the person
+  // is unaware of, which compounds with heat, but it does not take the cooling
+  // system away, so it does not sit with reduced sweating.
+  fluid_loss: 3,
   photosensitivity: 0, // tracked, but this is a UV question, never a heat-index one
 };
 
@@ -108,6 +112,12 @@ export const GUIDANCE: Record<Exclude<Mechanism, 'photosensitivity'>, string> = 
     "you can be behind on fluids well before you feel it. Drink on a schedule, not on thirst.",
   electrolyte_imbalance:
     "heavy sweating pushes it further in the same direction. Plain water alone is not enough today; an electrolyte drink is worth having.",
+  // Deliberately NOT the electrolyte advice. This is water going out by a route
+  // that takes no salt with it, through the gut or the kidney, so "have something
+  // salty" is the wrong correction. Steady plain fluid is, and the harder part is
+  // that nausea or simply not noticing is what caused the deficit.
+  fluid_loss:
+    "so you can be dry before the heat has even done its part. Sip steadily through the day whether or not you feel like it, and if you cannot keep fluids down in this heat that is a reason to call someone, not to wait it out.",
   // The one place where the standard hot-day advice is the thing that hurts.
   // A 2026 scoping review of medication and heat illness in older adults puts
   // thiazides, SSRIs and the renin-angiotensin drugs together as the group where

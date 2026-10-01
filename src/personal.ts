@@ -56,6 +56,11 @@ const SEVERITY: Record<Mechanism, number> = {
   hyponatremia_risk: 4,
   electrolyte_imbalance: 3,
   increased_sweating: 2,
+  // Between electrolyte trouble and sweating more. It is a real fluid deficit the
+  // person is unaware of, and it compounds with heat rather than being caused by
+  // it, but it does not take the cooling system away, so it does not sit with
+  // reduced sweating.
+  fluid_loss: 3,
   photosensitivity: 0,
 };
 

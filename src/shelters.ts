@@ -27,6 +27,8 @@
  * 211, the nationwide referral line that does know about the library.
  */
 
+import { backoff } from './backoff.js';
+
 export type Shelter = {
   name: string;
   address: string;
@@ -65,7 +67,10 @@ async function fetchFromFema(): Promise<Shelter[] | null> {
       signal: ctrl.signal,
       headers: { 'User-Agent': 'sudor/0.1 (Alexa+ add-on; heat and cold safety)' },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[shelters] the shelter list answered ${res.status}`);
+      return null;
+    }
     const body = (await res.json()) as { features?: { attributes?: Record<string, unknown> }[] };
     if (!Array.isArray(body.features)) return null;
     return body.features
@@ -82,15 +87,24 @@ async function fetchFromFema(): Promise<Shelter[] | null> {
         pets: String(a.pet_accommodations_desc ?? '').trim() || null,
       }))
       .filter((s) => s.name && Number.isFinite(s.lat) && Number.isFinite(s.lon));
-  } catch {
+  } catch (err) {
+    // Silence here cost an evening: the first poll on a fresh box failed, the
+    // feature stayed dark for fifteen minutes, and nothing anywhere said so.
+    console.error('[shelters] could not read the open shelter list:', err instanceof Error ? err.message : err);
     return null;
   } finally {
     clearTimeout(timer);
   }
 }
 
+/** After a run of failures, stop asking a list that is not answering. See backoff.ts. */
+const gate = backoff();
+
 async function poll(): Promise<void> {
+  if (!gate.ready()) return;
   const fresh = await fetchOpen();
+  if (fresh) gate.ok();
+  else gate.fail();
   // A failed check never becomes "no shelters are open". That sentence would
   // send someone back to a cold house on the strength of a timeout.
   if (fresh) held = { shelters: fresh, checkedAt: Date.now() };
@@ -99,6 +113,16 @@ async function poll(): Promise<void> {
 
 export async function start(): Promise<void> {
   await poll();
+  /*
+   * A boot that misses costs fifteen minutes of "I could not find out" to
+   * anyone who asks in the meantime, so a first failure is retried in a minute
+   * rather than waiting for the ordinary cycle. Once something has landed, the
+   * ordinary cycle is enough.
+   */
+  if (!held) {
+    const retry = setTimeout(() => void poll(), 60 * 1000);
+    retry.unref?.();
+  }
   const timer = setInterval(() => void poll(), EVERY_MS);
   timer.unref?.();
 }
