@@ -229,6 +229,31 @@ const claimsPerAddress = perCaller(
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
+/** Dynamic clients are a development convenience, so there is a ceiling on how many are remembered. */
+const MAX_DYNAMIC_CLIENTS = 200;
+const registrations = perCaller(5, 1);
+
+/** A redirect target has to be https, or plain http on this machine. Nothing else is a place to send a code. */
+function okRedirect(value: unknown): boolean {
+  if (typeof value !== 'string' || value.length > 300) return false;
+  try {
+    const u = new URL(value);
+    if (u.username || u.password || u.hash) return false;
+    if (u.protocol === 'https:') return true;
+    return u.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/** A page that takes a passphrase is never shown inside somebody else's page, and is never kept. */
+function noFraming(res: Response): void {
+  res.set('Content-Security-Policy', "frame-ancestors 'none'; default-src 'none'; style-src 'unsafe-inline'");
+  res.set('X-Frame-Options', 'DENY');
+  res.set('Cache-Control', 'no-store');
+  res.set('Referrer-Policy', 'no-referrer');
+}
+
 export function mountAuth(app: Express): void {
   // Read the file now. A wrong or missing key should stop the process at boot, not
   // surface as an error page the first time somebody tries to link.
@@ -262,7 +287,7 @@ export function mountAuth(app: Express): void {
       issuer: origin,
       authorization_endpoint: `${origin}/oauth/authorize`,
       token_endpoint: `${origin}/oauth/token`,
-      registration_endpoint: `${origin}/oauth/register`,
+      ...(STATIC_CLIENT_ID ? {} : { registration_endpoint: `${origin}/oauth/register` }),
       scopes_supported: ['sudor.read', 'sudor.write'],
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
@@ -276,16 +301,39 @@ export function mountAuth(app: Express): void {
 
   // ---- dynamic client registration ------------------------------------
   app.post('/oauth/register', (req, res) => {
-    const uris: unknown = req.body?.redirect_uris;
-    if (!Array.isArray(uris) || uris.length === 0 || !uris.every((u) => typeof u === 'string')) {
-      res.status(400).json({ error: 'invalid_redirect_uri', error_description: 'redirect_uris is required.' });
+    // Alexa+ does not use dynamic registration: it is given one client id and its redirect URIs out of band.
+    // Once that client is configured, leaving registration open only serves somebody else, who could
+    // register a client called "Alexa+" with their own redirect URI and send a customer to this server's
+    // real consent page, where a correct passphrase would hand the attacker a token. So it is closed.
+    if (STATIC_CLIENT_ID) {
+      res.status(403).json({ error: 'access_denied', error_description: 'Dynamic client registration is not available on this server.' });
       return;
     }
+    if (!registrations.allow(`ip:${req.ip ?? 'unknown'}`)) {
+      res.status(429).set('Retry-After', '60').json({ error: 'slow_down', error_description: 'Too many registrations. Try again shortly.' });
+      return;
+    }
+    const uris: unknown = req.body?.redirect_uris;
+    if (!Array.isArray(uris) || uris.length === 0 || uris.length > 5 || !uris.every(okRedirect)) {
+      res.status(400).json({
+        error: 'invalid_redirect_uri',
+        error_description: 'redirect_uris must be one to five https URLs, or http on localhost.',
+      });
+      return;
+    }
+    // Bounded, oldest out first. The registered client the configuration names is never dropped.
+    while (clients.size >= MAX_DYNAMIC_CLIENTS) {
+      const oldest = [...clients.keys()].find((k) => k !== STATIC_CLIENT_ID);
+      if (!oldest) break;
+      clients.delete(oldest);
+    }
     const id = `orb_${randomBytes(12).toString('hex')}`;
+    // A registered name is whatever the caller typed, so it is shown as a claim and never as a fact.
+    const claimed = typeof req.body?.client_name === 'string' ? req.body.client_name.replace(/[^\w .,'+-]/g, ' ').trim().slice(0, 60) : '';
     clients.set(id, {
       id,
       redirectUris: uris as string[],
-      name: typeof req.body?.client_name === 'string' ? req.body.client_name : 'unnamed client',
+      name: claimed ? `An app calling itself "${claimed}"` : 'An unnamed app',
     });
     res.status(201).json({
       client_id: id,
@@ -319,6 +367,7 @@ export function mountAuth(app: Express): void {
     if (!code_challenge) return fail('invalid_request', 'PKCE is required.');
     if ((code_challenge_method ?? 'plain') !== 'S256') return fail('invalid_request', 'code_challenge_method must be S256.');
 
+    noFraming(res);
     res.type('html').send(consentPage(client, { client_id: client_id!, redirect_uri, code_challenge, state: state ?? '' }));
   });
 
@@ -337,8 +386,10 @@ export function mountAuth(app: Express): void {
       code_challenge: String(code_challenge),
       state: String(state ?? ''),
     };
-    const again = (status: number, message: string) =>
-      void res.status(status).type('html').send(consentPage(client, fields, message, String(account)));
+    const again = (status: number, message: string) => {
+      noFraming(res);
+      res.status(status).type('html').send(consentPage(client, fields, message, String(account)));
+    };
 
     // Only a name nobody has claimed counts against the address, and only when the
     // passphrase is one that could actually claim it, so a mistyped form is free.
@@ -351,7 +402,7 @@ export function mountAuth(app: Express): void {
 
     // A name alone is no longer enough. See authstore.ts for why, and for what this
     // does and does not defend against.
-    const verdict = await store.claimOrVerify(name, String(passphrase ?? ''));
+    const verdict = await store.claimOrVerify(name, String(passphrase ?? ''), req.ip ?? '');
     switch (verdict.kind) {
       case 'claimed':
       case 'ok':

@@ -2,7 +2,12 @@
 
 **"Alexa, when is the best time for me to go out today?"**
 
-An Alexa+ add-on that plans a day around the heat for one person's own body: the medications
+**Live:** [on a screen, with the family's phone beside it](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html) ·
+[try it in a browser](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/) ·
+MCP endpoint `https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/mcp` (account linking required) ·
+[health](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/health)
+
+An Alexa+ add-on that plans a day around the heat and the cold for one person's own body: the medications
 they take and the health conditions they have, against the live heat, UV and air quality where
 they are. It finds the best time to go out, says what to do when going out cannot wait, and knows
 the warning signs of heat illness, including when the answer is to call 911.
@@ -13,6 +18,26 @@ away.
 Built for the [Build, Ship, Shape: Amazon Developer Hackathon](https://amazonappdev2026.devpost.com),
 Alexa+ track, plus the Open Source and AWS Builder mini challenges. Self-hosted MCP server,
 spec 2025-11-25, Streamable HTTP, with an MCP Apps panel for the Echo Show.
+
+## What is real, and what is not
+
+Nothing here is mocked for the demo. Where something stands in for a thing we could not reach, it is named.
+
+| Part | Status |
+|---|---|
+| MCP server, spec 2025-11-25, Streamable HTTP, 18 tools by default | **Real and deployed** on AWS, behind account linking. 1,814 automated checks |
+| Weather, UV, air quality, official warnings, shelters, recalls | **Real, live feeds**: Open-Meteo, the National Weather Service, FEMA, openFDA. Polled in the background, never inside a turn |
+| Medicines | **Real sources**: the CDC's clinical guidance for the 57 it names, and the National Library of Medicine's RxNorm for every other name, by drug class. Checked live with Coreg, Lasix, Seroquel, Jardiance, Xanax and oxybutynin |
+| What each medicine's label says | **Real, read live**: the current FDA label from openFDA, searched for the few phrases that state a heat risk outright. Checked live with topiramate, oxybutynin, olanzapine, doxycycline and zonisamide |
+| Nearest emergency department | **Real**: Amazon Location Service for position and distance, Medicare's hospital list for which ones have emergency services. Checked live in Phoenix, Minneapolis, Tampa and Anchorage |
+| Geomagnetic storm notice | **Real**: asked of the deployed Orbita server over MCP |
+| Emails to family | **Real code, switched off on the deployed server**: no sending address is configured, so nothing is sent and every answer says so. The public demo never sends email |
+| Alexa+ itself | **Not available to us.** The demo page's assistant is Claude Opus reading the real tool list. It is a stand-in, and routing measured with it is routing for that model, not for Alexa+ |
+| Echo Show panel | **Real MCP App**, tested against a simulated host. Not seen on a real device |
+| Phone calls, text messages, 911 | **Not built.** The server cannot ring anyone, and says so each time |
+
+**Where it works:** the United States. The weather is worldwide, but the place lookup, official warnings, shelters,
+hospitals and the 211 line are American, so a place outside the country is refused, not guessed at.
 
 ## Start here
 
@@ -28,7 +53,9 @@ these are the things worth your time:
 | Where it is wrong, or cannot know | [Honest limitations](#honest-limitations) |
 
 Free sources, no API keys. Every tool call is answered from memory; nothing external is called inside
-a turn, because two of the sources blow the whole turn budget on their own. `npm test` runs 753 checks.
+a turn, because two of the sources blow the whole turn budget on their own. `npm test` runs 1,814 checks.
+One source is not free of setup: the nearest hospital comes from Amazon Location Service, which needs AWS
+credentials and no key.
 
 ## The problem
 
@@ -270,46 +297,46 @@ absorb one. Only Class I is ever volunteered inside an answer about going outsid
 
 ## Tools
 
-Eighteen tools. Fewer than there were, deliberately: published benchmarks put tool selection above 90 percent
-up to about twenty tools and falling away after that, so adding and removing the same thing is one tool with an
-action, not two.
+Eighteen tools by default, and four more with `SUDOR_SCOPE=all`.
 
 **Answers**
-* `plan_my_day` the best time to go out today or tomorrow for an errand of a given length, and the
-  hours to avoid
-* `going_out_now` precautions for going out when it cannot wait, three at a time, always ending on
-  the heat stroke line
-* `warning_signs` what to do for the symptoms someone describes, or the signs to watch for, and
-  in an emergency it emails confirmed emergency contacts after the 911 line
-* `weather_check` whether right now is fine, a time for care, or better spent inside, and why
-* `sun_check` sunburn risk from UV for a photosensitising medication
-* `medicine_recalls` open FDA recalls on the medicines this person actually takes, worst first
-* `weather_warnings` official National Weather Service alerts for their address, with the weather service's own
-  instructions, and why this one is worse for them
+* `weather_check` whether right now is fine, a time for care, or better spent inside, and why. An active official
+  warning that is not about heat or cold (a hurricane, a tornado, a flood) is said in the same answer
+* `plan_my_day` the best time to go out today or tomorrow for an errand of a given length, and the hours to
+  avoid. Given shift hours, it plans a shift that cannot be moved
+* `going_out_now` precautions for going out when it cannot wait, two at a time, ending on the heat stroke line
+  whenever the heat index is 80 or more
+* `warning_signs` what to do for the symptoms someone describes, in the heat or the cold. In an emergency it says
+  911 first, names the nearest emergency department, and emails contacts who have agreed. A question about the
+  signs gets the same advice and emails nobody
 * `storm_prep` what a storm or a power cut means for their medicines: refrigeration, dialysis, oxygen, supply
-* `should_i_shovel` whether heavy work in the cold is a risk for this person
-* `somewhere_to_go` open shelters near this address when the house is too cold or too hot to stay in,
-  which ones have a generator, step-free access or take pets, and the 211 line for the local warming
-  and cooling centres no federal list carries
+* `somewhere_to_go` open shelters near this address when the house is too cold or too hot to stay in, and the
+  211 line. It ends by offering to tell the family
+* `get_help` tells every contact who has agreed that this person needs help, with where they are and the nearest
+  shelter and emergency department. It cannot phone anyone or reach 911, and says so
 * `what_can_you_do` including that it is not a doctor and not medical advice
+* `tell_me_more` the rest of the last answer
 
 **About you**
 * `register_location` by city and state or zip code
 * `medication` adds or removes one, by generic or brand name
-* `health_condition` adds or removes one, the way people say it, "I have MS", "my husband is on dialysis"
-* `my_profile` reads back everything it has been told, and `action forget` deletes all of it: the fresh
-  start the certification requirements ask for, said back as counts rather than a list of medicines, and
-  only done when asked a second time
-
-Every tool also declares what it does to the world, in the annotations the specification carries:
-whether it only reads, whether it can take something away, whether saying it twice changes anything,
-and whether its answer depends on a service outside this process.
+* `health_condition` adds or removes one, the way people say it
+* `my_profile` reads back everything it has been told, and `action forget` deletes all of it, only when asked a
+  second time
 * `set_privacy` keeps medications and conditions out of spoken answers
 * `log_outing` records how a trip outside went
 
 **Family**
-* `contact` adds, confirms or removes a family member or caregiver to email in an emergency or the evening
-  before a stay-inside day. Nothing is sent to anyone unconfirmed
+* `contact` adds, confirms or removes a family member or caregiver. The account holder's yes sends one
+  invitation; nothing else is sent until that person agrees
+* `share_my_day` gives a one-time code so a family member can ask how the day is looking
+* `check_on` is that family member asking. They never hear a medicine or a condition
+
+**Published only with `SUDOR_SCOPE=all`:** `should_i_shovel`, `weather_warnings`, `sun_check`, `medicine_recalls`.
+
+Every tool declares what it does to the world, in the annotations the specification carries: whether it only reads,
+whether it can take something away, whether saying it twice changes anything, and whether its answer depends on a
+service outside this process.
 
 ## When the house is the problem
 
@@ -452,8 +479,11 @@ signs describe heat stroke, the answer says to call 911 first, then confirmed em
 emailed. In the evening where the person lives, if tomorrow stays in the risky range for them all
 day, confirmed contacts get one email for that day. Contacts are staged and only emailed after the
 person confirms. Email goes through Amazon SES when `SUDOR_EMAIL_FROM` is set to a verified sender;
-until then every message is still written to `data/outbox.jsonl` and the spoken answer says it
-cannot email yet, rather than claiming it did.
+until then every attempt is still logged to `data/outbox.jsonl` and the spoken answer says it
+cannot email yet, rather than claiming it did. The log holds a short hash of the address and no
+subject line. One address is sent at most eight emails a day, and at most three emergency emails an
+hour, because a contact is confirmed by the person and not by whoever owns the address. The
+stay-inside email never names a condition or a medicine.
 
 **Privacy mode.** A home is not a private screen: an aide, a neighbour or a grandchild may be in the
 room. With privacy on, answers say "something in your health profile makes this heat riskier"
@@ -519,6 +549,17 @@ tool results. It shows the heat index for this person, and an hourly strip where
 a word (ok, care, stay in) and a fill pattern as well as a colour. Until data arrives it shows a
 labelled example day. `test-panel.mjs` runs it against a simulated host.
 
+## On a screen, with the family's phone beside it
+
+`/echo.html` is a stand-in for an Echo Show. Down the page are the lines somebody might say; each is a real tool
+call with real arguments (`web/echo-scenes.json`), and a test calls every one. No assistant model runs on that
+page, so the lines are fixed and the answers are whatever the server says today.
+
+Beside the screen is the phone of the person who gets told. The public demo never sends email, so the message a
+contact would have been sent is kept, word for word, against that visitor's own sandbox id and shown there
+(`/demo/phone`). The buttons on it post to the same pages a link in a real email opens: pressing yes is the real
+agreement, and pressing "I'm on my way" is the real answer, which the screen says the next time it speaks.
+
 ## The demo page
 
 `npm start` also serves a page at http://localhost:8789 for anyone who wants to try this without an Echo.
@@ -554,37 +595,38 @@ Or without installing Node at all:
 docker build -t sudor . && docker run -p 8789:8789 sudor
 ```
 
-`npm test` runs everything, 573 checks. It is also what CI runs on every push, on Node 20 and 22,
+`npm test` runs everything, 1,814 checks. It is also what CI runs on every push, on Node 20 and 22,
 with the live suite in its own job so an outage at a weather service is never mistaken for a
 regression here.
 
 ```bash
-npm run test:unit           # 340 checks, no live data
-npm run test:live           # 233 checks, against the real forecast
+npm run test:unit           # 1,519 checks, no live data
+npm run test:live           # 295 checks, against a running server and the real forecast
 
-node test.mjs               # 35: heat index formula, categories, medications, how the lines read aloud
-node test-personal.mjs      # 84: conditions, an age said aloud, sensitivity, planning, precautions, first aid
-node test-actions.mjs       # 47: removing, privacy, learned limits, contacts, emails, repeats, forgetting, retention
-node test-panel.mjs         # 14: the MCP Apps handshake against a simulated host
-node test-auth.mjs          # 23: OAuth 2.1 with PKCE against a running server
-node test-static-client.mjs # 8: the account linking shape Alexa+ actually uses
-node test-cold.mjs          # 27: wind chill against the NWS chart, frostbite times, hypothermia first aid
-node test-recalls.mjs       # 21: FDA recalls, severity, privacy, and never a false all clear
-node test-warnings.mjs      # 29: official alerts, the personal half, and storm prep by medicine
-node test-spaceweather.mjs  # 30: asking Orbita over MCP, what crosses the wire, the base rate, silence on failure
-node test-shelters.mjs      # 22: open shelters, distances, what the feed does not say, and 211
-node test-web.mjs           # 58: the demo page, every request on it, one profile per visitor, older hosts
-node test-contract.mjs      # 147: every listed tool invoked for real, on an empty profile and a half set
+node test.mjs               # heat index formula, categories, medications, how the lines read aloud
+node test-personal.mjs      # conditions, an age said aloud, sensitivity, planning, precautions, first aid
+node test-actions.mjs       # removing, privacy, learned limits, contacts, emails, repeats, forgetting, retention
+node test-panel.mjs         # the MCP Apps handshake against a simulated host
+node test-auth.mjs          # OAuth 2.1 with PKCE against a running server
+node test-static-client.mjs # the account linking shape Alexa+ actually uses
+node test-cold.mjs          # wind chill against the NWS chart, frostbite times, hypothermia first aid
+node test-recalls.mjs       # FDA recalls, severity, privacy, and never a false all clear
+node test-warnings.mjs      # official alerts, the personal half, and storm prep by medicine
+node test-spaceweather.mjs  # asking Orbita over MCP, what crosses the wire, the base rate, silence on failure
+node test-shelters.mjs      # open shelters, distances, what the feed does not say, and 211
+node test-web.mjs           # the demo page, every request on it, one profile per visitor, older hosts
+node test-contract.mjs      # every listed tool invoked for real, on an empty profile and a half set
                             #       up one, with junk arguments, annotations checked, and every answer read
                             #       back for sentences that would stumble out loud
-node test-latency.mjs       # 14: the voice budget, measured per tool, written to LATENCY.md
+node test-latency.mjs       # the voice budget, measured per tool, written to LATENCY.md
 node probe.mjs              # end to end against live Open-Meteo and geocoding
 ```
 
 Alexa+ account linking is not the generic MCP OAuth shape: Amazon's docs state that it "supports
 only the Authorization Code Grant" and that "Dynamic Client Registration isn't supported." Pick
 your own `client_id`, run `alexa-ai configure-account-linking --client-id <id>`, and set the
-redirect URIs the CLI hands back:
+redirect URIs the CLI hands back. Once `SUDOR_CLIENT_ID` is set, this server's own registration endpoint is
+closed, so nobody else can register a client that calls itself Alexa+:
 
 ```bash
 export SUDOR_CLIENT_ID=sudor-alexa-addon
@@ -638,10 +680,106 @@ nothing.
   are keyed by address so rotating ids does not help, and profiles, contacts, followed places and timers
   have ceilings. These counters are in memory and reset when the service restarts. Feed polling backs off
   exponentially with jitter when an upstream fails.
-* **Behind API Gateway.** `SUDOR_TRUST_PROXY=1` counts one hop, and the origin secret is armed only after
+* **Behind API Gateway.** No proxy is trusted unless told to: with `SUDOR_TRUST_PROXY` unset, `X-Forwarded-For`
+  is ignored, so an invented address does not buy a fresh allowance. `SUDOR_TRUST_PROXY=1` counts one hop, and the origin secret is armed only after
   the gateway sends it. See `deploy/README.md` for the order.
 
+## Asking for help, and where to go
+
+Three things were added for the day the weather is most dangerous, which is the day the power is out.
+
+* **`get_help`.** "Get help, the power is out and I'm cold." Every confirmed contact is emailed at once with what
+  was said, roughly where the person is, the nearest open shelter and the nearest emergency department, each with a
+  link that opens directions. Nothing about a medicine or a condition is in it. The spoken answer says who is being
+  emailed and then says, every time, that the add-on cannot phone anyone and cannot reach 911. It never says help
+  was called. Three an hour per contact, counted apart from ordinary mail, and nothing from the public demo.
+* **The nearest emergency department.** Named in `get_help`, and in `warning_signs` after the first aid whenever the
+  answer is to get medical help. Two sources are combined (`src/care.ts`). Amazon Location Service gives the
+  position, the phone number and so the distance, called with the role the server already runs under. Medicare's
+  Hospital General Information list gives the one fact no map has, which hospitals report emergency services.
+  "Nearest" is said only when a distance was measured, and where the map cannot be reached a hospital in the same
+  town is named from the Medicare list. Looked up in the background when a place is set, never inside a tool call.
+* **Shelters and storm preparation are part of the default tool set again.** `somewhere_to_go` now ends by offering
+  to tell the family, and `storm_prep` is where a geomagnetic storm from Orbita is turned into what to do about
+  medicines that need a fridge or a socket.
+
+What is not there: a text message or a phone call. Both need a registered sending number, and neither has been set
+up or tested, so neither is claimed. The role the server runs under needs `geo-places:SearchNearby`.
+
+## Who agrees to be emailed
+
+A contact used to be confirmed by the account holder alone. Now the account holder's yes sends one invitation, and
+nothing else goes to that address until the person who owns it opens the link and presses yes (`src/consent.ts`). The
+link opens a page with a button and does not accept on being opened, because mail scanners open every link. Only a
+hash of the invitation is stored. Every email after that ends with a link that stops them. One invitation a day per
+address, from any account, and none from the public demo.
+
+Two more corrections in the same pass. A question about the signs ("is confusion a sign of heat stroke?") still gets
+the 911 advice, and no longer emails the family that heat stroke was described. And wrong passphrases are counted per
+address, so five wrong guesses lock out the address that made them and not the person whose name was typed.
+
+## The answer comes back
+
+The help email carries a link. The family member presses "I'm on my way" or "Ask them to ring me", and the next
+thing the person hears from Sudor, whatever they ask, starts with it: "Priya answered: they are on the way." The link
+works once, lasts six hours, and only its hash is stored. It does not replace ringing them, and the page says so.
+
+## People who work outside
+
+`plan_my_day` takes a shift (`shiftStart`, `shiftEnd`) for somebody who cannot choose their hours. It says when the
+heat index passes 80 and 90, the two lines in the workplace heat rule OSHA proposed in 2024, when to take the
+fifteen minute breaks, and, where it is earlier, the hour that is risky for this person given what they take.
+The rule is described as proposed, because that is what it is.
+
+## One decision for the machines and the people
+
+Of outdoor workers who died of heat between 2011 and 2016, 79 percent were in their first two weeks on the job or just
+back from time away. So somebody who says they have started outdoor work, or come back to it, is remembered as that,
+dated to the day they said it, and `plan_my_day` rations the heat on the schedule NIOSH recommends: a fifth of a usual
+day on day one and a fifth more each day for somebody new; half, then 60 and 80 percent, for somebody returning.
+"This is day 2 of getting used to the heat, so no more than 4 hours of it today: done by 11 am."
+
+The same person can share their working day with a crew. `share_my_day` gives a one-time code; the farm's Orbita
+server exchanges it for a link and asks `check_on` over MCP. What goes back is what a foreman needs: how hot the shift
+gets, when it turns risky for this person, and how many hours of heat they should do. Never a medicine, a condition
+or a reason, and the link dies the moment they stop sharing. Orbita then says it in the same breath as the job:
+"Clear for planting. Dana is on day 2 in the heat: 4 hours of it today, done by 11 am."
+
+## How the conversation is designed
+
+* **Short answers.** A read-only answer is spoken as its first three sentences, led by the answer for this person
+  ("For you, it is better to stay in right now"). The rest is returned as `more` in the structured result and spoken
+  when the customer says "tell me more" (`tell_me_more`). The line about not stopping a medicine is always said. An
+  answer that mentions 911, a write, and a tool that pages its own steps are never shortened. See `src/brief.ts`.
+* **One story by default.** The default tool set is one person, the weather outside, what they take, and the day the
+  power goes out. Shovelling, the full list of official warnings, sunburn and recalls are published only with
+  `SUDOR_SCOPE=all`.
+* **Asked twice, answered differently.** The same question inside a minute and a half, with the same answer, gets the
+  verdict alone and what to ask next, not the same sixty words. An answer that mentions 911 is said in full every time.
+* **Said until it is heard.** Once a day has been planned as a stay-inside day, the next answers start by saying so,
+  three times at most, until the person says "got it". Never in front of an emergency. See `src/attention.ts`.
+* **An answer ends on the next step.** A risky hour ends with "Want me to find the safest time to go out today?".
+* **A card that fits the task.** The day strip (`ui/window.html`) is for the weather. The profile, a contact being
+  confirmed, a sharing code and the "Call 911 now" card use `ui/card.html`. The profile card shows counts, not names.
+* **A second person.** The person asks for a one-time code (`share_my_day`); a family member joins with it from their
+  own account and can ask how the day is looking (`check_on`). They hear whether it is a fine day, a day to take care
+  or a day to stay in, and never a medicine, a condition or a reason.
+
+## Is the answer worth having
+
+[BACKTEST.md](BACKTEST.md) replays the measured hourly weather for July 2026 in six American cities through the same
+code the server runs, for two people: one with nothing registered, and one on metoprolol and furosemide with heart
+disease. The two answers differ in 36 to 86 percent of waking hours. In Tampa the second person had 7 days of 31 with no
+fine hour to be outside, and the first had none; in Phoenix it was 24 days against 5. It counts how often the answers
+differ, from heat alone. It does not show that anybody was harmed or protected. `node evals/backtest.mjs` regenerates it.
+
 ## Evaluating tool selection
+
+The golden set and the saved baseline were run with the full tool set (`SCOPE=all`) and before the sharing,
+"tell me more", `get_help` and shift-planning additions. The new sentences for those are checked against the tool
+list and have not been run against a model, so the routing figures below do not cover them. The model in that run
+was Claude Opus 5.5 standing in for Alexa+: it shows the descriptions work for that model, and nothing about the
+one Alexa+ uses.
 
 `npm test` shows the server gives the right answer once a tool is chosen. It cannot show that a host would
 choose that tool from what a person said, which is what Amazon's certification list tests, so there is a
@@ -749,7 +887,24 @@ pair is 33 before anything else is connected. On a host with a ceiling, connect 
 
 * The one level offset between sensitivity groups follows HeatRisk's own grouping, applied to the NWS
   heat index categories. That is an approximation, not a clinical threshold for any one person.
-* Ten conditions and 57 medications, not a clinical database. Anything unrecognised is said to be
+* **United States only.** A place in another country is refused. Before this was checked against the live server,
+  "Lyon, France" was answered with the weather in Lyon, Mississippi.
+* The nearest emergency department is the nearest general hospital that Medicare lists as having emergency
+  services. It is not a promise that it is open or right for the problem. The first live check in Anchorage named a
+  psychiatric hospital; psychiatric, children's and veterans' hospitals are now left out.
+* No email is sent from the deployed server until a sending address is set, and a contact has to agree before they
+  are sent anything but the invitation.
+* Twelve conditions, and medicines from two sources. Fifty-seven are named one by one in the CDC's clinical guidance
+  on heat and medicines. Any other name is looked up in RxNorm, the National Library of Medicine's drug vocabulary,
+  which gives the ingredient and its ATC class; the class is then read against the same CDC guidance, and the answer
+  says it rests on the class (`src/rxclass.ts`). Classes that mix drugs with different effects are left
+  unclassified on purpose, and a combination product such as Adderall is not classified. Not a clinical database.
+* **Which parts update themselves and which do not.** Drug names and classes come live from the National Library of
+  Medicine, and each medicine's current FDA label is read live for an explicit heat warning (`src/labels.ts`), so a
+  new drug or a new label warning is picked up without a code change. The CDC's own list is a web page with no data
+  feed, and it refuses automated readers, so the 57 named medicines and the class table are a snapshot of it that
+  somebody has to re-read when the CDC revises it. The label reader is deliberately narrow: it will miss a warning
+  worded in a way it does not expect, and a label that says nothing is never taken as safe. Anything unrecognised is said to be
   unrecognised, never guessed. Two whole classes were missing until recently, which is the honest
   measure of how incomplete a hand-built table can be while looking finished.
 * The fluid-loss mechanism is a class-level statement, not a dose-level one. A GLP-1 at a starting

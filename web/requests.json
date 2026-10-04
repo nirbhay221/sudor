@@ -25,6 +25,13 @@
           "args": {}
         },
         {
+          "say": "Get help. The power is out and I am cold.",
+          "tool": "get_help",
+          "args": {
+            "what": "the power is out and I am cold"
+          }
+        },
+        {
           "say": "I have to go out anyway. What should I do?",
           "tool": "going_out_now",
           "args": {}
@@ -69,6 +76,15 @@
           "args": {
             "activity": "gardening",
             "minutes": 120
+          }
+        },
+        {
+          "say": "I work outside seven to three tomorrow. How bad is it?",
+          "tool": "plan_my_day",
+          "args": {
+            "shiftStart": 7,
+            "shiftEnd": 15,
+            "day": "tomorrow"
           }
         }
       ]
@@ -226,7 +242,11 @@
     "my_profile",
     "set_privacy",
     "log_outing",
-    "contact"
+    "contact",
+    "share_my_day",
+    "check_on",
+    "get_help",
+    "tell_me_more"
   ],
   "seed": {
     "location": {

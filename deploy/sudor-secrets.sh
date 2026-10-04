@@ -49,5 +49,11 @@ if [ "$(get /sudor/origin-enforce)" = "on" ]; then
   [ -n "$sec" ] && printf 'SUDOR_ORIGIN_SECRET=%s\n' "$sec" >>"$out"
 fi
 
+# The address email is sent from, once it has been verified in Amazon SES. Not a secret, but kept here so
+# switching email on is one parameter and a restart, with no edit to the unit file. Absent means no email
+# is sent, and every answer says so.
+from="$(get /sudor/email-from)"
+[ -n "$from" ] && printf 'SUDOR_EMAIL_FROM=%s\n' "$from" >>"$out"
+
 [ "$owner" = "none" ] || chown "$owner:$owner" "$out"
 chmod 0400 "$out"

@@ -12,7 +12,7 @@ import { findMedication as classifyMedication, nearMatches, MEDICATIONS, article
 import { chooseOne, canAsk } from '../elicit.js';
 import { CONDITIONS, findCondition } from '../conditions.js';
 import { windChillF, coldCategory, coldMeaning, COLD_WORDS, matchColdFirstAid } from '../cold.js';
-import { profileOf, judgeHour, planDay, precautions } from '../personal.js';
+import { profileOf, judgeHour, planDay, precautions, LEARN_FROM_F } from '../personal.js';
 import * as wbgt from '../wbgt.js';
 import { triage } from '../firstaid.js';
 import { geocode } from '../geocode.js';
@@ -70,6 +70,13 @@ export function register(server: McpServer, personOf: () => string): void {
       const updated = profileFor(store.get(id));
       if (felt === 'fine') {
         return say("Noted, I'm glad it went well.", { logged: true, heatIndexF: hi });
+      }
+      if (hi != null && hi < LEARN_FROM_F) {
+        return say(
+          `Noted. It was not hot when you felt unwell, heat index ${hi}, so I won't treat that as your heat limit. ` +
+            'If you still feel unwell, ask me about the warning signs, and if it keeps happening tell your doctor.',
+          { logged: true, heatIndexF: hi, learnedLimitF: updated.learnedLimitF },
+        );
       }
       return say(
         hi != null

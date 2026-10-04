@@ -4,8 +4,16 @@ import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from '
 import { dirname, resolve } from 'node:path';
 import type { Mechanism } from './meds.js';
 import * as vault from './vault.js';
+import { createHash, randomInt, randomBytes } from 'node:crypto';
 
-export type RegisteredMedication = { spoken: string; generic: string; drugClass: string; mechanisms: Mechanism[] };
+export type RegisteredMedication = {
+  spoken: string;
+  generic: string;
+  drugClass: string;
+  mechanisms: Mechanism[];
+  /** What the current FDA label for it states about heat, in the label's words. See labels.ts. */
+  label?: { mechanisms: Mechanism[]; quotes: { mechanism: Mechanism; sentence: string }[]; effective: string | null; checkedAt: string };
+};
 export type LocationStatus = 'ready' | 'locating' | 'not_found';
 export type NotifyReason = 'emergency' | 'hot_day';
 
@@ -17,6 +25,13 @@ export type Contact = {
   addedAt: string;
   /** Null until the person says to go ahead. Nothing is ever sent to an unconfirmed contact. */
   confirmedAt: string | null;
+  /** When the person who owns the address agreed to be emailed. See consent.ts. */
+  acceptedAt?: string | null;
+  /** A hash of the invitation they were sent. Cleared once it is used. */
+  acceptHash?: string | null;
+  /** What the stop link in every email carries. */
+  stopId?: string | null;
+  invitedAt?: string | null;
 };
 
 export type Outing = {
@@ -54,6 +69,23 @@ export type Person = {
   alertsSent: string[];
   /** When a fresh start was last asked for, so the second ask is the confirmation. */
   forgetAskedAt?: string | null;
+  /**
+   * Getting used to the heat. Set when somebody says they have started outdoor work, or come back to it.
+   * Most outdoor workers who die of heat are in their first two weeks. See acclimatization in personal.ts.
+   */
+  heatWork?: { kind: 'new' | 'returning'; since: string } | null;
+  /** Crews this person shares their working day with. Only a hash of each link is kept. */
+  crewLinks?: { hash: string; at: string }[];
+  /** Calls for help a contact can still answer: a hash of the link they were sent, and who it went to. */
+  helpAsks?: { hash: string; contact: string; at: string }[];
+  /** What a contact answered, kept until it has been said aloud once. */
+  helpReplies?: { from: string; answer: 'coming' | 'call'; at: string }[];
+  /** Accounts invited to check on this person's day. They hear how the day is, and nothing about health. */
+  sharedWith?: string[];
+  /** A one-time code somebody can join with, kept as a hash, with the time it stops working. */
+  invite?: { hash: string; expires: string } | null;
+  /** The person this account was invited to check on, if any. Checked against that person's own list. */
+  viewing?: string | null;
   /**
    * When this record was last written, as an ISO string on the record itself.
    *
@@ -200,7 +232,9 @@ const isDemo = (id: string) => id.startsWith('demo:');
 function evictOldestDemo(all: Record<string, Person>): boolean {
   const demo = Object.keys(all).filter(isDemo);
   if (!demo.length) return false;
-  const oldest = demo.reduce((a, b) => ((touched.get(a) ?? 0) <= (touched.get(b) ?? 0) ? a : b));
+  // After a restart nothing has been touched in memory yet, so fall back to the time of the last write.
+  const last = (id: string) => touched.get(id) ?? (Date.parse(String(all[id]?.touchedAt ?? '')) || 0);
+  const oldest = demo.reduce((a, b) => (last(a) <= last(b) ? a : b));
   delete all[oldest];
   touched.delete(oldest);
   return true;
@@ -283,7 +317,9 @@ export function get(id: string): Person {
  */
 export function forget(id: string): void {
   const all = load();
-  all[id] = empty();
+  // Deleted, not blanked: an empty record with an id is still a record of somebody having been here.
+  delete all[id];
+  touched.delete(id);
   persist();
 }
 
@@ -332,4 +368,102 @@ export function update(id: string, fn: (p: Person) => void): Person {
   prune(person);
   persist();
   return person;
+}
+
+/* ------------------------------------------------------------------ *
+ * A second person.
+ *
+ * A family member used to be somebody who received an email and nothing more. The question they actually
+ * have is "how is Mum's day looking", and they should be able to ask it. The person asks for a code and reads
+ * it to them; they join with it from their own account. After that they can ask how the day is, and hear
+ * whether it is a fine day, a day to take care or a day to stay in, and the best hour. They never hear a
+ * medicine or a condition, and they cannot change anything.
+ *
+ * A code is eight digits, works once, lasts a day and is stored as a hash. The link is held on both sides and
+ * checked on the person's own, so it ends the moment they remove it.
+ * ------------------------------------------------------------------ */
+const INVITE_MS = 24 * 60 * 60 * 1000;
+const MAX_SHARED = 10;
+const hashCode = (code: string) => createHash('sha256').update(`sudor-invite:${code}`).digest('hex');
+export const normaliseCode = (spoken: string): string => String(spoken ?? '').replace(/\D/g, '');
+
+export function createInvite(id: string, now = Date.now()): string {
+  const code = String(randomInt(0, 100_000_000)).padStart(8, '0');
+  update(id, (p) => void (p.invite = { hash: hashCode(code), expires: new Date(now + INVITE_MS).toISOString() }));
+  return code;
+}
+
+export type Joined = { ok: true; personId: string } | { ok: false; why: 'unknown' | 'own' | 'full' };
+
+export function joinWithCode(memberId: string, spoken: string, now = Date.now()): Joined {
+  const code = normaliseCode(spoken);
+  if (code.length !== 8) return { ok: false, why: 'unknown' };
+  const hash = hashCode(code);
+  const all = load();
+  const personId = Object.keys(all).find((id) => all[id].invite?.hash === hash && Date.parse(all[id].invite!.expires) > now);
+  if (!personId) return { ok: false, why: 'unknown' };
+  if (personId === memberId) return { ok: false, why: 'own' };
+  if ((all[personId].sharedWith ?? []).length >= MAX_SHARED) return { ok: false, why: 'full' };
+  update(personId, (p) => {
+    p.invite = null; // one use
+    p.sharedWith = [...new Set([...(p.sharedWith ?? []), memberId])];
+  });
+  update(memberId, (p) => void (p.viewing = personId));
+  return { ok: true, personId };
+}
+
+const MAX_CREW_LINKS = 5;
+const hashLink = (token: string) => createHash('sha256').update(`sudor-crew:${token}`).digest('hex');
+
+/**
+ * Join as a crew, with the same one-time code, and get a link back.
+ *
+ * A family member joins from their own account. A crew is another server asking on a foreman's behalf, and
+ * it has no account here. So the code is exchanged for a long random link that server keeps, which lets it
+ * ask one thing: how the working day looks for this person. Only a hash is stored on this side.
+ */
+export function joinAsCrew(spoken: string, now = Date.now()): { ok: true; token: string } | { ok: false; why: 'unknown' | 'full' } {
+  const code = normaliseCode(spoken);
+  if (code.length !== 8) return { ok: false, why: 'unknown' };
+  const hash = hashCode(code);
+  const all = load();
+  const personId = Object.keys(all).find((id) => all[id].invite?.hash === hash && Date.parse(all[id].invite!.expires) > now);
+  if (!personId) return { ok: false, why: 'unknown' };
+  if ((all[personId].crewLinks ?? []).length >= MAX_CREW_LINKS) return { ok: false, why: 'full' };
+  const token = randomBytes(24).toString('hex');
+  update(personId, (p) => {
+    p.invite = null; // one use
+    p.crewLinks = [...(p.crewLinks ?? []), { hash: hashLink(token), at: new Date(now).toISOString() }];
+  });
+  return { ok: true, token };
+}
+
+/** The person a crew link is for, or null. Stops working the moment they stop sharing. */
+export function personByCrewLink(token: string): string | null {
+  if (!/^[0-9a-f]{48}$/.test(token)) return null;
+  const hash = hashLink(token);
+  const all = load();
+  return Object.keys(all).find((id) => (all[id].crewLinks ?? []).some((l) => l.hash === hash)) ?? null;
+}
+
+/** The person this account may check on, or null. True only while that person still lists them. */
+export function viewedBy(memberId: string): string | null {
+  const all = load();
+  const personId = all[memberId]?.viewing;
+  if (!personId || !all[personId]) return null;
+  return (all[personId].sharedWith ?? []).includes(memberId) ? personId : null;
+}
+
+export function leave(memberId: string): boolean {
+  const personId = load()[memberId]?.viewing;
+  if (!personId) return false;
+  update(memberId, (p) => void (p.viewing = null));
+  if (load()[personId]) update(personId, (p) => void (p.sharedWith = (p.sharedWith ?? []).filter((m) => m !== memberId)));
+  return true;
+}
+
+export function stopSharing(id: string): number {
+  const n = (load()[id]?.sharedWith ?? []).length + (load()[id]?.crewLinks ?? []).length;
+  if (load()[id]) update(id, (p) => { p.sharedWith = []; p.crewLinks = []; p.invite = null; });
+  return n;
 }

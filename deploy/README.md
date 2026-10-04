@@ -67,6 +67,12 @@ secret are SSM SecureStrings under `/sudor/`, which the role can read and nothin
 else in the parameter store; they are fetched at service start into a tmpfs file, so
 they are never in an image, a unit file or this repository.
 
+**One more permission for the nearest hospital.** The instance role needs
+`geo-places:SearchNearby`, which is how the nearest emergency department is found
+(`src/care.ts`). There is no key for it. Without the permission nothing breaks: the
+answer names a hospital in the same town from Medicare's list and gives no distance.
+`/health` shows how many places have a hospital list under `hospitals`.
+
 **Health check before announcing it.** After any deploy:
 
 ```sh

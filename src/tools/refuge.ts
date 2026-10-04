@@ -24,7 +24,10 @@ import * as recalls from '../recalls.js';
 import * as warnings from '../warnings.js';
 import * as spaceweather from '../spaceweather.js';
 import * as shelters from '../shelters.js';
+import * as care from '../care.js';
+import { reachable } from '../consent.js';
 import {
+  andList,
   say,
 } from './shared.js';
 
@@ -84,7 +87,10 @@ export function register(server: McpServer, personOf: () => string): void {
         // "About 0 miles away" is what rounding says and not what anyone means.
         const away = (miles: number): string =>
           miles < 1 ? 'less than a mile away' : `about ${Math.round(miles)} ${Math.round(miles) === 1 ? 'mile' : 'miles'} away`;
-        parts.push(`The nearest open shelter is ${first.name} in ${first.city}, ${away(first.milesAway ?? 0)}.`);
+        // The address was only in the structured result, so somebody listening heard that a shelter existed
+        // and not where it was.
+        const at = first.address ? `, at ${first.address}` : '';
+        parts.push(`The nearest open shelter is ${first.name}${at} in ${first.city}, ${away(first.milesAway ?? 0)}.`);
         // Only the details that decide whether this person can actually use it.
         const notes: string[] = [];
         if (powered && first.generator) notes.push('it has a generator, so equipment that needs power can run');
@@ -109,15 +115,25 @@ export function register(server: McpServer, personOf: () => string): void {
               'in an older adult, and it will not feel like an emergency while it happens.',
           );
         }
+        // The one warning that cannot wait. Closing off rooms and wearing a hat is good advice and is in the
+        // structured answer; said aloud it pushed this past a hundred words.
         parts.push(
-          'While you are still at home, close off the rooms you are not using and wear a hat indoors. Never heat the ' +
-            'house with an oven, a grill or a generator indoors or in the garage: that is carbon monoxide, and it ' +
-            'kills people after storms who came through the storm fine.',
+          'Never heat the house with an oven, a grill or a generator indoors or in the garage: that is carbon ' +
+            'monoxide, and it kills people after storms who came through the storm fine.',
         );
       }
 
+      // Leaving the house is the moment somebody else should know. Offered, never done unasked.
+      const family = person.contacts.filter(reachable).map((c) => c.name);
+      const offer = family.length ? `Want me to tell ${andList(family)} you need help? Say get help.` : '';
+
       return say(parts.join(' '), {
+        // Where to go, and how not to die of carbon monoxide on the way to deciding. Heard whole.
+        fullAnswer: true,
+        ...(offer ? { offer } : {}),
+        nearestEmergency: care.named(person.lat, person.lon),
         cold,
+        ...(cold ? { whileAtHome: 'Close off the rooms you are not using and wear a hat indoors.' } : {}),
         shelters:
           found === null
             ? null

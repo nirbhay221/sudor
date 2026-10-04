@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 /**
  * A refused argument is said in words, not in the SDK's (src/plainly.ts).
  *

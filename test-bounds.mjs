@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 /**
  * What a stranger can make this server keep, follow and poll.
  *
@@ -150,7 +152,7 @@ console.log('\nThe tools refuse politely before the backstop is reached');
     check('the next one is refused in plain words', refused.includes('as many medicines as I can'), refused);
     check('and says what to do', refused.includes('Take one off'), refused);
   } else {
-    check('the table has fewer than the limit, so refusal is exercised through recall names', true);
+    console.log('  note  the table has fewer medicines than the limit, so the refusal is exercised through recall names');
   }
 
   const again = await say('medication', { action: 'add', name: known[0] });

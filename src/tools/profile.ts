@@ -24,15 +24,21 @@ import * as recalls from '../recalls.js';
 import * as warnings from '../warnings.js';
 import * as spaceweather from '../spaceweather.js';
 import * as shelters from '../shelters.js';
+import * as care from '../care.js';
+import { reachable, awaiting } from '../consent.js';
+import * as rxclass from '../rxclass.js';
 import {
+  CARD,
   andList,
   asked,
   clean,
   count,
   profileFor,
+  releasePlace,
   resolveLocation,
   sameName,
   say,
+  checkLabel,
 } from './shared.js';
 
 export function register(server: McpServer, personOf: () => string): void {
@@ -68,6 +74,11 @@ export function register(server: McpServer, personOf: () => string): void {
     async ({ place, lat, lon }) => {
       place = clean(place, 80);
       const id = personOf();
+      if (!/[a-z0-9]/i.test(place)) {
+        return say('Tell me the city and state, or a zip code, and I will look it up.', { status: 'needs_place' });
+      }
+      const before = store.get(id);
+      const was = { lat: before.lat, lon: before.lon };
       if (lat != null && lon != null) {
         store.update(id, (p) => {
           p.lat = lat;
@@ -77,6 +88,8 @@ export function register(server: McpServer, personOf: () => string): void {
         });
         weather.watch(lat, lon, !id.startsWith('demo:'));
         warnings.watch(lat, lon);
+        care.watch(lat, lon, place);
+        if (was.lat !== lat || was.lon !== lon) releasePlace(was.lat, was.lon);
         return say(`Got it, I'll check the weather for ${place}.`, { place, lat, lon, status: 'ready' });
       }
       store.update(id, (p) => {
@@ -85,6 +98,7 @@ export function register(server: McpServer, personOf: () => string): void {
         p.locationName = place;
         p.locationStatus = 'locating';
       });
+      releasePlace(was.lat, was.lon);
       resolveLocation(id, place);
       return say(`Looking up ${place} now. Ask me about the heat in a moment.`, { place, status: 'locating' });
     },
@@ -123,8 +137,15 @@ export function register(server: McpServer, personOf: () => string): void {
         const match = person.medications.find(
           (m) => m.generic === generic || sameName(m.spoken, name) || sameName(m.generic, name),
         );
+        // A medicine this add-on did not recognise is kept on the recall watch list, not the medication list,
+        // and used to be impossible to take off again short of deleting the whole profile.
+        const watching = person.recallWatch.find((m) => sameName(m, name));
+        if (!match && watching) {
+          store.update(id, (p) => void (p.recallWatch = p.recallWatch.filter((m) => !sameName(m, name))));
+          return say(`Removed ${watching}. I won't watch the recall list for it any more.`, { removed: true, recallWatch: false });
+        }
         if (!match) {
-          const list = person.medications.map((m) => m.generic);
+          const list = [...person.medications.map((m) => m.generic), ...person.recallWatch];
           return say(
             `${name} isn't on your list, so there's nothing to remove.` +
               (list.length && !person.privacy ? ` You have ${list.join(', ')}.` : ''),
@@ -173,6 +194,34 @@ export function register(server: McpServer, personOf: () => string): void {
         }
       }
 
+      // Not one of the medicines the table names. Ask the National Library of Medicine what it is and which
+      // class it belongs to, and read that class against the same guidance. See rxclass.ts.
+      if (!known) {
+        const found = await rxclass.classify(name);
+        if (found) {
+          // The lookup may hand back a generic the table does know: a brand name it had no alias for.
+          const tabled = classifyMedication(found.generic);
+          if (tabled) {
+            known = tabled;
+          } else {
+            store.update(id, (p) => {
+              if (!p.medications.some((m) => m.generic === found.generic)) {
+                p.medications.push({ spoken: name, generic: found.generic, drugClass: found.drugClass, mechanisms: found.mechanisms });
+              }
+              p.recallWatch = p.recallWatch.filter((m) => m.toLowerCase() !== name.toLowerCase());
+            });
+            recalls.watch(found.generic);
+            checkLabel(id, found.generic, name);
+            const called = found.generic === name.toLowerCase() ? found.generic : `${found.generic}, which is what ${name} is`;
+            return say(
+              `Added ${called}. As ${articleFor(found.drugClass)} ${found.drugClass} I'll factor it into your heat check. ` +
+                'That is from its drug class, so ask your pharmacist if you want it confirmed.',
+              { recognized: true, generic: found.generic, drugClass: found.drugClass, mechanisms: found.mechanisms, source: 'rxnorm', atc: found.atc },
+            );
+          }
+        }
+      }
+
       if (!known) {
         // Not in the heat table, so no heat advice. The name is still worth
         // keeping: a recall is published against a name, not a mechanism.
@@ -182,6 +231,8 @@ export function register(server: McpServer, personOf: () => string): void {
             if (!p.recallWatch.some((m) => m.toLowerCase() === name.toLowerCase())) p.recallWatch.push(name);
           });
           recalls.watch(name);
+          // Nothing here classifies it. Its own label may still state a heat risk outright. See labels.ts.
+          checkLabel(id, name.toLowerCase(), name);
         }
         return say(
           `I don't have "${name}" in my list yet, so I can't say whether it changes how you handle heat. ` +
@@ -199,6 +250,7 @@ export function register(server: McpServer, personOf: () => string): void {
       // recalls later costs nothing. One query measured about 450 ms, which is
       // the whole voice turn.
       recalls.watch(known.generic);
+      checkLabel(id, known.generic, name);
       return say(
         `Added ${known.generic}, ${articleFor(known.drugClass)} ${known.drugClass}. ${
           known.mechanisms.length ? "I'll factor that into your heat check." : 'That one has no known heat interaction.'
@@ -255,6 +307,7 @@ export function register(server: McpServer, personOf: () => string): void {
     'my_profile',
     {
       title: 'What do you know about me',
+      _meta: { ui: { resourceUri: CARD } },
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       description:
         'Read back what the customer has told this add-on: location, medications, conditions, contacts, privacy mode ' +
@@ -289,25 +342,50 @@ export function register(server: McpServer, personOf: () => string): void {
           });
         }
         store.forget(id);
+        releasePlace(p.lat, p.lon);
         return say(`Done. I've deleted ${andList(held)}. I don't know anything about you now.`, { forgotten: true, deleted: held });
       }
 
       const profile = profileFor(p);
       const lines = [
         p.locationName ? `Location: ${p.locationName}.` : 'No location yet.',
-        p.medications.length ? `Medications: ${p.medications.map((m) => m.generic).join(', ')}.` : 'No medications.',
+        p.medications.length ? `Medications: ${p.medications.map((m) => m.generic).join(', ')}.` : p.recallWatch.length ? '' : 'No medications.',
+        // Named but not recognised, so there is no heat advice for them, but they are still on record here.
+        p.recallWatch.length ? `Watching the recall list only for: ${p.recallWatch.join(', ')}.` : '',
         profile.conditions.length ? `Conditions: ${profile.conditions.map((c) => c.label).join(', ')}.` : 'No conditions.',
         p.contacts.length
-          ? `Contacts: ${p.contacts.map((c) => `${c.name}${c.confirmedAt ? '' : ', not confirmed yet'}`).join('; ')}.`
+          ? `Contacts: ${p.contacts.map((c) => `${c.name}${!c.confirmedAt ? ', not confirmed yet' : awaiting(c) ? ', waiting for them to agree' : ''}`).join('; ')}.`
           : 'No contacts.',
         `Privacy mode is ${p.privacy ? 'on' : 'off'}.`,
         profile.learnedLimitF != null ? `You felt unwell near heat index ${profile.learnedLimitF}, so that is your limit.` : '',
       ].filter(Boolean);
       return say(lines.join(' '), {
+        card: {
+          kind: 'list',
+          title: 'What I know about you',
+          status: { label: p.privacy ? 'privacy on' : 'privacy off', tone: 'neutral' },
+          items: [
+            { title: 'Location', note: p.locationName ?? 'not set' },
+            // Counts, not names, on a screen somebody else in the room can read.
+            { title: 'Medicines', note: String(p.medications.length + p.recallWatch.length) },
+            { title: 'Conditions', note: String(profile.conditions.length) },
+            { title: 'Contacts', note: p.contacts.length ? p.contacts.map((c) => c.name).join(', ') : 'none' },
+          ],
+        },
         location: p.locationName,
         medications: p.medications.map((m) => m.generic),
+        // Where each judgement comes from, so it can be traced: the table or class, and the label's own words.
+        evidence: p.privacy
+          ? undefined
+          : p.medications.map((m) => ({
+              generic: m.generic,
+              drugClass: m.drugClass,
+              mechanisms: [...new Set([...m.mechanisms, ...(m.label?.mechanisms ?? [])])],
+              fdaLabel: m.label ? { dated: m.label.effective, states: m.label.quotes.map((q) => q.sentence) } : null,
+            })),
+        recallWatchOnly: p.recallWatch,
         conditions: profile.conditions.map((c) => c.label),
-        contacts: p.contacts.map((c) => ({ name: c.name, relation: c.relation, confirmed: !!c.confirmedAt, notifyOn: c.notifyOn })),
+        contacts: p.contacts.map((c) => ({ name: c.name, relation: c.relation, confirmed: !!c.confirmedAt, agreed: reachable(c), notifyOn: c.notifyOn })),
         privacy: p.privacy,
         learnedLimitF: profile.learnedLimitF,
         outingsLogged: p.outings.length,

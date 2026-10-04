@@ -1,0 +1,142 @@
+{
+  "_comment": "The lines on the Echo-style demo page. Each one is a real tool call with real arguments, kept here so a test can call every one of them.",
+  "contact": "Priya",
+  "groups": [
+    {
+      "name": "First, who you are",
+      "lines": [
+        {
+          "say": "I'm in Phoenix, Arizona.",
+          "tool": "register_location",
+          "args": {
+            "place": "Phoenix, Arizona",
+            "lat": 33.45,
+            "lon": -112.07
+          }
+        },
+        {
+          "say": "I take Lasix.",
+          "tool": "medication",
+          "args": {
+            "action": "add",
+            "name": "Lasix"
+          }
+        },
+        {
+          "say": "And Coreg.",
+          "tool": "medication",
+          "args": {
+            "action": "add",
+            "name": "Coreg"
+          }
+        },
+        {
+          "say": "I have heart disease.",
+          "tool": "health_condition",
+          "args": {
+            "action": "add",
+            "condition": "heart disease"
+          }
+        },
+        {
+          "say": "Tell my daughter Priya if I need help.",
+          "tool": "contact",
+          "args": {
+            "action": "add",
+            "name": "Priya",
+            "email": "priya@example.com",
+            "relation": "daughter"
+          }
+        },
+        {
+          "say": "Yes, add her.",
+          "tool": "contact",
+          "args": {
+            "action": "confirm",
+            "name": "Priya"
+          }
+        }
+      ]
+    },
+    {
+      "name": "An ordinary day",
+      "lines": [
+        {
+          "say": "Is it safe for me outside right now?",
+          "tool": "weather_check",
+          "args": {}
+        },
+        {
+          "say": "When should I walk the dog?",
+          "tool": "plan_my_day",
+          "args": {
+            "activity": "a walk",
+            "minutes": 30
+          }
+        },
+        {
+          "say": "I have to go out anyway.",
+          "tool": "going_out_now",
+          "args": {}
+        },
+        {
+          "say": "I just started a roofing job, seven to five.",
+          "tool": "plan_my_day",
+          "args": {
+            "shiftStart": 7,
+            "shiftEnd": 17,
+            "startedWork": "new"
+          }
+        },
+        {
+          "say": "Share my working day with my crew.",
+          "tool": "share_my_day",
+          "args": {
+            "action": "invite"
+          }
+        },
+        {
+          "say": "Tell me more.",
+          "tool": "tell_me_more",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "name": "When it goes wrong",
+      "lines": [
+        {
+          "say": "The power is out. Where can I go?",
+          "tool": "somewhere_to_go",
+          "args": {}
+        },
+        {
+          "say": "Get help. The power is out.",
+          "tool": "get_help",
+          "args": {
+            "what": "the power is out"
+          }
+        },
+        {
+          "say": "My husband is confused and has stopped sweating.",
+          "tool": "warning_signs",
+          "args": {
+            "symptoms": "my husband is confused and has stopped sweating"
+          }
+        },
+        {
+          "say": "Is confusion a sign of heat stroke?",
+          "tool": "warning_signs",
+          "args": {
+            "symptoms": "is confusion a sign of heat stroke?"
+          }
+        },
+        {
+          "say": "A storm is coming. What about my medicines?",
+          "tool": "storm_prep",
+          "args": {}
+        }
+      ]
+    }
+  ]
+}

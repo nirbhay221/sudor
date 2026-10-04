@@ -36,6 +36,13 @@ const STATES: Record<string, string> = {
 };
 const STATE_NAMES = Object.values(STATES).map((s) => s.toLowerCase());
 
+/** "Minnesota" or "MN" to "MN". */
+export function stateCode(word: string): string | null {
+  const w = word.trim().toLowerCase();
+  for (const [code, name] of Object.entries(STATES)) if (code.toLowerCase() === w || name.toLowerCase() === w) return code;
+  return null;
+}
+
 function stateFrom(word: string): string | null {
   const w = word.trim();
   if (/^[A-Za-z]{2}$/.test(w) && STATES[w.toUpperCase()]) return STATES[w.toUpperCase()];
@@ -44,12 +51,15 @@ function stateFrom(word: string): string | null {
 }
 
 /** "Phoenix, AZ", "Phoenix Arizona", "Kansas City, Missouri", "85004". */
-export function splitQuery(query: string): { name: string; state: string | null } {
+export function splitQuery(query: string): { name: string; state: string | null; elsewhere?: boolean } {
   const q = query.trim().replace(/\s+/g, ' ');
   if (/^\d{5}$/.test(q)) return { name: q, state: null };
   if (q.includes(',')) {
     const [name, ...rest] = q.split(',');
-    return { name: name.trim(), state: stateFrom(rest.join(' ')) };
+    const said = rest.join(' ').replace(/\b(usa|us|u\.s\.a?\.?|united states( of america)?)\b/gi, '').trim();
+    // Something was said after the comma and it is not a state: "Lyon, France". This is a different place,
+    // and must not be answered with the American town of the same name.
+    return { name: name.trim(), state: stateFrom(said), ...(said && !stateFrom(said) ? { elsewhere: true } : {}) };
   }
   const words = q.split(' ');
   // Two word states first ("New York", "North Carolina"), then one word, then an
@@ -65,7 +75,8 @@ export function splitQuery(query: string): { name: string; state: string | null 
 
 /** Pick the right result: the named state if one was said, otherwise the first (most prominent) US match. */
 export function pickPlace(query: string, results: GeoResult[]): Place | null {
-  const { state } = splitQuery(query);
+  const { state, elsewhere } = splitQuery(query);
+  if (elsewhere) return null;
   const us = results.filter((r) => !r.country_code || r.country_code === 'US');
   const hit = state ? us.find((r) => (r.admin1 ?? '').toLowerCase() === state.toLowerCase()) : us[0];
   if (!hit) return null;

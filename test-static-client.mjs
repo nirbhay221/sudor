@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 /**
  * The fix this file tests: Amazon's own account-linking docs say Alexa+
  * "supports only the Authorization Code Grant" and "Dynamic Client
@@ -106,13 +108,14 @@ try {
   const evil = await fetch(authorizeUrl2('https://evil.example/steal'), { redirect: 'manual' });
   check('an unlisted redirect_uri is rejected even for the static client', evil.status === 400, String(evil.status));
 
-  console.log('\nDCR still works too, as a development convenience, alongside the static client');
-  const reg = await (await fetch(`${BASE}/oauth/register`, {
+  console.log('\nWith the real client configured, nobody else can register one');
+  const regRes = await fetch(`${BASE}/oauth/register`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ redirect_uris: ['https://dev.example/callback'], client_name: 'local dev client' }),
-  })).json();
-  check('a dynamically registered client gets its own id, separate from the static one',
-    typeof reg.client_id === 'string' && reg.client_id !== CLIENT_ID);
+    body: JSON.stringify({ redirect_uris: ['https://evil.example/callback'], client_name: 'Alexa+' }),
+  });
+  check('dynamic registration is refused, so a look-alike "Alexa+" client cannot be created', regRes.status === 403, String(regRes.status));
+  const meta = await (await fetch(`${BASE}/.well-known/oauth-authorization-server`)).json();
+  check('and the metadata does not advertise a registration endpoint that is closed', !('registration_endpoint' in meta), JSON.stringify(Object.keys(meta)));
 } finally {
   stop();
 }

@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 /**
  * Every tool declares what its answers contain, and every answer keeps the promise.
  *

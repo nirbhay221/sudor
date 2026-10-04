@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 import { heatIndexF, heatCategory, assess, photoRisk, GUIDANCE } from './dist/domain.js';
 import { findMedication, MECHANISM_LABEL } from './dist/meds.js';
 

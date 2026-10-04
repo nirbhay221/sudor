@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 /**
  * A person's day around the heat: conditions, planning, going out anyway,
  * warning signs, places and timezones.
@@ -135,8 +137,12 @@ check('a photosensitive medication in high UV gets the EPA sun advice', photo.st
 const insulin = precautions(inHeat, profileOf([], ['diabetes']));
 check('insulin is kept below 86 degrees', insulin.steps.some((s) => /86 degrees/.test(s)));
 const many = precautions(inHeat, profileOf(['reduced_sweating'], ['multiple_sclerosis', 'diabetes']));
-check('never more than three precautions read at once, with the rest offered', many.nextStep === 3 && /ask me for the rest/.test(many.spoken), many.spoken);
-check('the heat stroke line is always spoken, however long the list', [em, kidney, thirsty, photo, insulin, many].every((p) => /call 911/.test(p.spoken)));
+check('never more than two precautions read at once, with the rest offered', many.nextStep === 2 && /ask me for the rest/.test(many.spoken), many.spoken);
+check('the heat stroke line is always spoken in the heat, however long the list', [em, kidney, thirsty, insulin, many].every((p) => /call 911/.test(p.spoken)));
+check('below a heat index of 80 it is not said aloud, and is still in the list', !/call 911/.test(photo.spoken) && photo.steps.some((s) => /call 911/.test(s)), photo.spoken);
+const justHot = precautions(judgeHour(hour(84, 45, { uvIndex: 9 }), profileOf(['photosensitivity'], [])), profileOf(['photosensitivity'], []));
+check('asking for more when there is none left is answered, not met with silence', precautions(judgeHour(hour(70, 30, { uvIndex: 1 }), profileOf([], [])), profileOf([], []), 9).spoken === 'That was all of them.');
+check('...and from 80 it is said again', /call 911/.test(justHot.spoken), justHot.spoken);
 const rest = precautions(inHeat, profileOf(['reduced_sweating'], ['multiple_sclerosis', 'diabetes']), many.nextStep);
 check('asking for the rest reads the next ones and still ends on 911', /call 911/.test(rest.spoken) && !rest.spoken.startsWith('It is heat index'), rest.spoken);
 
@@ -178,7 +184,8 @@ const { registerTools } = await import('./dist/tools.js');
 const handlers = {};
 const configs = {};
 registerTools({ registerTool: (name, config, handler) => { handlers[name] = handler; configs[name] = config; } }, () => 'tester');
-weatherMod.seedForTest({ ...phoenix, tempF: 104, humidityPct: 30, isDay: true, uvIndex: 9 });
+// Read just now: a reading three hours old is no longer answered as "right now".
+weatherMod.seedForTest({ ...phoenix, fetchedAt: new Date().toISOString(), tempF: 104, humidityPct: 30, isDay: true, uvIndex: 9 });
 store.update('tester', (p) => {
   p.lat = 33.45; p.lon = -112.07; p.locationName = 'Phoenix, Arizona'; p.locationStatus = 'ready';
   p.medications.push({ spoken: 'metoprolol', generic: 'metoprolol', drugClass: 'beta blocker', mechanisms: ['electrolyte_imbalance', 'reduced_sweating'] });
@@ -198,7 +205,7 @@ check('a place that could not be found asks for city and state or zip', /city an
 const help = await handlers.what_can_you_do({});
 check('what can you do says plainly it is not medical advice', /isn't medical advice/.test(help.content[0].text));
 check('every tool that links a panel uses the nested _meta.ui.resourceUri',
-  Object.values(configs).filter((c) => c._meta).every((c) => c._meta.ui?.resourceUri === 'ui://sudor/window.html' && !('ui.resourceUri' in c._meta)));
+  Object.values(configs).filter((c) => c._meta).every((c) => c._meta.ui?.resourceUri .startsWith('ui://sudor/') && !('ui.resourceUri' in c._meta)));
 rmSync('./data/test-tools.json', { force: true });
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

@@ -12,19 +12,25 @@ import { findMedication as classifyMedication, nearMatches, MEDICATIONS, article
 import { chooseOne, canAsk } from '../elicit.js';
 import { CONDITIONS, findCondition } from '../conditions.js';
 import { windChillF, coldCategory, coldMeaning, COLD_WORDS, matchColdFirstAid } from '../cold.js';
-import { profileOf, judgeHour, planDay, precautions } from '../personal.js';
+import { profileOf, judgeHour, planDay, planShift, precautions } from '../personal.js';
 import * as wbgt from '../wbgt.js';
-import { triage } from '../firstaid.js';
+import { triage, asksInGeneral } from '../firstaid.js';
 import { geocode } from '../geocode.js';
 import { alertEmergency } from '../alerts.js';
-import { emailConfigured } from '../notify.js';
+import { emailConfigured, DEMO_PHONE } from '../notify.js';
 import * as weather from '../weather.js';
 import * as store from '../store.js';
 import * as recalls from '../recalls.js';
 import * as warnings from '../warnings.js';
 import * as spaceweather from '../spaceweather.js';
 import * as shelters from '../shelters.js';
+import * as care from '../care.js';
+import { reachable } from '../consent.js';
 import {
+  CARD,
+  coldConditionsOf,
+  coldMechanismsOf,
+  coldOpening,
   UI,
   count,
   nowHour,
@@ -43,22 +49,49 @@ export function register(server: McpServer, personOf: () => string): void {
         'Plan a day around the heat for this customer: the best window for going out and the hours to avoid, using the ' +
         'hourly forecast for their location, their medications and conditions, UV, air quality and how they felt ' +
         'before. Call this when someone asks when to go out, walk the dog, run errands, exercise or garden, when it ' +
-        'cools down, or to plan today or tomorrow. It plans a whole day. For a single trip that cannot wait use going_out_now, ' +
+        'cools down, or to plan today or tomorrow. It plans a whole day. When they work outside fixed hours and cannot ' +
+        'choose, pass shiftStart and shiftEnd and it plans the shift: when the heat crosses the workplace lines and when to ' +
+        'take breaks. Pass startedWork when they say they are new to outdoor work or just back to it. For a single trip that cannot wait use going_out_now, ' +
         'and for whether it is safe to be outside at this moment use weather_check.',
       inputSchema: {
         activity: z.string().optional().describe('What they want to do, e.g. "a walk", "groceries", "gardening"'),
         minutes: z.number().int().min(10).max(600).optional().describe('How long it takes, in minutes, default 60'),
         day: z.enum(['today', 'tomorrow']).optional().describe('today unless they say tomorrow'),
+        shiftStart: z.number().int().min(0).max(23).optional().describe('Hour an outdoor work shift starts, 0 to 23, only when they say they work fixed hours outside'),
+        shiftEnd: z.number().int().min(1).max(24).optional().describe('Hour that shift ends, 1 to 24'),
+        startedWork: z
+          .enum(['new', 'returning', 'settled'])
+          .optional()
+          .describe('Only when they say it: new if they have just started working outdoors, returning if they are back after a week or more away, settled if they have been at it for weeks'),
       },
       _meta: { ui: { resourceUri: UI } },
     },
-    async ({ activity, minutes, day }) => {
+    async ({ activity, minutes, day, shiftStart, shiftEnd, startedWork }) => {
       const person = store.get(personOf());
       const snap = snapshotFor(person);
       if (typeof snap === 'string') return say(snap, { unavailable: true });
       const profile = profileFor(person);
+      // "I started on Monday" is remembered, dated to today where they are, so tomorrow is day two without
+      // being told again. See acclimatization in personal.ts.
+      if (startedWork) {
+        const today = new Date(Date.now() + snap.utcOffsetSeconds * 1000).toISOString().slice(0, 10);
+        store.update(personOf(), (p) => void (p.heatWork = startedWork === 'settled' ? null : { kind: startedWork, since: today }));
+      }
+      // Somebody who works outside is not choosing a window. See planShift.
+      if (shiftStart != null && shiftEnd != null) {
+        if (shiftEnd <= shiftStart) {
+          return say('I can only plan a shift that starts and ends on the same day. Tell me the start and the end, like 7 in the morning to 3 in the afternoon.', { planned: false, reason: 'overnight' });
+        }
+        const shift = planShift(snap, profile, { now: new Date(), day, fromHour: shiftStart, untilHour: shiftEnd, heatWork: store.get(personOf()).heatWork });
+        const { hours: _hours, ...summary } = shift;
+        return say(shift.spoken, { shift: summary, place: person.locationName, timezone: snap.timezone, sources: ['https://www.osha.gov/heat-exposure/rulemaking'] });
+      }
       const plan = planDay(snap, profile, { now: new Date(), day, minutes, activity });
+      // A stay-inside day with nobody set to hear about it: offer the one thing that would help.
+      const told = person.contacts.some((c) => reachable(c) && c.notifyOn.includes('hot_day'));
+      const offer = plan.best?.status === 'avoid' && !told ? 'Want a family member told before days like this? Tell me who.' : '';
       return say(plan.spoken, {
+        ...(offer ? { offer } : {}),
         ...plan,
         sensitivity: profile.sensitivity,
         because: profile.because,
@@ -74,7 +107,7 @@ export function register(server: McpServer, personOf: () => string): void {
       title: 'I have to go out now, what should I do',
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
       description:
-        'Precautions for going out in the heat right now when it cannot wait, tailored to this customer: their ' +
+        'Precautions for going out right now when it cannot wait, in the heat or in the cold, tailored to this customer: their ' +
         'conditions, medications, UV and water. Call this when someone says they have to go out, have an appointment, ' +
         'must run an urgent errand, or asks what precautions to take. Pass step to hear the rest, and ' +
         'privatePrecautions when they ask for their private precautions. Use plan_my_day instead when they can choose ' +
@@ -89,6 +122,48 @@ export function register(server: McpServer, personOf: () => string): void {
       const snap = snapshotFor(person);
       if (typeof snap === 'string') return say(snap, { unavailable: true });
       const profile = profileFor(person);
+
+      // The cold half. This tool only knew about heat, so at five degrees it opened with "Conditions are fine
+      // for you right now" and told somebody to take water. Below fifty, what matters is the wind chill, what
+      // their own conditions and medicines do in the cold, and how long skin lasts.
+      const chill = windChillF(snap.tempF, Number.isFinite(snap.windMph) ? snap.windMph : 0);
+      const band = coldCategory(chill);
+      if (band !== 'none') {
+        const drugs = coldMechanismsOf(person);
+        const conditions = coldConditionsOf(person);
+        const show = !person.privacy || privatePrecautions === true;
+        const steps: string[] = [];
+        if (band === 'dangerous' || band === 'very_cold') steps.push('Keep it as short as you can, and cover every bit of skin, face and hands included.');
+        const frostbite = coldMeaning(chill);
+        if (frostbite) steps.push(frostbite);
+        let withheld = 0;
+        const personal = (line: string) => {
+          if (show) steps.push(line);
+          else withheld += 1;
+        };
+        for (const c of conditions) for (const line of c.cold?.goingOut ?? []) personal(line);
+        for (const { mechanism, drugs: names } of drugs.slice(0, 2)) personal(`Your ${names.join(' and ')} matters here: ${COLD_MECHANISM_SAY[mechanism]}.`);
+        steps.push('Dress in layers with a hat and gloves, and tell someone where you are going and when you will be back.');
+        steps.push('Come back in if you start shivering hard. Shivering that stops on its own, confusion or slurred speech is hypothermia: call 911.');
+        if (withheld) steps.push(`I have ${withheld} more that mention your health, so ask me for your private precautions when you're alone.`);
+
+        const from = Math.max(0, Math.floor(step ?? 0));
+        const read = steps.slice(from, from + 3);
+        const left = steps.length - (from + read.length);
+        const spoken = [
+          from > 0 ? '' : coldOpening(snap.tempF, chill),
+          ...read,
+          left > 0 ? `I have ${left} more, ask me for the rest.` : '',
+        ].filter(Boolean).join(' ');
+        return say(spoken, {
+          season: 'cold',
+          steps,
+          nextStep: left > 0 ? from + read.length : null,
+          windChillF: Math.round(chill),
+          category: band,
+        });
+      }
+
       const judged = judgeHour(nowHour(snap), profile);
       const result = precautions(judged, profile, step ?? 0, { includePrivate: privatePrecautions === true });
       // This is the one tool where the customer has already decided to be
@@ -96,7 +171,8 @@ export function register(server: McpServer, personOf: () => string): void {
       // The sun's contribution is added only on the first step, so it does not
       // repeat through the precaution list.
       const load = wbgt.wbgt(snap.tempF, snap.humidityPct, snap.wetBulbF, snap.solarWm2, snap.windMph);
-      const sun = (step ?? 0) === 0 ? wbgt.explain(load) : '';
+      // The sun note is the last thing said, after the precautions, not squeezed in with the first two.
+      const sun = result.nextStep == null ? wbgt.explain(load) : '';
       return say(sun ? `${result.spoken} ${sun}` : result.spoken, {
         ...result,
         status: judged.status,
@@ -110,6 +186,7 @@ export function register(server: McpServer, personOf: () => string): void {
     'warning_signs',
     {
       title: 'Heat illness warning signs',
+      _meta: { ui: { resourceUri: CARD } },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description:
         'What to do when someone feels unwell in the heat or the cold: heat stroke and heat exhaustion in warm ' +
@@ -151,13 +228,19 @@ export function register(server: McpServer, personOf: () => string): void {
           );
         }
         let spoken = matched.say;
+        // Where to go, straight after what to do. Never in place of 911, which the first aid already said.
+        const hospital = care.sentence(person.lat, person.lon);
+        if (hospital) spoken += ` ${hospital}`;
         let contacted: { trying: string[]; configured: boolean; demo?: boolean } | null = null;
-        if (matched.emergency) {
+        // A question about the signs gets the same advice, and nobody is emailed that it happened. See firstaid.ts.
+        const general = asksInGeneral(symptoms ?? '');
+        if (matched.emergency && general) spoken = `If that is happening to somebody now: ${spoken}`;
+        if (matched.emergency && !general) {
           contacted = alertEmergency(id, symptoms ?? '');
           const names = contacted.trying.join(' and ');
           if (contacted.trying.length) {
             spoken += contacted.demo
-              ? ' Email is turned off in the public demo, so I have not emailed anyone.'
+              ? ` I'm telling ${names}. ${DEMO_PHONE}`
               : contacted.configured
                 ? ` I'm emailing ${names} now.`
                 : ` I can't email ${names}, because email isn't set up on this server yet.`;
@@ -175,19 +258,34 @@ export function register(server: McpServer, personOf: () => string): void {
 
       const result = triage(symptoms ?? '', profile, lastedMinutes);
       let spoken = result.spoken;
+      // For the two answers that say to get medical help, say where. Cramps and general questions do not need it.
+      const hospital = result.level === 'emergency' || result.level === 'urgent' ? care.sentence(person.lat, person.lon) : '';
+      if (hospital) spoken += ` ${hospital}`;
       let contacted: { trying: string[]; configured: boolean; demo?: boolean } | null = null;
-      if (result.level === 'emergency') {
+      // A question about the signs gets the same advice, and nobody is emailed that it happened. See firstaid.ts.
+      const general = asksInGeneral(symptoms ?? '');
+      if (result.level === 'emergency' && general) spoken = `If that is happening to somebody now: ${spoken}`;
+      if (result.level === 'emergency' && !general) {
         contacted = alertEmergency(id, symptoms ?? '');
         const names = contacted.trying.join(' and ');
         if (contacted.trying.length) {
           spoken += contacted.demo
-            ? ' Email is turned off in the public demo, so I have not emailed anyone.'
+            ? ` I'm telling ${names}. ${DEMO_PHONE}`
             : contacted.configured
               ? ` I'm emailing ${names} now.`
               : ` I can't email ${names}, because email isn't set up on this server yet.`;
         }
       }
-      return say(spoken, { ...result, spoken, contacted });
+      return say(spoken, {
+        ...result,
+        spoken,
+        contacted,
+        ...(general ? { askedInGeneral: true } : {}),
+        // The one card that has to be readable from across the room.
+        ...(result.level === 'emergency'
+          ? { card: { kind: 'card', title: 'Call 911 now', status: { label: 'emergency', tone: 'bad' }, lines: ['Move them somewhere cool.', 'Cool them with wet cloths or a cool bath.', 'Give them nothing to drink.'], foot: contacted?.trying.length && contacted.configured ? `Emailing ${contacted.trying.join(' and ')}.` : '' } }
+          : {}),
+      });
     },
   );
 

@@ -34,8 +34,65 @@ const STROKE_SIGNS: [RegExp, string][] = [
   [/faint|passed out|passing out|black(ed)? out|unconscious|unresponsive|collapse/, 'fainting or collapse'],
   [/seizure|convuls/, 'a seizure'],
   [/hot,? (and )?dry skin|stopped sweating|not sweating|no sweat/, 'hot skin without sweating'],
-  [/\b10[3-9]\b|\b11\d\b/, 'a temperature above 103'],
 ];
+
+/**
+ * A body temperature of 103 or more, as opposed to any number in that range.
+ *
+ * This used to be a bare match on 103 to 119, anywhere in the sentence. In the places this add-on is for,
+ * that is the weather: "it's 108 out and I feel weak" was read as a fever, answered with "call 911", and
+ * emailed to the family as a heat stroke. A number only counts when the words say it is the person's own
+ * temperature, and never when the same clause is about outside, the forecast or the heat index.
+ */
+const FEVER = /(?:\b(?:my|his|her|their|your|body|a) (?:temperature|temp)\b|\bfever\b|\bthermometer\b|\brunning a temp)[^.;!?]{0,40}?\b(?:10[3-9]|11\d)\b|\b(?:10[3-9]|11\d)\b(?: degree)?s? (?:fever|temperature)\b/;
+const WEATHER_WORDS = /\b(outside|out there|outdoors|heat index|forecast|weather|in the shade|in the sun|today's high)\b/;
+
+function fever(text: string): boolean {
+  return text.split(/[.;!?]/).some((clause) => FEVER.test(clause) && !WEATHER_WORDS.test(clause));
+}
+
+/**
+ * Whether a sign is described, as opposed to ruled out.
+ *
+ * "I'm not confused" and "no fainting" used to match exactly like "confused" and "fainting": the answer was
+ * call 911, and the emergency contacts were emailed. A sign now counts only when the two or three words
+ * before it do not take it back. Deliberately narrow, so that "I'm not confused but I've stopped sweating"
+ * still counts the second half: missing a real emergency is the worse mistake.
+ */
+const TAKEN_BACK = /(?:\bno|\bnot|\bnever|\bwithout|n't|\bnor|\bisnt|\bwasnt|\bhavent|\bhasnt|\bdidnt|\bdoesnt|\bdont)\s+(?:[\w']+\s+){0,2}$/;
+
+export function described(text: string, sign: RegExp): boolean {
+  const all = new RegExp(sign.source, 'g');
+  let m: RegExpExecArray | null;
+  while ((m = all.exec(text))) {
+    if (!TAKEN_BACK.test(text.slice(Math.max(0, m.index - 40), m.index))) return true;
+    if (m.index === all.lastIndex) all.lastIndex += 1;
+  }
+  return false;
+}
+/**
+ * Whether somebody is asking about the signs, and not describing a person who has them.
+ *
+ * "Is confusion a sign of heat stroke?" names a heat stroke sign and used to be answered as an emergency,
+ * which emailed the family that signs of heat stroke had been described. Nobody had described anything.
+ *
+ * The test is deliberately narrow, because the opposite mistake is the worse one. It is a general question
+ * only when it opens like one, is about signs, symptoms or what something means, and says nothing about a
+ * person: no he, she, I, my mother, no "right now". "Is she having heat stroke, she is confused" is not a
+ * general question and is still an emergency. And even a general question is still answered with the 911
+ * advice, said as "if that is happening now". Only the email is held back.
+ */
+const OPENS_AS_QUESTION = /^(what|which|how|is|are|can|could|does|do|should|would|tell me|explain|when)\b/;
+const ABOUT_SIGNS = /\b(signs?|symptoms?|mean|means|look like|looks like|warning|how do (i|you) (know|tell)|what happens|difference)\b/;
+const ABOUT_A_PERSON = /\b(he|she|they|i|i'm|im|we|him|her|them|my|mine|our|someone|somebody|husband|wife|mother|mom|mum|father|dad|son|daughter|child|kid|baby|friend|neighbou?r|patient|worker|man|woman|person)\b|right now|just now|at the moment/;
+
+export function asksInGeneral(description: string): boolean {
+  const text = description.toLowerCase().trim();
+  // "How do I know" is about knowing, not about me.
+  const rest = text.replace(/how (do|can|would) (i|we) (know|tell)/g, ' ');
+  return OPENS_AS_QUESTION.test(text) && ABOUT_SIGNS.test(text) && !ABOUT_A_PERSON.test(rest);
+}
+
 const EXHAUSTION_SIGNS: [RegExp, string][] = [
   [/sweat(ing)? (a lot|heavily)|heavy sweat|drenched/, 'heavy sweating'],
   [/dizz|lightheaded|light headed/, 'dizziness'],
@@ -50,10 +107,11 @@ const CRAMPS = /cramp|spasm/;
 
 export function triage(description: string, p?: Profile, lastedMinutes?: number): Triage {
   const text = description.toLowerCase();
-  const stroke = STROKE_SIGNS.filter(([re]) => re.test(text)).map(([, s]) => s);
-  const exhaustion = EXHAUSTION_SIGNS.filter(([re]) => re.test(text)).map(([, s]) => s);
-  const vomiting = VOMIT.test(text);
-  const cramps = CRAMPS.test(text);
+  const stroke = STROKE_SIGNS.filter(([re]) => described(text, re)).map(([, s]) => s);
+  if (fever(text)) stroke.push('a temperature above 103');
+  const exhaustion = EXHAUSTION_SIGNS.filter(([re]) => described(text, re)).map(([, s]) => s);
+  const vomiting = described(text, VOMIT);
+  const cramps = described(text, CRAMPS);
   const sources = [NWS, NIOSH];
 
   if (stroke.length) {

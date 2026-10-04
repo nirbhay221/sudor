@@ -449,6 +449,71 @@
       "say": "I don't feel quite right",
       "tool": "warning_signs",
       "kind": "incomplete"
+    },
+    {
+      "say": "let my daughter check on how my day is going",
+      "tool": "share_my_day",
+      "args": {
+        "action": "invite"
+      }
+    },
+    {
+      "say": "I have a code to join, four eight two one seven seven three three",
+      "tool": "share_my_day",
+      "args": {
+        "action": "join"
+      }
+    },
+    {
+      "say": "how is Mum's day looking",
+      "tool": "check_on"
+    },
+    {
+      "say": "should I check on Dad today",
+      "tool": "check_on"
+    },
+    {
+      "say": "go on, tell me the rest",
+      "tool": "tell_me_more"
+    },
+    {
+      "say": "get help, the power is out and I'm freezing",
+      "tool": "get_help"
+    },
+    {
+      "say": "tell my daughter I need help",
+      "tool": "get_help"
+    },
+    {
+      "say": "let my family know I need somebody to come over",
+      "tool": "get_help",
+      "kind": "colloquial"
+    },
+    {
+      "say": "I work outside seven to three tomorrow, how bad is the heat going to be",
+      "tool": "plan_my_day",
+      "args": {
+        "shiftStart": 7,
+        "shiftEnd": 15,
+        "day": "tomorrow"
+      }
+    },
+    {
+      "say": "I just started a roofing job, I'm on seven to five tomorrow",
+      "tool": "plan_my_day",
+      "args": {
+        "shiftStart": 7,
+        "shiftEnd": 17,
+        "day": "tomorrow",
+        "startedWork": "new"
+      }
+    },
+    {
+      "say": "okay, got it, you can stop reminding me",
+      "tool": "weather_check",
+      "args": {
+        "heard": true
+      }
     }
   ]
 }

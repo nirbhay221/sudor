@@ -24,6 +24,7 @@ import * as recalls from '../recalls.js';
 import * as warnings from '../warnings.js';
 import * as spaceweather from '../spaceweather.js';
 import * as shelters from '../shelters.js';
+import * as attention from '../attention.js';
 import {
   CATEGORY_WORDS,
   MEDICATION_CAUTION,
@@ -37,6 +38,7 @@ import {
   profileFor,
   say,
   snapshotFor,
+  officialWarning,
 } from './shared.js';
 
 export function register(server: McpServer, personOf: () => string): void {
@@ -53,11 +55,18 @@ export function register(server: McpServer, personOf: () => string): void {
         'Call this when someone asks if it is safe to be outside, to garden, to work outdoors, how bad the heat is, or ' +
         'how cold it is for them. Read the answer aloud in full; it names what is driving the risk and what to do. It is the ' +
         'answer for right now. To choose a time of day use plan_my_day, for official warnings use weather_warnings, and for ' +
-        'someone who already feels unwell use warning_signs.',
-      inputSchema: {},
+        'someone who already feels unwell use warning_signs. Pass heard when they say got it after a reminder.',
+      inputSchema: {
+        heard: z.boolean().optional().describe('true only when they say got it, okay, I heard you or stop reminding me, straight after a reminder about a stay-inside day'),
+      },
       _meta: { ui: { resourceUri: UI }, 'openai/outputTemplate': UI },
     },
-    async () => {
+    async ({ heard }) => {
+      // "Got it." The reminder about a stay-inside day stops. See attention.ts.
+      if (heard) {
+        const had = attention.heard(personOf());
+        return say(had ? "Okay. I won't mention it again today." : 'Okay.', { heard: true });
+      }
       const person = store.get(personOf());
       const snap = snapshotFor(person);
       if (typeof snap === 'string') return say(snap, { unavailable: true });
@@ -97,7 +106,10 @@ export function register(server: McpServer, personOf: () => string): void {
           parts.push('Tell me your medications or health conditions and I can answer for you specifically.');
         }
 
+        const official = officialWarning(person, snap.timezone);
+        if (official) parts.push(official.line);
         return say(parts.join(' '), {
+          ...(official ? { mustSay: [official.line], warning: official.event } : {}),
           season: 'cold',
           tempF: snap.tempF,
           windChillF: Math.round(feelsCold),
@@ -138,7 +150,9 @@ export function register(server: McpServer, personOf: () => string): void {
 
       const extra = judged.reasons.filter((r) => !r.startsWith('heat index'));
       const because = extra.length ? `, because of ${extra.join(' and ').replace('felt unwell at this heat before', 'how you felt at this heat before')}` : '';
-      parts.push(
+      // The answer to the question that was asked comes first. It used to come last, after the heat index,
+      // the medicine and the condition, which is the order it was worked out in and not the order to say it.
+      parts.unshift(
         judged.status === 'good'
           ? 'For you, right now is a fine time to be outside.'
           : judged.status === 'caution'
@@ -151,7 +165,21 @@ export function register(server: McpServer, personOf: () => string): void {
       const age = weather.ageMinutes(snap.lat, snap.lon);
       if (snap.stale && age != null && age > 60) parts.push(`My weather data is ${age} minutes old.`);
 
+      // The step that finishes the thought, put as one question.
+      const offer = judged.status === 'good' || officialWarning(person, snap.timezone) ? '' : 'Want me to find the safest time to go out today?';
+      // The line about not stopping a medicine is said whatever else is held back.
+      // So is the line about not stopping a medicine: it is the one sentence here that prevents a harm.
+      const mustSay = [parts.includes(MEDICATION_CAUTION) ? MEDICATION_CAUTION : ''].filter(Boolean);
+      // A hurricane, a tornado or a flood outranks the heat index, and is said whatever else is held back.
+      const official = officialWarning(person, snap.timezone);
+      if (official) {
+        parts.push(official.line);
+        mustSay.push(official.line);
+      }
       return say(parts.join(' '), {
+        ...(official ? { warning: official.event } : {}),
+        ...(offer ? { offer, nextAction: { tool: 'plan_my_day', arguments: {} } } : {}),
+        mustSay,
         heatIndexF: verdict.heatIndexF,
         category: verdict.category,
         status: judged.status,

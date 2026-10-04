@@ -48,7 +48,7 @@ export function register(server: McpServer, personOf: () => string): void {
       const person = store.get(personOf());
       const snap = snapshotFor(person);
       if (typeof snap === 'string') return say(snap, { unavailable: true });
-      const hasPhoto = person.medications.some((m) => m.mechanisms.includes('photosensitivity'));
+      const hasPhoto = person.medications.some((m) => m.mechanisms.includes('photosensitivity') || (m.label?.mechanisms ?? []).includes('photosensitivity'));
       const result = photoRisk(snap.uvIndex, hasPhoto);
       return say(result.reason, { ...result, uvIndex: snap.uvIndex });
     },

@@ -103,7 +103,7 @@ export type Medication = {
  */
 const AN_CLASSES = new Set([
   'ACE inhibitor', 'ARB', 'anticholinergic antihistamine', 'antihistamine',
-  'atypical antipsychotic', 'anticonvulsant', 'opiate', 'SSRI', 'SNRI',
+  'atypical antipsychotic', 'anticonvulsant', 'opiate', 'SSRI', 'SNRI', 'anticholinergic', 'antipsychotic',
 ]);
 export function articleFor(drugClass: string): 'a' | 'an' {
   return AN_CLASSES.has(drugClass) ? 'an' : 'a';

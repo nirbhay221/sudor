@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 /**
  * Static audit of the published tool list against Anthropic's tool-definition guidance
  * ("provide extremely detailed descriptions", what it does, when to use it AND when not to,

@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 /**
  * Accessibility, checked without a browser.
  *
@@ -46,7 +48,7 @@ ok('a form control with no label is reported', broken.some((v) => v.startsWith('
 ok('a page with no language is reported', broken.some((v) => v.startsWith('html-has-lang')));
 
 console.log('\nThe markup we serve');
-for (const file of ['web/index.html', 'ui/window.html']) {
+for (const file of ['web/index.html', 'web/echo.html', 'ui/window.html', 'ui/card.html']) {
   if (!existsSync(file)) { ok(`${file} exists`, false); continue; }
   const html = readFileSync(file, 'utf8');
   const violations = await audit(html);

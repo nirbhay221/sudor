@@ -44,17 +44,15 @@ export function register(server: McpServer, personOf: () => string): void {
       const person = store.get(personOf());
       const setup =
         person.lat == null
-          ? ' First tell me your city or zip code, and any medications or health conditions you have.'
+          ? ' To start, tell me your city or zip code.'
           : '';
+      // Three sentences. It used to be 116 words, which nobody asking "what can you do" is waiting for.
       return say(
-        'I help you plan around the heat for your own body, not just the forecast. Some medicines, like water pills and ' +
-          'some antidepressants, and conditions like MS, erythromelalgia, heart disease and diabetes change how you ' +
-          'handle heat. Ask me when is the best time to go out today, what to do if you have to go out now, or what ' +
-          'the warning signs of heat illness are. I can also email a family member in an emergency or before a ' +
-          'dangerous day, once you confirm them. I also watch the FDA recall list for the medicines you take, and tell you if one of them is recalled. ' +
+        'I tell you whether the heat or the cold outside is a problem for you, given the medicines you take and the ' +
+          'conditions you have. Ask me is it safe outside, when is the best time to go out, or tell me how you feel. ' +
           "I'm not a doctor, and this isn't medical advice." +
           setup,
-        { medicationsKnown: MEDICATIONS.length, conditionsKnown: CONDITIONS.length },
+        { fullAnswer: true, medicationsKnown: MEDICATIONS.length, conditionsKnown: CONDITIONS.length },
       );
     },
   );

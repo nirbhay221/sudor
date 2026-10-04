@@ -22,8 +22,13 @@ export function heatIndexF(tempF: number, humidityPct: number): number {
   const T = tempF;
   const R = Math.min(100, Math.max(0, humidityPct));
 
+  // The weather service's own procedure: the simple formula is AVERAGED with the temperature, and that
+  // average is the heat index unless it reaches 80, where the full regression takes over. This used to
+  // return the simple value without averaging it, which reads high near the boundary: 79 degrees at 80
+  // percent humidity came out as 80.4, a "caution" day, where the published method gives 79.7.
   const simple = 0.5 * (T + 61 + (T - 68) * 1.2 + R * 0.094);
-  if ((simple + T) / 2 < 80) return Number(simple.toFixed(1));
+  const averaged = (simple + T) / 2;
+  if (averaged < 80) return Number(averaged.toFixed(1));
 
   let hi =
     -42.379 +
@@ -107,7 +112,7 @@ export const GUIDANCE: Record<Exclude<Mechanism, 'photosensitivity'>, string> = 
   reduced_sweating:
     "you may not get the usual warning signs of overheating before it is serious. Don't wait to feel hot: set a timer for water and shade instead of trusting how you feel.",
   increased_heat_production:
-    "on top of the day. Treat outdoor exertion like it is several degrees hotter than the forecast.",
+    "your body is adding heat of its own on top of the day's. Treat outdoor exertion as if it were several degrees hotter than the forecast.",
   reduced_thirst_or_sedation:
     "you can be behind on fluids well before you feel it. Drink on a schedule, not on thirst.",
   electrolyte_imbalance:
@@ -117,7 +122,7 @@ export const GUIDANCE: Record<Exclude<Mechanism, 'photosensitivity'>, string> = 
   // salty" is the wrong correction. Steady plain fluid is, and the harder part is
   // that nausea or simply not noticing is what caused the deficit.
   fluid_loss:
-    "so you can be dry before the heat has even done its part. Sip steadily through the day whether or not you feel like it, and if you cannot keep fluids down in this heat that is a reason to call someone, not to wait it out.",
+    "you can be dry before the heat has even done its part. Sip steadily through the day whether or not you feel like it, and if you cannot keep fluids down in this heat that is a reason to call someone, not to wait it out.",
   // The one place where the standard hot-day advice is the thing that hurts.
   // A 2026 scoping review of medication and heat illness in older adults puts
   // thiazides, SSRIs and the renin-angiotensin drugs together as the group where
@@ -127,7 +132,7 @@ export const GUIDANCE: Record<Exclude<Mechanism, 'photosensitivity'>, string> = 
   hyponatremia_risk:
     "drinking a lot of plain water at once can push it lower rather than help. Sip through the day instead of drinking a lot in one go, have something salty with your food, and ask your pharmacist what you should be drinking on hot days.",
   increased_sweating:
-    "which is a faster route to dehydration even though your cooling itself is working fine.",
+    "you lose fluid faster than most people, even though your cooling itself is working fine. Drink before you feel thirsty.",
 };
 
 export type Verdict = {

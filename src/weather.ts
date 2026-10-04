@@ -82,7 +82,9 @@ export function parseForecast(lat: number, lon: number, weather: any, air: any, 
   const aqiAt = new Map<string, number | null>();
   (air?.hourly?.time ?? []).forEach((t: string, i: number) => aqiAt.set(t, air.hourly.us_aqi?.[i] ?? null));
   const h = weather?.hourly ?? {};
-  const hourly: Hour[] = (h.time ?? []).map((local: string, i: number) => ({
+  // An hour with no temperature or humidity is left out rather than carried as NaN into a heat index.
+  const usable = (i: number) => Number.isFinite(h.temperature_2m?.[i]) && Number.isFinite(h.relative_humidity_2m?.[i]);
+  const hourly: Hour[] = (h.time ?? []).map((local: string, i: number) => ({ local, i })).filter((x: { i: number }) => usable(x.i)).map(({ local, i }: { local: string; i: number }) => ({
     local,
     time: localToUtc(local, offset),
     tempF: h.temperature_2m[i],
@@ -140,13 +142,22 @@ async function refreshOne(lat: number, lon: number): Promise<void> {
     fetchJson(`${AIR}?latitude=${lat}&longitude=${lon}&current=us_aqi&hourly=us_aqi&forecast_days=2&timezone=auto`),
   ]);
 
+  let failure = weather.status === 'rejected' ? String(weather.reason) : '';
   if (weather.status === 'fulfilled') {
-    snapshots.set(k, parseForecast(lat, lon, weather.value, air.status === 'fulfilled' ? air.value : null));
-    return;
+    try {
+      // A 200 with a body that is not a forecast (no "current" block) used to throw from here, out of a
+      // timer, leaving the old snapshot in place and not marked stale.
+      const parsed = parseForecast(lat, lon, weather.value, air.status === 'fulfilled' ? air.value : null);
+      if (!Number.isFinite(parsed.tempF) || !Number.isFinite(parsed.humidityPct)) throw new Error('forecast had no current temperature');
+      snapshots.set(k, parsed);
+      return;
+    } catch (err) {
+      failure = String(err);
+    }
   }
   // A stale reading you know is stale beats a fresh one that silently failed
   // to update. Keep serving the last good snapshot and say how old it is.
-  const error = String(weather.reason);
+  const error = failure;
   if (prior) {
     snapshots.set(k, { ...prior, stale: true, error });
   } else {
@@ -209,6 +220,17 @@ export function watch(lat: number, lon: number, forAccount = false): void {
 }
 
 /** For /health: how many places are being followed, split by whose they are. */
+/**
+ * Stop following a place nobody is at any more.
+ *
+ * Every place somebody has ever set used to be polled every twenty minutes until the process restarted, so
+ * changing location a few times left a trail of timers, and enough of them filled the cap and left new
+ * accounts with no weather at all. The caller checks that no stored person still uses the place.
+ */
+export function unwatch(lat: number, lon: number): void {
+  stopWatching(key(lat, lon));
+}
+
 export function watched(): { accounts: number; sandbox: number } {
   return { accounts: timers.size - demoOnly.size, sandbox: demoOnly.size };
 }

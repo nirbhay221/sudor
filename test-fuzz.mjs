@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 /**
  * Property-style fuzzing of every tool.
  *
@@ -101,11 +103,14 @@ const PER_TOOL = Number(process.env.FUZZ_CALLS ?? 40);
 const problems = [];
 const slow = [];
 let calls = 0, protocolErrors = 0;
+let everSent = '';
 const refusals = [];
 
 for (const tool of tools) {
   for (let i = 0; i < PER_TOOL; i += 1) {
     const input = args(tool);
+    // Something stored earlier (a field called "NaN") can legitimately be said back later, in a list of names.
+    everSent += JSON.stringify(input);
     const started = Date.now();
     let r = null;
     try {
@@ -127,7 +132,7 @@ for (const tool of tools) {
       // The customer's own words may legitimately contain these (they typed "undefined"), so only
       // flag when the offending text was not part of what they sent.
       const m = text.match(re);
-      if (m && !JSON.stringify(input).includes(m[0].trim())) problems.push(`${tool.name} ${JSON.stringify(input).slice(0, 80)} spoke ${what}: "${m[0].trim().slice(0, 60)}"`);
+      if (m && !JSON.stringify(input).includes(m[0].trim()) && !everSent.includes(m[0].trim())) problems.push(`${tool.name} ${JSON.stringify(input).slice(0, 80)} spoke ${what}: "${m[0].trim().slice(0, 60)}"`);
     }
   }
 }

@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 /**
  * The drug classes that were missing, and the advice that must not be reused.
  *
@@ -101,7 +103,7 @@ console.log('\nSeverity sits below losing the ability to sweat, above sweating m
     ? domain.worstMechanism([...m.mechanisms, ...sweatless.mechanisms])
     : null;
   if (worst) check('reduced sweating still outranks fluid loss', worst === 'reduced_sweating', String(worst));
-  else check('severity ordering is internal, so checked through advice instead', true);
+  else console.log('  note  severity ordering is internal, so it is checked through the advice instead');
 }
 
 console.log('\nThe table grew rather than being rebuilt');

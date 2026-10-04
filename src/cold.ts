@@ -82,7 +82,7 @@ export function coldMeaning(feelsLikeF: number): string {
 }
 
 export type ColdFirstAid = {
-  id: 'hypothermia' | 'frostbite';
+  id: 'hypothermia' | 'frostbite' | 'hypothermia_watch';
   /** Words a person actually uses, matched against what they describe. */
   signs: string[];
   emergency: boolean;
@@ -99,10 +99,14 @@ export type ColdFirstAid = {
 export const COLD_FIRST_AID: ColdFirstAid[] = [
   {
     id: 'hypothermia',
+    // The signs that mean the brain is already affected. The gentler ones (tired, sleepy, stiff, clumsy)
+    // used to sit in this list too, so "I'm exhausted from shovelling" on a chilly day was answered with
+    // "call 911" and an email to the family. They have their own entry below, which says to warm up and
+    // what to watch for.
     signs: [
-      'confused', 'confusion', 'slurred', 'slurring', 'mumbling', 'drowsy', 'sleepy', 'exhausted',
-      'stopped shivering', 'not shivering', 'fumbling', 'clumsy', 'memory', 'stiff', 'unconscious',
-      'passed out', 'collapsed', 'bright red skin', 'very low energy',
+      'confused', 'confusion', 'slurred', 'slurring', 'mumbling', 'stopped shivering', 'not shivering',
+      'fumbling', 'unconscious', 'unresponsive', 'passed out', 'collapsed', 'bright red skin', "can't stay awake",
+      'cannot stay awake', "won't wake",
     ],
     emergency: true,
     say:
@@ -125,13 +129,36 @@ export const COLD_FIRST_AID: ColdFirstAid[] = [
       'feeling it. Do not rub it. If the skin stays white or numb after warming, or blisters, get medical help.',
     source: 'https://www.cdc.gov/winter-weather/about/index.html',
   },
+  {
+    id: 'hypothermia_watch',
+    signs: ['drowsy', 'sleepy', 'exhausted', 'clumsy', 'memory', 'stiff', 'very low energy', 'shivering hard', "can't stop shivering"],
+    emergency: false,
+    say:
+      'Those can be the early signs of the body getting too cold. Get indoors now, out of anything wet, and warm up ' +
+      'with dry layers and blankets, and a warm drink if you are fully awake. If there is any confusion, slurred ' +
+      'speech or fumbling hands, or the shivering stops on its own, that is hypothermia: call 911.',
+    source: 'https://www.cdc.gov/winter-weather/about/index.html',
+  },
 ];
+
+/** The two or three words before a sign that take it back: "not confused", "no numbness". */
+const TAKEN_BACK = /(?:\bno|\bnot|\bnever|\bwithout|n't|\bnor)\s+(?:[\w']+\s+){0,2}$/;
+
+function describedIn(text: string, sign: string): boolean {
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf(sign, from);
+    if (at < 0) return false;
+    if (!TAKEN_BACK.test(text.slice(Math.max(0, at - 40), at))) return true;
+    from = at + 1;
+  }
+}
 
 /** Which first aid a description matches, hypothermia winning when both do. */
 export function matchColdFirstAid(described: string): ColdFirstAid | null {
   const text = described.toLowerCase();
   for (const entry of COLD_FIRST_AID) {
-    if (entry.signs.some((sign) => text.includes(sign))) return entry;
+    if (entry.signs.some((sign) => describedIn(text, sign))) return entry;
   }
   return null;
 }

@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 /**
  * The demo page, tested against a real server.
  *
@@ -57,7 +59,7 @@ async function call(name, args = {}, sessionId = '42816a48288988c1b90e06066deea0
 }
 
 console.log('\nThe page and everything it asks for');
-for (const [path, type] of [['/', 'text/html'], ['/styles.css', 'text/css'], ['/app.js', 'javascript'], ['/requests.json', 'json'], ['/ui/window.html', 'text/html']]) {
+for (const [path, type] of [['/', 'text/html'], ['/styles.css', 'text/css'], ['/app.js', 'javascript'], ['/requests.json', 'json'], ['/ui/window.html', 'text/html'], ['/echo.html', 'text/html'], ['/echo.js', 'javascript'], ['/echo.css', 'text/css'], ['/echo-scenes.json', 'json']]) {
   const res = await fetch(BASE + path);
   check(`${path} is served`, res.ok && (res.headers.get('content-type') ?? '').includes(type),
     `${res.status} ${res.headers.get('content-type')}`);

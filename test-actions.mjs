@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 /**
  * The things Sudor now does, not just says: removing what no longer applies,
  * keeping health details out of the room, learning from how an outing went,
@@ -80,7 +82,9 @@ const privateCheck = text(await tools.weather_check({}));
 check('the heat check names neither the condition nor a medication', !/sclerosis|MS\b|medication|lisinopril/i.test(privateCheck), privateCheck);
 check('...but still says this person is at more risk', /health profile/.test(privateCheck), privateCheck);
 const privateOut = text(await tools.going_out_now({}));
-check('precautions hold back the personal ones and say how to hear them', /private precautions/.test(privateOut) && !/cooling vest/.test(privateOut), privateOut);
+// Two steps are read at a time, so the line about the private ones may be on a later page: it is checked in the whole list.
+const privateSteps = (await tools.going_out_now({})).structuredContent.steps.join(' ');
+check('precautions hold back the personal ones and say how to hear them', /private precautions/.test(privateSteps) && !/cooling vest/.test(privateSteps) && !/cooling vest/.test(privateOut), privateSteps);
 check('...and the heat stroke line is never held back', /call 911/.test(privateOut));
 const allOut = await tools.going_out_now({ privatePrecautions: true });
 check('asking for private precautions reads them', /cooling vest|Cool down before you go/.test(JSON.stringify(allOut.structuredContent.steps)));

@@ -1,3 +1,5 @@
+// Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+process.env.SUDOR_SCOPE ??= 'all';
 /**
  * The certification contract, checked against a running server.
  *
@@ -86,6 +88,10 @@ const SPOKEN = {
   medicine_recalls: {},
   somewhere_to_go: {},
   what_can_you_do: {},
+  share_my_day: { action: 'invite' },
+  check_on: {},
+  get_help: { what: 'the power is out and I am cold' },
+  tell_me_more: {},
 };
 
 /** Nothing can be answered for a person until there is a person and a place. */
@@ -114,8 +120,10 @@ check('...and the destructive ones are exactly the ones that take something away
  * something that slipped in unnoticed.
  */
 const repeatable = names.filter((n) => ann(n)?.readOnlyHint === false && ann(n)?.idempotentHint !== true).sort();
-check('...and every writing tool folds a repeat, except the two we chose',
-  JSON.stringify(repeatable) === JSON.stringify(['contact', 'warning_signs']), repeatable.join(', '));
+// share_my_day is the third: asking for a code twice gives two codes on purpose, and only the newer one works.
+// get_help is the fourth: somebody who asks for help twice means it twice, and the hourly cap is what stops a flood.
+check('...and every writing tool folds a repeat, except the four we chose',
+  JSON.stringify(repeatable) === JSON.stringify(['contact', 'get_help', 'share_my_day', 'warning_signs']), repeatable.join(', '));
 const openWorld = names.filter((n) => ann(n)?.openWorldHint).length;
 check('...and the tools that depend on the outside world say so', openWorld >= 9, String(openWorld));
 

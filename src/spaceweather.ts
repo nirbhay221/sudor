@@ -30,6 +30,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { backoff } from './backoff.js';
+import { randomBytes } from 'node:crypto';
 
 export type Outlook = {
   /** NOAA G scale, 0 to 5, the worst of today and the three day outlook. */
@@ -42,6 +43,7 @@ export type Outlook = {
 };
 
 const URL = process.env.SUDOR_ORBITA_URL ?? '';
+const SANDBOX_ID = randomBytes(16).toString('hex');
 const EVERY_MS = 30 * 60 * 1000;
 const STALE_MS = 3 * 60 * 60 * 1000;
 const TIMEOUT_MS = 5000;
@@ -62,7 +64,12 @@ export const configured = (): boolean => URL.length > 0 || ask !== askOrbita;
 async function askOrbita(): Promise<Outlook | null> {
   if (!URL) return null;
   const client = new Client({ name: 'sudor', version: '0.1.0' }, { capabilities: {} });
-  const transport = new StreamableHTTPClientTransport(new globalThis.URL(`${URL}/mcp`));
+  // Orbita takes either a linked account or a sandbox id. Without one, every call is a 401 the moment
+  // Orbita runs with authentication on, which is how it is deployed, so this link would have gone quiet on
+  // the day both were put live. storm_status reads no farm data, so a sandbox id is all it needs.
+  const transport = new StreamableHTTPClientTransport(new globalThis.URL(`${URL}/mcp`), {
+    requestInit: { headers: { 'x-orbita-demo': SANDBOX_ID } },
+  });
   const cutOff = setTimeout(() => void transport.close().catch(() => {}), TIMEOUT_MS);
   try {
     await client.connect(transport);
@@ -153,7 +160,14 @@ export function outlook(): Outlook | null {
 export const lastSeen = (): Outlook | null => held;
 
 export function speak(o: Outlook): string {
-  const day = o.when === 'today' ? 'today' : `on ${o.when}`;
+  // A date is said as a day, not read out as 2026-10-06.
+  const at = new Date(`${o.when}T12:00:00Z`);
+  const day =
+    o.when === 'today'
+      ? 'today'
+      : Number.isNaN(at.getTime())
+        ? 'in the next few days'
+        : `on ${at.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })}`;
   // The G5 line names the one real case, because at G5 someone will have read
   // a headline about it, and the specific answer is better than a reassurance.
   const record =

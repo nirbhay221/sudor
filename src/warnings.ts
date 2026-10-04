@@ -59,8 +59,8 @@ export function configureForTest(fn: Fetcher | null): void {
   fetcher = fn ?? fetchFromNws;
   cache.clear();
 }
-export function seedForTest(lat: number, lon: number, alerts: Alert[]): void {
-  remember(key(lat, lon), { checkedAt: Date.now(), alerts });
+export function seedForTest(lat: number, lon: number, alerts: Alert[], checkedAt = Date.now()): void {
+  remember(key(lat, lon), { checkedAt, alerts });
 }
 
 /**
@@ -76,7 +76,7 @@ export function classify(event: string): AlertKind {
   if (/cold|freeze|frost|wind chill|blizzard|winter|ice storm|snow/.test(e)) return 'cold';
   if (/air quality|smoke|dust|ozone/.test(e)) return 'air';
   if (/flood|tsunami|storm surge/.test(e)) return 'flood';
-  if (/hurricane|tropical|tornado|thunderstorm|high wind|wind advisory|ice|power/.test(e)) return 'power';
+  if (/hurricane|tropical|tornado|thunderstorm|high wind|wind advisory|\bice\b|power/.test(e)) return 'power';
   return 'other';
 }
 

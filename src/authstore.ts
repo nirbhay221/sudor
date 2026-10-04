@@ -81,6 +81,15 @@ export const MIN_PASSPHRASE = 8;
 const MAX_PASSPHRASE = 128;
 
 const FAILURES_BEFORE_LOCK = 5;
+/**
+ * Wrong answers are counted per name AND per address they came from.
+ *
+ * They used to be counted per name alone, which let anybody lock a person out: type their name and five
+ * wrong passphrases every fifteen minutes and the real owner never gets in. Counted per address, five wrong
+ * answers lock out the address that gave them and nobody else. A second, much higher ceiling per name alone
+ * stays, because without it a guesser with many addresses gets five tries from each for ever.
+ */
+const NAME_FAILURES_BEFORE_LOCK = 60;
 const LOCK_MS = 15 * 60 * 1000;
 
 /**
@@ -208,13 +217,19 @@ async function derive(passphrase: string, salt: Buffer, p: { N: number; r: numbe
  * nothing. A busy server refuses before allocating. Only then is a hash computed,
  * and a wrong answer counts against the name.
  */
-export async function claimOrVerify(name: string, passphrase: string): Promise<Verdict> {
+export async function claimOrVerify(name: string, passphrase: string, source = ''): Promise<Verdict> {
   load();
   if (!name) return { kind: 'wrong' };
 
-  const f = failures.get(name);
-  if (f && f.lockedUntil > Date.now()) {
-    return { kind: 'locked', retryAfterSeconds: Math.ceil((f.lockedUntil - Date.now()) / 1000) };
+  // This address's own count for this name, and the name's count across every address.
+  const mine = `${name}|${source}`;
+  const all = `${name}|*`;
+  const f = failures.get(mine);
+  const everyone = failures.get(all);
+  for (const held of [f, everyone]) {
+    if (held && held.lockedUntil > Date.now()) {
+      return { kind: 'locked', retryAfterSeconds: Math.ceil((held.lockedUntil - Date.now()) / 1000) };
+    }
   }
 
   // The rules are checked before looking at whether the name exists, and they are the
@@ -255,12 +270,19 @@ export async function claimOrVerify(name: string, passphrase: string): Promise<V
     const ok = given.length === want.length && timingSafeEqual(given, want);
 
     if (ok) {
-      failures.delete(name);
+      // Only this address's count is cleared. Somebody else's wrong guesses are not forgiven by the owner signing in.
+      failures.delete(mine);
       return { kind: 'ok' };
     }
 
-    const count = (f && f.lockedUntil <= Date.now() && f.count >= FAILURES_BEFORE_LOCK ? 0 : f?.count ?? 0) + 1;
-    failures.set(name, { count, lockedUntil: count >= FAILURES_BEFORE_LOCK ? Date.now() + LOCK_MS : 0 });
+    const bump = (key: string, held: { count: number; lockedUntil: number } | undefined, limit: number) => {
+      const count = (held && held.lockedUntil <= Date.now() && held.count >= limit ? 0 : held?.count ?? 0) + 1;
+      failures.set(key, { count, lockedUntil: count >= limit ? Date.now() + LOCK_MS : 0 });
+    };
+    bump(mine, f, FAILURES_BEFORE_LOCK);
+    bump(all, everyone, NAME_FAILURES_BEFORE_LOCK);
+    // Counts are only ever added by wrong answers, so the book of them is bounded here.
+    if (failures.size > 50_000) failures.delete(failures.keys().next().value as string);
     return { kind: 'wrong' };
   } finally {
     hashing -= 1;

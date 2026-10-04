@@ -25,6 +25,7 @@ import * as warnings from '../warnings.js';
 import * as spaceweather from '../spaceweather.js';
 import * as shelters from '../shelters.js';
 import {
+  fridgeMedicines,
   NO_LOCATION,
   coldConditionsOf,
   coldMechanismsOf,
@@ -58,6 +59,16 @@ export function register(server: McpServer, personOf: () => string): void {
         );
       }
       const place = person.locationName ?? 'your area';
+      // A list that could not be refreshed keeps its last answer. "No warnings" from two hours ago is not
+      // "no warnings", and an old warning may have ended, so past an hour this says it does not know.
+      const checked = warnings.ageMinutes(person.lat, person.lon);
+      if (checked != null && checked > 60) {
+        return say(
+          `I last reached the weather service ${checked} minutes ago, so I can't tell you what is in force for ${place} right now. ` +
+            'Ask me again in a few minutes, and check weather.gov if you need to know now.',
+          { checked: false, checkedMinutesAgo: checked },
+        );
+      }
       if (!held.length) {
         return say(`No weather warnings for ${place} right now. I check every ten minutes.`, {
           alerts: 0,
@@ -77,7 +88,15 @@ export function register(server: McpServer, personOf: () => string): void {
 
       // The personal half. In privacy mode it still says the risk is raised,
       // just not why.
-      const named = person.privacy ? 'Something in your health profile' : profile.because ? `Being ${profile.because.replace(/^because of /, '')}` : null;
+      // This used to be built by putting "Being" in front of a clause, which read "Being because your
+      // medication blocks your sweating makes heat harder on you".
+      const named = person.privacy
+        ? 'Something in your health profile'
+        : profile.conditions[0]
+          ? `Living with ${profile.conditions[0].label}`
+          : person.medications.length
+            ? 'What you take'
+            : null;
       if (top.kind === 'heat' && (profile.sensitivity !== 'general' || person.medications.length)) {
         parts.push(`${named ?? 'Your profile'} makes heat harder on you than on most people. Ask me when to go out today.`);
       } else if (top.kind === 'cold' && (coldMechanismsOf(person).length || coldConditionsOf(person).length)) {
@@ -95,6 +114,7 @@ export function register(server: McpServer, personOf: () => string): void {
       if (ranked.length > 1) parts.push(`There ${ranked.length === 2 ? 'is 1 other alert' : `are ${ranked.length - 1} other alerts`} as well.`);
 
       return say(parts.join(' '), {
+        fullAnswer: true,
         place,
         alerts: ranked.length,
         top: { event: top.event, kind: top.kind, severity: top.severity, ends: top.ends, areaDesc: top.areaDesc },
@@ -141,12 +161,19 @@ export function register(server: McpServer, personOf: () => string): void {
       const lead = coming ? `${coming.event} is up for your area. ` : '';
 
       const steps: string[] = [];
-      if (person.conditions.includes('diabetes')) {
+      const cold = fridgeMedicines(person);
+      if (person.conditions.includes('diabetes') || cold.insulin) {
         steps.push(
           'Insulin keeps best between 36 and 46 degrees. If the power goes, keep it as cool as you can without ' +
             'freezing it, because frozen insulin is finished. The FDA says insulin kept warmer than it should be can ' +
             'still be used in an emergency when there is nothing else, so do not go without: ring your pharmacist ' +
             'about replacing it once the power is back.',
+        );
+      }
+      if (cold.injectables.length) {
+        steps.push(
+          `Your ${cold.injectables.join(' and ')} pen is meant to be kept in the fridge. Do not let it freeze, and ask your ` +
+            'pharmacist how long it is good for at room temperature, because that differs from one pen to another.',
         );
       }
       if (person.conditions.includes('kidney_disease')) {
@@ -176,12 +203,15 @@ export function register(server: McpServer, personOf: () => string): void {
         );
       }
 
-      const opening = person.medications.length || person.conditions.length
+      const opening = person.medications.length || person.conditions.length || cold.insulin
         ? 'Here is what matters for you.'
         : "I don't know your medicines or conditions yet, so this is the general version. Tell me what you take and I can be specific.";
 
       const tail = solar ? ` ${spaceweather.speak(solar)}` : '';
       return say(`${lead}${opening} ${steps.join(' ')}${tail}`, {
+        // A checklist for before the power goes. With a storm on the way every line is a thing to do now, so it
+        // is heard whole. With nothing coming it is advice, and is given a few sentences at a time.
+        fullAnswer: !!coming || !!solar,
         alert: coming ? coming.event : null,
         spaceWeather: solar ? { g: solar.g, when: solar.when } : null,
         steps: steps.length,

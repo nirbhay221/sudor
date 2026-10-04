@@ -31,8 +31,14 @@ import * as recalls from '../recalls.js';
 import * as warnings from '../warnings.js';
 import * as spaceweather from '../spaceweather.js';
 import * as shelters from '../shelters.js';
+import * as care from '../care.js';
+import { coldByClass } from '../rxclass.js';
+import * as labels from '../labels.js';
 
 export const UI = 'ui://sudor/window.html';
+
+/** The view for what is not the day strip: the profile, a contact being confirmed, and the 911 card. */
+export const CARD = 'ui://sudor/card.html';
 
 export const say = (text: string, structured?: Record<string, unknown>) => ({
   content: [{ type: 'text' as const, text }],
@@ -80,29 +86,66 @@ export function resolveLocation(personId: string, place: string): void {
         p.locationStatus = 'not_found';
       }
     });
-    if (found) weather.watch(found.lat, found.lon, !personId.startsWith('demo:'));
+    if (found) {
+      weather.watch(found.lat, found.lon, !personId.startsWith('demo:'));
+      care.watch(found.lat, found.lon, found.state ? `${found.name}, ${found.state}` : found.name);
+    }
   });
 }
+
+/** Stop polling a place once no stored person is there. Called when somebody moves or is forgotten. */
+export function releasePlace(lat: number | null, lon: number | null): void {
+  if (lat == null || lon == null) return;
+  const stillUsed = store.allEntries().some(([, p]) => p.lat === lat && p.lon === lon);
+  if (!stillUsed) weather.unwatch(lat, lon);
+}
+
+/** How old a reading may be before it stops being "right now". Refreshed every twenty minutes when all is well. */
+const TOO_OLD_MINUTES = 180;
 
 export function locate(person: store.Person): { lat: number; lon: number } | string {
   if (person.locationStatus === 'locating') return `I'm still looking up ${person.locationName}. Ask me again in a moment.`;
   if (person.locationStatus === 'not_found') {
-    return `I couldn't find ${person.locationName}. Tell me the city and state, or a zip code.`;
+    return `I couldn't find ${person.locationName}. I can check places in the United States: tell me the city and state, or a zip code.`;
   }
   if (person.lat == null || person.lon == null) return NO_LOCATION;
   return { lat: person.lat, lon: person.lon };
 }
 
-export function snapshotFor(person: store.Person): weather.LocationSnapshot | string {
+export function snapshotFor(person: store.Person, forAccount = false): weather.LocationSnapshot | string {
   const where = locate(person);
   if (typeof where === 'string') return where;
   const snap = weather.current(where.lat, where.lon);
   if (!snap) {
-    weather.watch(where.lat, where.lon);
+    weather.watch(where.lat, where.lon, forAccount);
     return `I'm pulling the weather for ${person.locationName ?? 'you'} now. Ask me again in a moment.`;
   }
   if (Number.isNaN(snap.tempF)) return WEATHER_DOWN;
+  // When the weather service has been unreachable for hours the last reading is still held, and it used to
+  // be spoken as "right now" however old it was. A heat answer built on this morning's temperature is a guess.
+  const age = weather.ageMinutes(where.lat, where.lon);
+  if (age != null && age > TOO_OLD_MINUTES) return WEATHER_DOWN;
   return snap;
+}
+
+/**
+ * The one official warning that cannot be left out of an answer about going outside.
+ *
+ * Warnings were polled for every place and only spoken when somebody asked for them by name, so a person
+ * under a hurricane warning who asked "is it safe outside" was told the heat index. This is the sentence
+ * that closes that: the worst active alert, if it is a Warning (or the weather service rates it severe),
+ * and it is not a heat or cold alert, which the answer is already about.
+ */
+export function officialWarning(person: store.Person, timeZone: string): { line: string; event: string } | null {
+  if (person.lat == null || person.lon == null) return null;
+  const held = warnings.current(person.lat, person.lon);
+  if (!held || !held.length) return null;
+  const top = warnings
+    .rank(held)
+    .find((a) => a.kind !== 'heat' && a.kind !== 'cold' && (/warning|emergency/i.test(a.event) || a.severity === 'Severe' || a.severity === 'Extreme'));
+  if (!top) return null;
+  const article = /^[aeiou]/i.test(top.event) ? 'an' : 'a';
+  return { line: `There is ${article} ${top.event} where you are${warnings.until(top, timeZone)}. Ask me what to do before it arrives.`, event: top.event };
 }
 
 export const nowHour = (snap: weather.LocationSnapshot): weather.Hour => ({
@@ -118,9 +161,59 @@ export const nowHour = (snap: weather.LocationSnapshot): weather.Hour => ({
   aqi: snap.aqi,
 });
 
-export const mechanismsOf = (person: store.Person) => person.medications.flatMap((m) => m.mechanisms);
+/** What a medicine does in the cold: from the table when it is there, and from its class when it came from RxNorm. */
+const coldOf = (taken: { generic: string; drugClass: string }): ColdMechanism[] =>
+  MEDICATIONS.find((m) => m.generic === taken.generic)?.cold ?? coldByClass(taken.drugClass);
+
+/** Everything a person's medicines do in the heat: what the table or the class says, and what the label itself states. */
+export const mechanismsOf = (person: store.Person) => person.medications.flatMap((m) => [...new Set([...m.mechanisms, ...(m.label?.mechanisms ?? [])])]);
+
+/**
+ * Read the medicine's current FDA label, in the background, and keep what it states about heat.
+ *
+ * For a medicine already on the list this adds the label's own sentence and date. For a name nothing here
+ * could classify, a label that states a heat risk outright moves it onto the list, judged on the label alone.
+ */
+export function checkLabel(personId: string, generic: string, spokenName: string): void {
+  void labels.evidenceFor(generic).then((found) => {
+    if (!found) return;
+    store.update(personId, (p) => {
+      const held = p.medications.find((m) => m.generic === generic);
+      if (held) {
+        held.label = found;
+        return;
+      }
+      if (!found.mechanisms.length) return;
+      const watched = p.recallWatch.some((m) => m.toLowerCase() === spokenName.toLowerCase());
+      if (!watched || p.medications.length >= store.LIMITS.medications) return;
+      p.medications.push({ spoken: spokenName, generic, drugClass: 'medicine', mechanisms: [], label: found });
+      p.recallWatch = p.recallWatch.filter((m) => m.toLowerCase() !== spokenName.toLowerCase());
+    });
+  });
+}
 export const profileFor = (person: store.Person) =>
-  profileOf(mechanismsOf(person), person.conditions, { outings: person.outings, private: person.privacy });
+  profileOf(mechanismsOf(person), person.conditions, {
+    outings: person.outings,
+    private: person.privacy,
+    coldSensitive: person.medications.some((taken) => coldOf(taken).length > 0),
+  });
+
+/**
+ * Medicines that have to stay cold, which is what a power cut threatens.
+ *
+ * Insulin was only recognised through the diabetes condition, so somebody who said "I take insulin" and never
+ * said "I have diabetes" was told nothing about their fridge. Insulin is not in the heat list (it does not
+ * change how a body handles heat), so it arrives here as a name on the recall watch list.
+ */
+const NEEDS_FRIDGE = /insulin|humalog|novolog|lantus|levemir|tresiba|toujeo|basaglar|admelog|fiasp|lyumjev|semglee|apidra|humulin|novolin/i;
+const FRIDGE_GENERICS = new Set(['semaglutide', 'liraglutide', 'dulaglutide', 'tirzepatide', 'exenatide']);
+export function fridgeMedicines(person: store.Person): { insulin: boolean; injectables: string[] } {
+  const names = [...person.medications.map((m) => m.spoken), ...person.medications.map((m) => m.generic), ...person.recallWatch];
+  return {
+    insulin: names.some((n) => NEEDS_FRIDGE.test(n)),
+    injectables: [...new Set(person.medications.filter((m) => FRIDGE_GENERICS.has(m.generic)).map((m) => m.generic))],
+  };
+}
 
 /**
  * The cold side of the same list.
@@ -132,8 +225,7 @@ export const profileFor = (person: store.Person) =>
 export const coldMechanismsOf = (person: store.Person): { mechanism: ColdMechanism; drugs: string[] }[] => {
   const byMechanism = new Map<ColdMechanism, string[]>();
   for (const taken of person.medications) {
-    const known = MEDICATIONS.find((m) => m.generic === taken.generic);
-    for (const mechanism of known?.cold ?? []) {
+    for (const mechanism of coldOf(taken)) {
       byMechanism.set(mechanism, [...(byMechanism.get(mechanism) ?? []), taken.generic]);
     }
   }
@@ -172,7 +264,9 @@ export function describeWhen(reasons: store.NotifyReason[]): string {
   const parts: string[] = [];
   if (reasons.includes('emergency')) parts.push('if signs of heat stroke are described');
   if (reasons.includes('hot_day')) parts.push('the evening before a day that stays too hot for you');
-  return parts.join(', and ');
+  // Asking for help reaches everybody who has agreed, whatever else they were added for.
+  parts.push('when you ask me to get help');
+  return parts.length > 2 ? `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}` : parts.join(', and ');
 }
 
 /**

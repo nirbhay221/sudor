@@ -22,6 +22,9 @@ import * as store from './store.js';
 import * as recalls from './recalls.js';
 import * as warnings from './warnings.js';
 import * as spaceweather from './spaceweather.js';
+import * as care from './care.js';
+import { mountConsent } from './consent.js';
+import { demoPhone } from './notify.js';
 import * as shelters from './shelters.js';
 import { AUTH_ON, demoIdOf, mountAuth, requireAuth, subjectOf } from './auth.js';
 import { requireOrigin, requireOriginSecret, originSecretConfigured } from './origin.js';
@@ -49,6 +52,7 @@ vault.assertRequirementMet();
 
 const PORT = Number(process.env.PORT ?? 8789);
 const WINDOW_HTML = resolve('./ui/window.html');
+const CARD_HTML = resolve('./ui/card.html');
 
 /** Whose medications and location these are. See auth.ts for what set this. */
 function personFrom(req: express.Request): string {
@@ -93,23 +97,38 @@ function build(personId: string): McpServer {
     }),
   );
 
+  server.registerResource(
+    'card',
+    'ui://sudor/card.html',
+    { title: 'Sudor card', mimeType: 'text/html;profile=mcp-app' },
+    async (uri) => ({
+      contents: [{ uri: uri.href, mimeType: 'text/html;profile=mcp-app', text: readFileSync(CARD_HTML, 'utf8') }],
+    }),
+  );
+
   return server;
 }
 
 const app = express();
-app.set('trust proxy', true);
+// How many proxies in front of this process to believe.
+//
+// This used to be `trust proxy: true` unless a hop count was set, which is the opposite of what the
+// comment beside it said: with no count configured, Express believed whatever X-Forwarded-For the
+// caller sent. Every limit keyed on the caller's address (the sandbox rate limit, the stand-in and
+// speech budgets, new-account claims) could then be walked around by sending a different made-up
+// address with each request. The default is now to trust nothing.
+//
+// Behind API Gateway, set SUDOR_TRUST_PROXY=1: every request arrives from the gateway, so without
+// it one noisy visitor would spend everyone's allowance, and with it Express reads the address the
+// gateway recorded. It must stay unset when the process is reachable directly. The origin secret is
+// what makes one hop safe to trust. Behind a tunnel in development, set it to 1 as well, so the
+// OAuth URLs carry the scheme and host the client dialled (or set SUDOR_PUBLIC_URL).
+const trustedHops = Number(process.env.SUDOR_TRUST_PROXY ?? 0);
+app.set('trust proxy', Number.isInteger(trustedHops) && trustedHops > 0 ? trustedHops : false);
+
 // Spec 2025-11-25: a Streamable HTTP server must answer 403 to an Origin it
 // does not accept. Mounted before the body parser so a rejected request never
-// has its payload read, which matters when the body may name a medication.
-// Behind API Gateway, every request reaches this process from the gateway. Left alone,
-// req.ip is then the same address for every visitor, and a limiter keyed on it would
-// let one noisy visitor lock everyone out. Setting the number of trusted hops makes
-// Express read the client address the gateway recorded. It must stay at 0 when the
-// process is reachable directly, because X-Forwarded-For is then whatever the caller
-// says it is. The origin secret is what makes one hop safe to trust.
-const trustedHops = Number(process.env.SUDOR_TRUST_PROXY ?? 0);
-if (trustedHops > 0) app.set('trust proxy', trustedHops);
-
+// has its payload read.
 app.use(requireOrigin);
 // And that it came through the gateway rather than off the street. See origin.ts
 // for why a security group rule cannot express this.
@@ -118,6 +137,17 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false }));
 
 mountAuth(app);
+// Where somebody who was added as a contact agrees to it, or stops it. See consent.ts.
+mountConsent(app);
+
+// The phone on the demo page: the messages a sandbox visitor's contacts would have been emailed, readable
+// only with that visitor's own sandbox id. See notify.ts.
+app.get('/demo/phone', (req, res) => {
+  const id = demoIdOf(req);
+  res.setHeader('Cache-Control', 'no-store');
+  if (!id) return void res.status(401).json({ error: 'no_sandbox' });
+  res.json({ messages: demoPhone(`demo:${id}`) });
+});
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -126,6 +156,7 @@ app.get('/health', (_req, res) => {
     spec: '2025-11-25',
     auth: AUTH_ON ? 'oauth2.1+pkce' : 'off (local dev)',
     sheltersOpenNationally: shelters.openNationally(),
+    hospitals: care.status(),
     medicationsKnown: MEDICATIONS.length,
     conditionsKnown: CONDITIONS.length,
     speech: speak.status(),
@@ -472,6 +503,7 @@ for (const [id, person] of store.allEntries()) {
   if (person.lat != null && person.lon != null) {
     weather.watch(person.lat, person.lon, !id.startsWith('demo:'));
     warnings.watch(person.lat, person.lon);
+    care.watch(person.lat, person.lon, person.locationName);
   }
   else if (person.locationStatus === 'locating' && person.locationName) resolveLocation(id, person.locationName);
 }
