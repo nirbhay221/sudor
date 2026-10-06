@@ -25,7 +25,7 @@ Nothing here is mocked for the demo. Where something stands in for a thing we co
 
 | Part | Status |
 |---|---|
-| MCP server, spec 2025-11-25, Streamable HTTP, 18 tools by default | **Real and deployed** on AWS, behind account linking. 1,814 automated checks |
+| MCP server, spec 2025-11-25, Streamable HTTP, 18 tools by default | **Real and deployed** on AWS, behind account linking. 1,833 automated checks |
 | Weather, UV, air quality, official warnings, shelters, recalls | **Real, live feeds**: Open-Meteo, the National Weather Service, FEMA, openFDA. Polled in the background, never inside a turn |
 | Medicines | **Real sources**: the CDC's clinical guidance for the 57 it names, and the National Library of Medicine's RxNorm for every other name, by drug class. Checked live with Coreg, Lasix, Seroquel, Jardiance, Xanax and oxybutynin |
 | What each medicine's label says | **Real, read live**: the current FDA label from openFDA, searched for the few phrases that state a heat risk outright. Checked live with topiramate, oxybutynin, olanzapine, doxycycline and zonisamide |
@@ -53,7 +53,7 @@ these are the things worth your time:
 | Where it is wrong, or cannot know | [Honest limitations](#honest-limitations) |
 
 Free sources, no API keys. Every tool call is answered from memory; nothing external is called inside
-a turn, because two of the sources blow the whole turn budget on their own. `npm test` runs 1,814 checks.
+a turn, because two of the sources blow the whole turn budget on their own. `npm test` runs 1,833 checks.
 One source is not free of setup: the nearest hospital comes from Amazon Location Service, which needs AWS
 credentials and no key.
 
@@ -595,12 +595,12 @@ Or without installing Node at all:
 docker build -t sudor . && docker run -p 8789:8789 sudor
 ```
 
-`npm test` runs everything, 1,814 checks. It is also what CI runs on every push, on Node 20 and 22,
+`npm test` runs everything, 1,833 checks. It is also what CI runs on every push, on Node 20 and 22,
 with the live suite in its own job so an outage at a weather service is never mistaken for a
 regression here.
 
 ```bash
-npm run test:unit           # 1,519 checks, no live data
+npm run test:unit           # 1,538 checks, no live data
 npm run test:live           # 295 checks, against a running server and the real forecast
 
 node test.mjs               # heat index formula, categories, medications, how the lines read aloud
@@ -758,6 +758,11 @@ or a reason, and the link dies the moment they stop sharing. Orbita then says it
   verdict alone and what to ask next, not the same sixty words. An answer that mentions 911 is said in full every time.
 * **Said until it is heard.** Once a day has been planned as a stay-inside day, the next answers start by saying so,
   three times at most, until the person says "got it". Never in front of an emergency. See `src/attention.ts`.
+* **An address is typed, not spelled.** "Tell my daughter Priya" with no address hands back a page to type it on. A
+  host that supports MCP's URL-mode elicitation is sent the page directly; any other gets the link in the answer's
+  data. The page stages the contact and nothing is sent until the person says yes. See `src/consent.ts`.
+* **Answers hand back a handle.** Adding a contact returns its id and the exact next call (`nextAction`), and the
+  next call accepts the id, so a follow-up does not depend on a name being heard the same way twice.
 * **An answer ends on the next step.** A risky hour ends with "Want me to find the safest time to go out today?".
 * **A card that fits the task.** The day strip (`ui/window.html`) is for the weather. The profile, a contact being
   confirmed, a sharing code and the "Call 911 now" card use `ui/card.html`. The profile card shows counts, not names.

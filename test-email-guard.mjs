@@ -96,9 +96,12 @@ console.log('\nThe hot-day sweep skips sandboxes entirely');
   // Different addresses, so a send can be attributed to exactly one of them.
   give('demo:' + 'c'.repeat(32), 'sandbox-victim@example.com');
   give('acct:casey', 'family@example.com');
+  // Counted from the start of the UTC day, not from now. Counted from now, this test failed whenever it ran
+  // after nine in the evening UTC, because the day it plans had no waking hours left in the made-up forecast.
+  const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0);
   const hours = Array.from({ length: 48 }, (_, i) => ({
-    local: new Date(Date.now() + i * 3.6e6).toISOString().slice(0, 16),
-    time: new Date(Date.now() + i * 3.6e6).toISOString(),
+    local: new Date(dayStart.getTime() + i * 3.6e6).toISOString().slice(0, 16),
+    time: new Date(dayStart.getTime() + i * 3.6e6).toISOString(),
     tempF: 112, humidityPct: 20, uvIndex: 10, windMph: 3, isDay: true, aqi: 50, solarWm2: 900, wetBulbF: 80,
   }));
   weather.seedForTest({

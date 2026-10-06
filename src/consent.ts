@@ -143,18 +143,52 @@ function findAsk(hash: string): { id: string; contact: string } | null {
   return null;
 }
 
+/**
+ * An email address, typed.
+ *
+ * An address is the thing a microphone gets wrong most: every letter matters and none of them is a word. So
+ * when somebody says "tell my daughter Priya" and gives no address, they are handed a page to type it on.
+ * A host that supports it is sent the page directly (MCP's URL-mode elicitation, which exists so that a
+ * sensitive value never passes through the assistant); any other host gets the link in the answer's data for
+ * a screen to show. The page stages the contact exactly as saying the address would have. Nothing is sent to
+ * anybody until the person confirms, and then only an invitation.
+ */
+const ENTRY_MS = 15 * 60 * 1000;
+
+export function newEntry(personId: string, name: string, relation: string | null, notifyOn: store.NotifyReason[]): string {
+  const token = randomBytes(24).toString('hex');
+  store.update(personId, (p) => {
+    const fresh = (p.entries ?? []).filter((e) => Date.now() - new Date(e.at).getTime() < ENTRY_MS);
+    p.entries = [...fresh, { hash: hashOf(token), name, relation, notifyOn, at: new Date().toISOString() }].slice(-5);
+  });
+  return `${publicUrl()}/contact/enter?e=${token}`;
+}
+
+function findEntry(hash: string): { id: string; entry: NonNullable<store.Person['entries']>[number] } | null {
+  for (const [id, p] of store.allEntries()) {
+    const entry = (p.entries ?? []).find((e) => e.hash === hash && Date.now() - new Date(e.at).getTime() < ENTRY_MS);
+    if (entry) return { id, entry };
+  }
+  return null;
+}
+
+const EMAIL = /^[^\s@<>"']{1,64}@[^\s@<>"']{1,190}\.[a-z]{2,24}$/i;
+
 /** What was answered and not yet said aloud, as one sentence, and marks it said. Empty when there is nothing. */
 export function takeReplies(personId: string): string {
-  const waiting = store.get(personId).helpReplies ?? [];
-  if (!waiting.length) return '';
-  store.update(personId, (p) => void (p.helpReplies = []));
+  const held = store.get(personId);
+  const waiting = held.helpReplies ?? [];
+  const notices = held.notices ?? [];
+  if (!waiting.length && !notices.length) return '';
+  store.update(personId, (p) => { p.helpReplies = []; p.notices = []; });
+  if (!waiting.length) return notices.join(' ');
   const coming = [...new Set(waiting.filter((r) => r.answer === 'coming').map((r) => r.from))];
   const call = [...new Set(waiting.filter((r) => r.answer === 'call').map((r) => r.from))].filter((n) => !coming.includes(n));
   const list = (names: string[]) => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
   const parts: string[] = [];
   if (coming.length) parts.push(`${list(coming)} answered: ${coming.length === 1 ? 'they are' : 'they are all'} on the way.`);
   if (call.length) parts.push(`${list(call)} answered and ${call.length === 1 ? 'asks' : 'ask'} you to ring them.`);
-  return parts.join(' ');
+  return [...parts, ...notices].join(' ');
 }
 
 /** Guessing is the only way in without the email, so tries are counted per address. */
@@ -205,6 +239,44 @@ export function mountConsent(app: Express): void {
     }
     store.update(hit.id, (p) => void (p.contacts = p.contacts.filter((x) => x.acceptHash !== hash)));
     return send(res, 200, 'Declined', '<h1>Understood</h1><p>You have been removed. Nothing will be sent to you.</p>');
+  });
+
+  app.get('/contact/enter', (req, res) => {
+    if (limited(req, res)) return;
+    const e = String(req.query.e ?? '');
+    const hit = TOKEN.test(e) ? findEntry(hashOf(e)) : null;
+    if (!hit) return send(res, 404, 'Link not valid', '<h1>This page is no longer valid</h1><p>It lasts fifteen minutes and works once. Ask again and a new one will be made.</p>');
+    send(
+      res,
+      200,
+      'Type their email address',
+      '<h1>Their email address</h1><p>Type it here, where every letter can be checked. Nothing is sent to them until you say yes, and then only a note asking whether they agree.</p>' +
+        `<form method="post" action="/contact/enter"><input type="hidden" name="e" value="${e}">` +
+        '<label for="a">Email address</label><br><input id="a" name="email" type="email" required autocomplete="off" inputmode="email" style="font:inherit;padding:.6rem;width:100%;margin:.5rem 0;border-radius:.4rem;border:1px solid #888">' +
+        '<button>Save it</button></form>',
+    );
+  });
+
+  app.post('/contact/enter', form, (req, res) => {
+    if (limited(req, res)) return;
+    const e = String((req.body as { e?: unknown })?.e ?? '');
+    const email = String((req.body as { email?: unknown })?.email ?? '').trim().slice(0, 254);
+    const hit = TOKEN.test(e) ? findEntry(hashOf(e)) : null;
+    if (!hit) return send(res, 404, 'Link not valid', GONE);
+    if (!EMAIL.test(email)) return send(res, 400, 'Check the address', '<h1>That does not look like an email address</h1><p>Go back and check it.</p>');
+    const hash = hashOf(e);
+    const { name, relation, notifyOn } = hit.entry;
+    let full = false;
+    store.update(hit.id, (p) => {
+      p.entries = (p.entries ?? []).filter((x) => x.hash !== hash);
+      const same = (c: { name: string; email: string }) => c.name.trim().toLowerCase() === name.trim().toLowerCase() || c.email.toLowerCase() === email.toLowerCase();
+      if (!p.contacts.some(same) && p.contacts.length >= store.LIMITS.contacts) { full = true; return; }
+      p.contacts = p.contacts.filter((c) => !same(c));
+      p.contacts.push({ id: `contact-${randomBytes(5).toString('hex')}`, name, email, relation, notifyOn, addedAt: new Date().toISOString(), confirmedAt: null });
+      p.notices = [...(p.notices ?? []), `I have the address for ${name} now. Say yes and I will ask them to agree.`].slice(-3);
+    });
+    if (full) return send(res, 409, 'List is full', '<h1>The list is full</h1><p>Take somebody off first, then ask again.</p>');
+    return send(res, 200, 'Saved', '<h1>Saved</h1><p>Go back and say yes to add them. Nothing has been sent yet.</p>');
   });
 
   app.get('/contact/reply', (req, res) => {

@@ -130,7 +130,7 @@ export function register(server: McpServer, personOf: () => string): void {
       return say(parts.join(' '), {
         // Where to go, and how not to die of carbon monoxide on the way to deciding. Heard whole.
         fullAnswer: true,
-        ...(offer ? { offer } : {}),
+        ...(offer ? { offer, nextAction: { tool: 'get_help', arguments: { what: cold ? 'the house is too cold to stay in' : 'the house is too hot to stay in' } } } : {}),
         nearestEmergency: care.named(person.lat, person.lon),
         cold,
         ...(cold ? { whileAtHome: 'Close off the rooms you are not using and wear a hat indoors.' } : {}),

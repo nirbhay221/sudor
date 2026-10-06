@@ -5,6 +5,7 @@
  * from when it lived there; only the file it lives in is new.
  */
 
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { assess, heatIndexF, photoRisk, type HeatCategory } from '../domain.js';
@@ -19,7 +20,7 @@ import { geocode } from '../geocode.js';
 import { alertEmergency, alertHelp } from '../alerts.js';
 import * as care from '../care.js';
 import { emailConfigured, sendEmail, canEmailFor, toDemoPhone, DEMO_PHONE } from '../notify.js';
-import { consentRequired, reachable, awaiting, newInvite, invitation, alwaysAsk } from '../consent.js';
+import { consentRequired, reachable, awaiting, newInvite, invitation, alwaysAsk, newEntry } from '../consent.js';
 import * as weather from '../weather.js';
 import { perCaller } from '../budget.js';
 import * as store from '../store.js';
@@ -76,7 +77,7 @@ export function register(server: McpServer, personOf: () => string): void {
         action: z.enum(['add', 'confirm', 'remove']).describe(
           'add to stage someone, confirm after the customer says yes, remove to stop emailing them',
         ),
-        name: z.string().describe('Who, e.g. "Priya"'),
+        name: z.string().describe('Who, e.g. "Priya", or the contactId from an earlier answer'),
         email: z.string().email().optional().describe('Their email address, required when adding'),
         relation: z.string().optional().describe('e.g. "daughter", "neighbour", "care aide"'),
         when: z
@@ -88,10 +89,30 @@ export function register(server: McpServer, personOf: () => string): void {
     async ({ action, name, email, relation, when }) => {
       const id = personOf();
       name = clean(name, 60);
+      // The id an earlier answer handed back stands for the name it was given with.
+      const byId = store.get(id).contacts.find((c) => c.id && c.id === name);
+      if (byId) name = byId.name;
 
       if (action === 'add') {
-        if (!email) return say(`I need an email address for ${name} before I can add them.`, { staged: false, needs: 'email' });
         relation = relation ? clean(relation, 60) : undefined;
+        if (!email) {
+          // An address is the thing a microphone gets wrong most, so it is typed. See the typed entry in consent.ts.
+          const reasons: store.NotifyReason[] = when === 'emergency' ? ['emergency'] : when === 'hot_day' ? ['hot_day'] : ['emergency', 'hot_day'];
+          const url = newEntry(id, name, relation ?? null, reasons);
+          const inner = (server as unknown as { server?: { getClientCapabilities?: () => { elicitation?: { url?: unknown } } | undefined; elicitInput?: (p: unknown) => Promise<unknown> } }).server;
+          const canSendPage = /^https:/.test(url) && inner?.getClientCapabilities?.()?.elicitation?.url != null && typeof inner.elicitInput === 'function';
+          if (canSendPage) {
+            // Not awaited: the answer does not wait on somebody typing.
+            void inner!.elicitInput!({ mode: 'url', message: `Type the email address for ${name}.`, url, elicitationId: `entry-${randomBytes(6).toString('hex')}` }).catch(() => {});
+            return say(`I've put up a page to type the email address for ${name}. Tell me when it's done.`, { staged: false, needs: 'email', enterAt: url, sentPage: true });
+          }
+          return say(`I need an email address for ${name}. Say it, or type it on a screen if you have one.`, {
+            staged: false,
+            needs: 'email',
+            enterAt: url,
+            card: { kind: 'card', title: `Email address for ${name}`, status: { label: 'needed', tone: 'neutral' }, lines: ['Type it here, where every letter can be checked:', url] },
+          });
+        }
         const notifyOn: store.NotifyReason[] =
           when === 'emergency' ? ['emergency'] : when === 'hot_day' ? ['hot_day'] : ['emergency', 'hot_day'];
         const person = store.get(id);
@@ -103,9 +124,11 @@ export function register(server: McpServer, personOf: () => string): void {
             { staged: false, reason: 'limit' },
           );
         }
+        const contactId = `contact-${randomBytes(5).toString('hex')}`;
         store.update(id, (p) => {
           p.contacts = p.contacts.filter((c) => !sameName(c.name, name) && c.email.toLowerCase() !== email.toLowerCase());
           p.contacts.push({
+            id: contactId,
             name,
             email,
             relation: relation ?? null,
@@ -121,6 +144,9 @@ export function register(server: McpServer, personOf: () => string): void {
           {
             staged: true,
             name,
+            contactId,
+            // The step that finishes this, with the handle to do it by.
+            nextAction: { tool: 'contact', arguments: { action: 'confirm', name: contactId } },
             notifyOn,
             // A commit screen: everything that saying yes will do, in full, before it is done.
             card: {

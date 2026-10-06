@@ -18,6 +18,8 @@ export type LocationStatus = 'ready' | 'locating' | 'not_found';
 export type NotifyReason = 'emergency' | 'hot_day';
 
 export type Contact = {
+  /** A stable handle for this contact, handed back in answers so the next step does not depend on the name. */
+  id?: string;
   name: string;
   email: string;
   relation: string | null;
@@ -76,6 +78,10 @@ export type Person = {
   heatWork?: { kind: 'new' | 'returning'; since: string } | null;
   /** Crews this person shares their working day with. Only a hash of each link is kept. */
   crewLinks?: { hash: string; at: string }[];
+  /** An address waiting to be typed: a hash of the link, and who it is for. See the typed entry in consent.ts. */
+  entries?: { hash: string; name: string; relation: string | null; notifyOn: NotifyReason[]; at: string }[];
+  /** Things to say at the start of the next answer, once. */
+  notices?: string[];
   /** Calls for help a contact can still answer: a hash of the link they were sent, and who it went to. */
   helpAsks?: { hash: string; contact: string; at: string }[];
   /** What a contact answered, kept until it has been said aloud once. */

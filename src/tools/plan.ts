@@ -46,13 +46,12 @@ export function register(server: McpServer, personOf: () => string): void {
       title: 'When is the best time to go out',
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
       description:
-        'Plan a day around the heat for this customer: the best window for going out and the hours to avoid, using the ' +
-        'hourly forecast for their location, their medications and conditions, UV, air quality and how they felt ' +
-        'before. Call this when someone asks when to go out, walk the dog, run errands, exercise or garden, when it ' +
-        'cools down, or to plan today or tomorrow. It plans a whole day. When they work outside fixed hours and cannot ' +
-        'choose, pass shiftStart and shiftEnd and it plans the shift: when the heat crosses the workplace lines and when to ' +
-        'take breaks. Pass startedWork when they say they are new to outdoor work or just back to it. For a single trip that cannot wait use going_out_now, ' +
-        'and for whether it is safe to be outside at this moment use weather_check.',
+        'Plan a day around the heat or the cold for this customer: the best window for going out and the hours to avoid, ' +
+        'from the hourly forecast, their medications and conditions. Call this when someone asks when to go out, walk ' +
+        'the dog, run errands, exercise or garden, when it cools down, or to plan today or tomorrow. For somebody who ' +
+        'works outside fixed hours, pass shiftStart and shiftEnd and it plans the shift and its breaks, and pass ' +
+        'startedWork when they say they are new to the job or just back. For one trip that cannot wait use ' +
+        'going_out_now, and for whether it is safe this moment use weather_check.',
       inputSchema: {
         activity: z.string().optional().describe('What they want to do, e.g. "a walk", "groceries", "gardening"'),
         minutes: z.number().int().min(10).max(600).optional().describe('How long it takes, in minutes, default 60'),

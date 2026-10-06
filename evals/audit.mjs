@@ -43,6 +43,14 @@ for (const t of tools) {
   }
   if (n < 3) say(t, `description is ${n} sentence${n === 1 ? '' : 's'}; guidance asks for at least 3 to 4`);
   if (undescribed.length) say(t, `parameters with no description: ${undescribed.join(', ')}`);
+  // Two more, from a 2026 study of MCP tool descriptions that found most carry at least one such fault and that
+  // fixing them raised agent success: a description should say when to call the tool, in the customer's words,
+  // and should not be so long that the part that matters is buried.
+  const wordCount = d.split(/\s+/).filter(Boolean).length;
+  if (!/(call this when|use (it|this) (when|for)|when (someone|the customer|they|a customer))/i.test(d)) say(t, 'never says when to call it');
+  if (wordCount > 120) say(t, `description is ${wordCount} words; the part that matters is easy to lose past about 120`);
+  const vague = props.filter(([, p]) => p.description && p.description.split(/\s+/).length < 3 && !p.enum).map(([k]) => k);
+  if (vague.length) say(t, `parameters described in under three words: ${vague.join(', ')}`);
   if (!/(not|instead|only when|rather than|never)/i.test(d) && !refers.length) say(t, 'never says when NOT to use it or what to use instead');
   if (props.some(([k]) => ['name', 'id', 'user', 'type', 'data'].includes(k)) && !props.every(([k, p]) => k !== 'name' || p.description)) {
     say(t, 'a generic parameter name without a description');

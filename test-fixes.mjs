@@ -370,6 +370,66 @@ console.log('\nWhat the label itself says, read narrowly');
   rx.configureForTest(null);
 }
 
+console.log('\nAn email address is typed, not spelled out loud');
+{
+  notify.resetEmailLimitsForTest();
+  sent.length = 0;
+  const who = await connect('acct:typed');
+  const asked = await who('contact', { action: 'add', name: 'Priya', relation: 'daughter' });
+  const link = asked.data.enterAt ?? '';
+  const token = (link.match(/enter\?e=([0-9a-f]{48})/) ?? [])[1] ?? '';
+  check('adding somebody with no address offers a page to type it on', asked.data.needs === 'email' && link.startsWith('https://sudor.example.org/contact/enter?e=') && token.length === 48, asked.said);
+  check('...and still says it can be spoken', /Say it, or type it on a screen/.test(asked.said), asked.said);
+  check('only a hash of the link is stored', !JSON.stringify(store.get('acct:typed')).includes(token) && store.get('acct:typed').entries.length === 1);
+  check('nothing is staged yet', store.get('acct:typed').contacts.length === 0);
+  const page = await fetch(`${base}/contact/enter?e=${token}`);
+  check('the page has an email box', page.status === 200 && /type="email"/.test(await page.text()));
+  check('a made-up link is refused', (await fetch(`${base}/contact/enter?e=${'0'.repeat(48)}`)).status === 404);
+  check('something that is not an address is refused, and the link still works', (await post('/contact/enter', { e: token, email: 'priya at example' })).status === 400 && store.get('acct:typed').contacts.length === 0);
+  check('an address with a tag in it is refused', (await post('/contact/enter', { e: token, email: '<script>@example.com' })).status === 400);
+  const saved = await post('/contact/enter', { e: token, email: 'priya.typed@example.com' });
+  const held = store.get('acct:typed').contacts[0];
+  check('typing it stages the contact exactly as saying it would', saved.status === 200 && held.name === 'Priya' && held.email === 'priya.typed@example.com' && held.relation === 'daughter' && held.confirmedAt === null && /^contact-/.test(held.id), JSON.stringify(held));
+  check('the link works once', (await post('/contact/enter', { e: token, email: 'other@example.com' })).status !== 200 && store.get('acct:typed').contacts.length === 1 && store.get('acct:typed').contacts[0].email === 'priya.typed@example.com');
+  check('nothing has been sent to anybody', sent.length === 0);
+  const next = await who('my_profile');
+  check('the next thing heard says the address arrived and what to say', /^I have the address for Priya now\. Say yes and I will ask them to agree\. /.test(next.said), next.said);
+  check('...once', !/I have the address/.test((await who('my_profile')).said));
+  const yes = await who('contact', { action: 'confirm', name: 'Priya' });
+  await settle();
+  check('saying yes then sends the one invitation, to the typed address', sent.length === 1 && sent[0].to === 'priya.typed@example.com' && sent[0].reason === 'invite', yes.said);
+
+  const sentPages = [];
+  const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+  const { ElicitRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+  const { registerTools } = await import('./dist/tools.js');
+  const server = new McpServer({ name: 't', version: '1' }, { capabilities: { tools: {} } });
+  registerTools(server, () => 'acct:urlhost');
+  const client = new Client({ name: 'c', version: '1' }, { capabilities: { elicitation: { url: {} } } });
+  client.setRequestHandler(ElicitRequestSchema, async (req) => { sentPages.push(req.params); return { action: 'accept' }; });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  await Promise.all([server.connect(a), client.connect(b)]);
+  const r = await client.callTool({ name: 'contact', arguments: { action: 'add', name: 'Sam' } });
+  await settle();
+  check('a host that can open a page is sent it directly, and the answer says so', sentPages.length === 1 && sentPages[0].mode === 'url' && /^https:\/\/sudor\.example\.org\/contact\/enter\?e=/.test(sentPages[0].url) && /put up a page to type the email address for Sam/.test(r.content[0].text), JSON.stringify(sentPages));
+}
+
+console.log('\nAnswers hand back a handle, and the next step takes it');
+{
+  const who = await connect('acct:chain');
+  const added = await who('contact', { action: 'add', name: 'Jo', email: 'jo@example.com' });
+  check('adding a contact returns its id and the exact next call', /^contact-[0-9a-f]{10}$/.test(added.data.contactId) && added.data.nextAction.tool === 'contact' && added.data.nextAction.arguments.action === 'confirm' && added.data.nextAction.arguments.name === added.data.contactId, JSON.stringify(added.data.nextAction));
+  process.env.SUDOR_RECIPIENT_CONSENT = 'off';
+  const done = await who('contact', added.data.nextAction.arguments);
+  delete process.env.SUDOR_RECIPIENT_CONSENT;
+  check('following that call by id confirms the right person', done.data.confirmed === true && done.data.name === 'Jo', done.said);
+  check('an id that is not one is treated as a name, and not found', (await who('contact', { action: 'confirm', name: 'contact-0000000000' })).data.confirmed === false);
+  const gone = await who('contact', { action: 'remove', name: added.data.contactId });
+  check('removing by id works too', gone.data.removed === true && store.get('acct:chain').contacts.length === 0);
+}
+
 await new Promise((r) => listener.close(r));
 rmSync(DIR, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
