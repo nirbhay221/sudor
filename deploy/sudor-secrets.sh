@@ -55,5 +55,12 @@ fi
 from="$(get /sudor/email-from)"
 [ -n "$from" ] && printf 'SUDOR_EMAIL_FROM=%s\n' "$from" >>"$out"
 
+# The key for the talking demo page. Absent means the page answers with its word rules instead, and says so.
+ak="$(get /sudor/anthropic-key)"
+[ -n "$ak" ] && printf 'SUDOR_ANTHROPIC_KEY=%s\n' "$ak" >>"$out"
+
+# Urgent text messages to family, through Amazon SNS. Off unless this parameter says on. See src/texts.ts.
+[ "$(get /sudor/sms)" = "on" ] && printf 'SUDOR_SMS=on\n' >>"$out"
+
 [ "$owner" = "none" ] || chown "$owner:$owner" "$out"
 chmod 0400 "$out"

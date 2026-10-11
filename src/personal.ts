@@ -64,6 +64,13 @@ const SEVERITY: Record<Mechanism, number> = {
   // it, but it does not take the cooling system away, so it does not sit with
   // reduced sweating.
   fluid_loss: 3,
+  // Less heat leaves through the skin: a real loss of cooling, short of losing sweat.
+  reduced_vasodilation: 3,
+  // These two do not change how hot the body gets. They change what a hot day costs: a fall, or a kidney.
+  faint_risk: 2,
+  kidney_risk: 2,
+  // About the medicine, not the person, so it never moves anybody's limit.
+  heat_damaged: 0,
   photosensitivity: 0,
 };
 
@@ -305,7 +312,9 @@ export function planDay(
   const worst = longestAvoid && longestAvoid.length >= 2 ? toSpan(longestAvoid) : null;
 
   const when = day === 'tomorrow' ? 'tomorrow' : 'today';
-  const what = opts.activity ? `for ${opts.activity}` : 'to be outside';
+  // "a walk" and "gardening" take "for"; "walk the dog" and "mow the lawn" are things to do, and take "to".
+  const verb = /^(walk|go|do|mow|run|jog|cycle|bike|ride|swim|play|work|garden|shop|fetch|get|take|wash|cut|water|clean|hike|fish|visit|pick|drive|paint|dig|plant|fix)\b/i;
+  const what = opts.activity ? (verb.test(opts.activity) ? `to ${opts.activity}` : `for ${opts.activity}`) : 'to be outside';
   const because = p.sensitivity === 'general' ? '' : `, ${p.because}`;
   const cap = (x: string) => `${x.charAt(0).toUpperCase()}${x.slice(1)}`;
   const parts: string[] = [];
@@ -440,7 +449,9 @@ export function planShift(
     );
   }
   // This person's own line, said only when it differs from the general one or there was no general one.
-  if (personal && (!high || hourOf(personal.local) < hourOf(high.local)) && coldest > 32) {
+  // Earlier than the line just named: the 90 line when the shift reaches it, the 80 line when it only reaches that.
+  const named = high ?? initial;
+  if (personal && (!named || hourOf(personal.local) < hourOf(named.local)) && coldest > 32) {
     parts.push(
       `For you${p.sensitivity === 'general' ? '' : `, ${p.because}`}, the risky part starts earlier, at ${hourLabel(personal.local)}: take the breaks from then, and tell whoever you work with.`,
     );

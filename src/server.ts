@@ -7,6 +7,8 @@
  * memory.
  */
 
+import { chooseByWords } from './rules.js';
+import * as devices from './devices.js';
 import { speakErrorsPlainly } from './plainly.js';
 import express from 'express';
 import { readFileSync } from 'node:fs';
@@ -14,7 +16,7 @@ import { resolve } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { registerTools, resolveLocation } from './tools.js';
-import { checkHotDayAlerts } from './alerts.js';
+import { checkHotDayAlerts, checkWarningAlerts } from './alerts.js';
 import { MEDICATIONS } from './meds.js';
 import { CONDITIONS } from './conditions.js';
 import * as weather from './weather.js';
@@ -66,6 +68,37 @@ function personFrom(req: express.Request): string {
   return 'local-dev';
 }
 
+/*
+ * Instructions that say what this customer has already told the add-on, as yes or no and a count, never the
+ * values. A host that reads "a place is saved" calls the tool instead of asking where they live, which is the
+ * mistake a model made in testing on four sentences out of fifteen. The same idea as "context-aware tools":
+ * tell the model what is known for this person, not only what each tool does.
+ */
+function instructionsFor(personId: string): string {
+  const base =
+        "This add-on plans a customer's day around the heat for their own body: the medications they take and the " +
+        "health conditions they have, such as MS, erythromelalgia, heart disease or diabetes, against live local heat, " +
+        "UV and air quality. It finds the best time to go out, gives precautions when they must go out anyway, and the " +
+        "warning signs of heat illness. Always read the returned answer aloud in full. If it says to call 911, read " +
+        "that first and immediately. If the weather service is unreachable, say so plainly rather than guessing. " +
+        "It remembers the customer: their place, medicines, conditions, equipment and home cooling are saved, so " +
+        "call the tool without asking for them; the answer itself says when something is missing. When someone says " +
+        "they feel unwell, call warning_signs straight away with their words, before asking anything. The saved " +
+        "profile is the customer's own: never record another person's place or medicines in it with about_me.";
+  const p = store.get(personId);
+  const known = [
+    p.lat != null || p.locationStatus === 'locating' ? 'a place' : '',
+    p.medications.length ? `${p.medications.length} medicine${p.medications.length === 1 ? '' : 's'}` : '',
+    p.conditions.length ? `${p.conditions.length} health condition${p.conditions.length === 1 ? '' : 's'}` : '',
+    (p.equipment ?? []).length ? 'medical equipment' : '',
+    p.cooling ? 'their home cooling' : '',
+    p.contacts.length ? 'family contacts' : '',
+  ].filter(Boolean);
+  return known.length
+    ? `${base} This customer has already saved ${known.join(', ')}. Use them: do not ask for these again.`
+    : `${base} This customer has not saved anything yet; a tool will say what it needs.`;
+}
+
 function build(personId: string): McpServer {
   const server = new McpServer(
     {
@@ -76,12 +109,7 @@ function build(personId: string): McpServer {
     },
     {
       capabilities: { tools: {}, resources: {} },
-      instructions:
-        "This add-on plans a customer's day around the heat for their own body: the medications they take and the " +
-        "health conditions they have, such as MS, erythromelalgia, heart disease or diabetes, against live local heat, " +
-        "UV and air quality. It finds the best time to go out, gives precautions when they must go out anyway, and the " +
-        "warning signs of heat illness. Always read the returned answer aloud in full. If it says to call 911, read " +
-        "that first and immediately. If the weather service is unreachable, say so plainly rather than guessing.",
+      instructions: instructionsFor(personId),
     },
   );
 
@@ -314,7 +342,7 @@ const rateLimit: express.RequestHandler = (req, res, next) => {
  * because that is what Polly bills, and a cache hit is free, so the same six canned
  * answers replayed all day cost six syntheses.
  */
-const agentDaily = dailyCap(Number(process.env.SUDOR_AGENT_DAILY_MAX ?? 300));
+const agentDaily = dailyCap(Number(process.env.SUDOR_AGENT_DAILY_MAX ?? 25));
 const speakDaily = dailyCap(Number(process.env.SUDOR_SPEAK_DAILY_CHARS ?? 100_000));
 // Burst and sustained rate per caller. A person typing into the stand-in does not
 // send six requests a minute; the defaults are for people and the knobs are for tests
@@ -349,26 +377,14 @@ app.post('/agent', requireAuth, async (req, res) => {
     res.status(429).set('Retry-After', '10').json({ error: 'slow_down', detail: 'Too many stand-in requests. Try again in a few seconds.' });
     return;
   }
-  if (!agent.configured()) {
-    res.status(503).json({
-      error: 'not_configured',
-      detail: 'Set SUDOR_ANTHROPIC_KEY to enable the Alexa+ stand-in. Every other part of the demo works without it.',
-    });
-    return;
-  }
   const utterance = typeof req.body?.say === 'string' ? req.body.say.slice(0, 500).trim() : '';
   if (!utterance) {
     res.status(400).json({ error: 'say_required' });
     return;
   }
   // Last, so a malformed request never spends a unit of the budget.
-  if (!agentDaily.take(1)) {
-    res.status(429).json({
-      error: 'daily_budget',
-      detail: 'The stand-in has reached its limit for today. Everything else on this page still works, and it resets at midnight UTC.',
-    });
-    return;
-  }
+  // No model configured, or today's model budget spent: the word rules choose instead, and say so. See rules.ts.
+  const useModel = agent.configured() && agentDaily.take(1);
 
   const server = build(personFrom(req));
   const client = new Client({ name: 'alexa-plus-stand-in', version: '0.1.0' }, { capabilities: {} });
@@ -376,7 +392,7 @@ app.post('/agent', requireAuth, async (req, res) => {
   try {
     await Promise.all([server.connect(a), client.connect(b)]);
     const listed = await client.listTools();
-    const chosen = await agent.choose(utterance, listed.tools as agent.ToolDef[]);
+    const chosen = useModel ? await agent.choose(utterance, listed.tools as agent.ToolDef[], client.getInstructions() ?? '') : chooseByWords(utterance, listed.tools as agent.ToolDef[]);
 
     // A decline is a real outcome. A host that calls nothing when nothing fits is
     // behaving correctly, and flattening that into an error would hide it.
@@ -519,7 +535,11 @@ const watchWarnings = () => {
 void spaceweather.start();
 void shelters.start();
 
-const warningTimer = setInterval(watchWarnings, 10 * 60 * 1000);
+const warningTimer = setInterval(() => {
+  watchWarnings();
+  // And tell the family, once, when a warning starts where somebody lives. See alerts.ts.
+  checkWarningAlerts().catch((err) => console.error('[alerts]', err));
+}, 10 * 60 * 1000);
 warningTimer.unref?.();
 
 // The FDA recall list, checked in the background for every medicine anyone has
@@ -529,6 +549,10 @@ const watchRecalls = () => {
   const generics = new Set<string>();
   for (const [, person] of store.allEntries()) for (const m of person.medications) generics.add(m.generic);
   for (const generic of generics) recalls.watch(generic);
+  // The same for the kinds of medical equipment people have said they rely on. See devices.ts.
+  const kinds = new Set<string>();
+  for (const [, person] of store.allEntries()) for (const k of person.equipment ?? []) kinds.add(k);
+  for (const k of kinds) devices.watch(k);
 };
 watchRecalls();
 const recallTimer = setInterval(watchRecalls, 6 * 60 * 60 * 1000);

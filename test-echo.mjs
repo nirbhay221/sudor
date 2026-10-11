@@ -95,7 +95,12 @@ console.log('\nThe story the page tells, start to finish, through the same calls
   const said = {};
   for (const group of scenes.groups.slice(0, 1)) for (const line of group.lines) said[line.say] = await visitor.call(line.tool, line.args);
   check('none of the setup lines is refused', Object.values(said).every((r) => !r.isError && r.said.length > 10), JSON.stringify(Object.fromEntries(Object.entries(said).map(([k, v]) => [k, v.said.slice(0, 40)]))));
-  check('a brand name is resolved to the real medicine', /carvedilol, which is what Coreg is/.test(said['And Coreg.'].said), said['And Coreg.'].said);
+  check('a brand name is resolved to the real medicine', /carvedilol, which is what Coreg is/.test(said["I'm in Phoenix, Arizona, and I take Lasix and Coreg."].said), said["I'm in Phoenix, Arizona, and I take Lasix and Coreg."].said);
+  check('...and a place and two medicines given in one breath are all taken in one call', /Phoenix, Arizona/.test(said["I'm in Phoenix, Arizona, and I take Lasix and Coreg."].said) && /furosemide/.test(said["I'm in Phoenix, Arizona, and I take Lasix and Coreg."].said) && store.get(ID).medications.length === 2 && store.get(ID).locationName === 'Phoenix, Arizona', said["I'm in Phoenix, Arizona, and I take Lasix and Coreg."].said);
+  check('..."what do you know about me" reads it back', /Medications: furosemide, carvedilol/.test(said['What do you know about me?'].said), said['What do you know about me?'].said);
+  // On the page the town is looked up in the background. Here it is pinned, through the older tool that
+  // is no longer listed and still answers, so the rest of the story has a place without touching the network.
+  check('a tool folded into another one still answers when called by its old name', !(await visitor.call('register_location', { place: 'Phoenix, Arizona', lat, lon })).isError && store.get(ID).lat === lat);
   const invite = notify.demoPhone(ID);
   check('confirming Priya puts an invitation on the phone, and emails nobody', invite.length === 1 && invite[0].reason === 'invite' && /^[0-9a-f]{48}$/.test(invite[0].accept) && sent.length === 0, JSON.stringify(invite));
   check('...and the answer says where it went', /goes to the phone on this page, not to a real inbox/.test(said['Yes, add her.'].said), said['Yes, add her.'].said);
@@ -140,11 +145,13 @@ console.log('\nAsked the same thing twice');
   const who = await connect('acct:twice');
   await who.call('register_location', { place: 'Phoenix, Arizona', lat, lon });
   await who.call('medication', { action: 'add', name: 'metoprolol' });
+  // The cooling is known, so nothing is asked about it and the two answers are the same answer.
+  await who.call('about_me', { cooling: 'working' });
   const one = await who.call('weather_check');
   const two = await who.call('weather_check');
   check('the second time, the verdict alone and what to ask next', two.data.repeated === true && /^In short: /.test(two.said) && /Ask me why, or what to do about it\.$/.test(two.said) && two.said.length < one.said.length, two.said);
   check('...and it is the same verdict', two.said.includes(one.said.split('. ')[0]), `${one.said} | ${two.said}`);
-  check('...with the whole answer still there for a screen', typeof two.data.full === 'string' && two.data.full.length >= two.said.length);
+  check('...and the long answer is not sent again alongside it', two.data.full === undefined);
   const three = await who.call('plan_my_day', { activity: 'a walk', minutes: 30 });
   check('a different question is answered normally', three.data.repeated === undefined);
   const e1 = await who.call('warning_signs', {});

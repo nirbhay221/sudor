@@ -149,7 +149,7 @@ check('asking for the rest reads the next ones and still ends on 911', /call 911
 console.log('\nWarning signs, the part that must never be wrong');
 const confused = triage('she seems confused and she stopped sweating');
 check('confusion is an emergency: call 911', confused.level === 'emergency' && /Call 911 now/.test(confused.spoken));
-check('...and nothing to drink', /Do not give them anything to drink/.test(confused.spoken));
+check('...and nothing to drink', /Give them nothing to drink/.test(confused.spoken));
 check('fainting is treated as an emergency, erring toward the call', triage('he fainted in the garden').level === 'emergency');
 const dizzy = triage('I feel dizzy and I am sweating a lot');
 check('dizziness and heavy sweating is heat exhaustion with the one hour rule', dizzy.level === 'self_care' && /longer than an hour/.test(dizzy.spoken), dizzy.spoken);
@@ -201,7 +201,7 @@ store.update('tester', (p) => { p.locationStatus = 'locating'; p.locationName = 
 const waiting = await handlers.plan_my_day({});
 check('while a place is still being looked up, it says so rather than failing', /still looking up Tucson/.test(waiting.content[0].text), waiting.content[0].text);
 store.update('tester', (p) => { p.locationStatus = 'not_found'; });
-check('a place that could not be found asks for city and state or zip', /city and state, or a zip code/.test((await handlers.weather_check({})).content[0].text));
+check('a place that could not be found asks for city and state, city and country, or zip', /city and the state, or the city and the country, or a US zip code/.test((await handlers.weather_check({})).content[0].text));
 const help = await handlers.what_can_you_do({});
 check('what can you do says plainly it is not medical advice', /isn't medical advice/.test(help.content[0].text));
 check('every tool that links a panel uses the nested _meta.ui.resourceUri',

@@ -47,11 +47,11 @@ import Anthropic from '@anthropic-ai/sdk';
 const KEY = process.env.SUDOR_ANTHROPIC_KEY ?? process.env.ANTHROPIC_API_KEY ?? '';
 
 /**
- * Opus 5.5. Deliberately not a smaller model: the point of the exercise is to
- * see whether a capable host reads these tool descriptions the way their author
- * intended, and a weaker model failing would not tell us whose fault it was.
+ * Haiku 4.5 by default: it picks one tool out of about a dozen well, answers inside the half second
+ * Alexa+ allows more often than a larger model, and costs a fraction as much on a public page. Set
+ * SUDOR_AGENT_MODEL to test the descriptions against a larger model.
  */
-const MODEL = process.env.SUDOR_AGENT_MODEL ?? 'claude-opus-5-5';
+const MODEL = process.env.SUDOR_AGENT_MODEL ?? 'claude-haiku-4-5-20251001';
 
 /**
  * Optional workspace id.
@@ -71,14 +71,15 @@ const MODEL = process.env.SUDOR_AGENT_MODEL ?? 'claude-opus-5-5';
 const WORKSPACE = process.env.SUDOR_ANTHROPIC_WORKSPACE ?? '';
 
 const SYSTEM = [
-  'You are standing in for Alexa+ talking to a self-hosted MCP add-on called Orbita.',
+  'You are standing in for Alexa+ talking to a self-hosted MCP add-on called Sudor.',
   'Orbita answers whether GPS-guided fieldwork will hold the accuracy a job needs, from NOAA space weather.',
   '',
   'Given what the customer said, call the single most appropriate tool with arguments drawn from their words.',
   'Read the tool descriptions and the parameter descriptions carefully; they name the synonyms customers use.',
   'If no tool fits what they asked, do not call one: say briefly what Sudor cannot do. Guessing a tool is worse',
   'than declining, because a wrong tool produces a confident answer to a question nobody asked.',
-  'Do not invent field names, machine names or locations that the customer did not say.',
+  'Do not invent names or places the customer did not say. When they did not say one, call the tool without it:',
+  'the add-on remembers what the customer saved and answers itself when something is missing.',
 ].join('\n');
 
 export type ToolDef = { name: string; description?: string; inputSchema?: Record<string, unknown> };
@@ -115,17 +116,23 @@ export function configureForTest(fn: typeof ask): void {
  * The request exactly as it is sent, in one place so the golden eval can ask the API to count
  * its tokens (free) before spending anything on it.
  */
-export function buildRequest(utterance: string, tools: ToolDef[]): Anthropic.MessageCreateParamsNonStreaming {
+export function buildRequest(utterance: string, tools: ToolDef[], instructions = ''): Anthropic.MessageCreateParamsNonStreaming {
   const strict = canBeStrict(tools);
   return {
     model: MODEL,
     max_tokens: 2048,
     // The tool list and this prompt are identical on every call, so they are cached: reads cost a tenth
     // of base input. The breakpoint on the system block caches the tools before it as well.
-    system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
+    // The server's own instructions, from its initialize reply, as a real host receives them.
+    system: [{ type: 'text', text: instructions ? `${SYSTEM}
+
+The add-on's own instructions:
+${instructions}` : SYSTEM, cache_control: { type: 'ephemeral' } }],
     // Low, because choosing one of fifteen tools from a sentence is not a
     // reasoning problem, and the default here is medium.
-    output_config: { effort: 'low' },
+    // Haiku refuses the effort setting outright ("This model does not support the effort parameter",
+    // found live), so it is only sent to the models that take it.
+    ...(/haiku/i.test(MODEL) ? {} : { output_config: { effort: 'low' } }),
     // auto, never any/tool: forced tool use returns a 400 on this model, and a
     // host that cannot decline cannot demonstrate that it chose well.
     tool_choice: { type: 'auto' },
@@ -155,12 +162,12 @@ export function buildRequest(utterance: string, tools: ToolDef[]): Anthropic.Mes
  * help the model along. If a description is ambiguous, this demo shows it as
  * ambiguous.
  */
-export async function choose(utterance: string, tools: ToolDef[]): Promise<Chosen> {
+export async function choose(utterance: string, tools: ToolDef[], instructions = ''): Promise<Chosen> {
   if (ask) return ask(utterance, tools);
   if (!configured()) throw new Error('not configured');
 
   const started = Date.now();
-  const response = await anthropic().messages.create(buildRequest(utterance, tools));
+  const response = await anthropic().messages.create(buildRequest(utterance, tools, instructions));
 
   const ms = Date.now() - started;
   const said = response.content

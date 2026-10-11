@@ -117,8 +117,9 @@ check('insulin gets its temperature range and the emergency exception',
   /36 and 46 degrees/.test(text(prep)) && /still be used in an emergency/.test(text(prep)), text(prep).slice(0, 120));
 check('...and it never says to skip a dose', !/skip (a|your) dose/i.test(text(prep)));
 check('a week of everything, written on paper', /at least a week of everything/.test(text(prep)));
-check('the alert is named at the front', /^Ice Storm Warning is up for your area\./.test(text(prep)), text(prep).slice(0, 60));
-check('a cold outage warns about generators indoors', /never run a generator, grill or/.test(text(prep)), text(prep).slice(-140));
+check('the alert is named at the front', /^There is an Ice Storm Warning where you are/.test(text(prep)), text(prep).slice(0, 60));
+check('...and the first thing said after it is what to do in that storm', /^There is an Ice Storm Warning where you are[^.]*\. Stay in if you can/.test(text(prep)), text(prep).slice(0, 120));
+check('a cold outage warns about generators indoors', /never run a generator, grill or/i.test(text(prep)), text(prep).slice(-140));
 await tools.health_condition({ action: 'add', condition: 'dialysis' });
 const withDialysis = text(await tools.storm_prep({}));
 check('dialysis gets the clinic call and the three day diet',

@@ -514,6 +514,22 @@
       "args": {
         "heard": true
       }
+    },
+    {
+      "say": "there's a hurricane warning, what should I do",
+      "tool": "storm_prep"
+    },
+    {
+      "say": "the smoke from the wildfires is bad today, what do I need to do",
+      "tool": "storm_prep",
+      "kind": "colloquial"
+    },
+    {
+      "say": "tell my family I'm safe",
+      "tool": "get_help",
+      "args": {
+        "status": "safe"
+      }
     }
   ]
 }

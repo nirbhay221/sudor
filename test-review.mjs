@@ -57,7 +57,7 @@ async function connect(id) {
     const r = await client.callTool({ name, arguments: args });
     const said = (r.content ?? []).map((c) => c.text ?? '').join(' ');
     // `text` is the whole answer: what is spoken first plus what is held for "tell me more". `spoken` is the short part.
-    return { text: r.structuredContent?.full ?? said, spoken: said, data: r.structuredContent ?? {}, isError: r.isError };
+    return { text: [said, ...(r.structuredContent?.more ?? [])].join(' '), spoken: said, data: r.structuredContent ?? {}, isError: r.isError };
   };
   return { call, close: async () => { await client.close(); await server.close(); } };
 }

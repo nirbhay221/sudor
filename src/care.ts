@@ -324,7 +324,11 @@ export function nearestEmergency(lat: number | null, lon: number | null): Place 
 /** A phone number said so it can be dialled: digit by digit, in groups. */
 export function spokenPhone(phone: string): string {
   const digits = phone.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
-  if (digits.length !== 10) return phone;
+  // Outside North America: the digits read out in threes, after the country code, rather than "+448451555000".
+  if (digits.length !== 10) {
+    if (!phone.trim().startsWith('+') || digits.length < 8) return phone;
+    return `plus ${(digits.match(/\d{1,3}/g) ?? []).map((g) => g.split('').join(' ')).join(', ')}`;
+  }
   const spaced = (s: string) => s.split('').join(' ');
   return `${spaced(digits.slice(0, 3))}, ${spaced(digits.slice(3, 6))}, ${spaced(digits.slice(6))}`;
 }

@@ -5,6 +5,8 @@
  * from when it lived there; only the file it lives in is new.
  */
 
+import * as world from '../world.js';
+import * as devices from '../devices.js';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { assess, heatIndexF, photoRisk, type HeatCategory } from '../domain.js';
@@ -60,7 +62,7 @@ export function register(server: McpServer, personOf: () => string): void {
       title: 'Has any of my medicine been recalled',
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
       description:
-        'Open FDA recalls on the medications this customer takes, matched against their own list. Call this when they ' +
+        'Open FDA recalls on the medications this customer takes, matched against their own list, and the most serious recalls on the kind of medical equipment they rely on. Call this when they ' +
         'ask about recalls, whether their medicine is safe, whether something was pulled, or mention hearing about a ' +
         'recall. Read the answer aloud in full: it says to check the lot number and to ask a pharmacist, and it never ' +
         'tells anyone to stop taking anything. Pass from to continue when they ask for the rest.',
@@ -72,6 +74,14 @@ export function register(server: McpServer, personOf: () => string): void {
       const person = store.get(personOf());
       // Everything with a name, whether or not the heat table knows it.
       const watched = [...person.medications.map((m) => m.generic), ...person.recallWatch];
+      // The equipment they rely on is on the FDA's device recall list, not the drug one. Only the most serious
+      // grade is raised, by category, and never as "yours is recalled": see devices.ts for why.
+      const worst = devices.rank((person.equipment ?? []).flatMap((k) => devices.known(k) ?? [])).filter((r) => r.classification === 'Class I')[0];
+      const equipment = !worst || person.privacy ? '' : ` ${devices.speak(worst)}`;
+      const equipmentData = worst ? { equipmentRecall: { category: worst.category, firm: worst.firm, classification: worst.classification } } : {};
+      if (!watched.length && (person.equipment ?? []).length) {
+        return say(equipment ? equipment.trim() : 'No Class one recalls are open on the kind of equipment you use. I check that list every day.', { medications: 0, ...equipmentData });
+      }
       if (!watched.length) {
         return say(
           "I don't know what you take yet. Tell me your medications and I'll watch the FDA recall list for them.",
@@ -93,9 +103,11 @@ export function register(server: McpServer, personOf: () => string): void {
 
       if (!found.length) {
         const how = checked.length === 1 ? 'your medicine' : `all ${checked.length} of your medicines`;
-        return say(`No open FDA recalls on ${how}. I check that list twice a day.`, {
+        const usList = world.inUS(person.country) ? '' : ' That is the United States list; your pharmacist will know about recalls where you are.';
+        return say(`No open FDA recalls on ${how}. I check that list twice a day.${usList}${equipment}`, {
           checked: checked.length,
           recalls: 0,
+          ...equipmentData,
         });
       }
 
@@ -126,7 +138,8 @@ export function register(server: McpServer, personOf: () => string): void {
       const spoken = [recalls.speak(page[0]), ...page.slice(1).map((r) => recalls.speak(r, true))];
       const left = found.length - (start + page.length);
       const more = left > 0 ? ` There ${left === 1 ? 'is 1 more notice' : `are ${left} more notices`}, ask me for the rest.` : '';
-      return say(lead + spoken.join(' ') + more, {
+      return say(lead + spoken.join(' ') + more + (start === 0 ? equipment : ''), {
+        ...equipmentData,
         checked: checked.length,
         medicinesAffected: affected.size,
         recalls: found.length,

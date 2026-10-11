@@ -6,37 +6,29 @@
       "name": "First, who you are",
       "lines": [
         {
-          "say": "I'm in Phoenix, Arizona.",
-          "tool": "register_location",
+          "say": "I'm in Phoenix, Arizona, and I take Lasix and Coreg.",
+          "tool": "about_me",
           "args": {
             "place": "Phoenix, Arizona",
-            "lat": 33.45,
-            "lon": -112.07
-          }
-        },
-        {
-          "say": "I take Lasix.",
-          "tool": "medication",
-          "args": {
-            "action": "add",
-            "name": "Lasix"
-          }
-        },
-        {
-          "say": "And Coreg.",
-          "tool": "medication",
-          "args": {
-            "action": "add",
-            "name": "Coreg"
+            "medicines": [
+              "Lasix",
+              "Coreg"
+            ]
           }
         },
         {
           "say": "I have heart disease.",
-          "tool": "health_condition",
+          "tool": "about_me",
           "args": {
-            "action": "add",
-            "condition": "heart disease"
+            "conditions": [
+              "heart disease"
+            ]
           }
+        },
+        {
+          "say": "What do you know about me?",
+          "tool": "about_me",
+          "args": {}
         },
         {
           "say": "Tell my daughter Priya if I need help.",
@@ -132,9 +124,17 @@
           }
         },
         {
-          "say": "A storm is coming. What about my medicines?",
+          "say": "There is a storm warning. What should I do?",
           "tool": "storm_prep",
           "args": {}
+        },
+        {
+          "say": "Tell my family I'm safe.",
+          "tool": "get_help",
+          "args": {
+            "status": "safe",
+            "what": "I am fine"
+          }
         }
       ]
     }

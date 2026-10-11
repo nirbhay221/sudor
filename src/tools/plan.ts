@@ -82,7 +82,8 @@ export function register(server: McpServer, personOf: () => string): void {
           return say('I can only plan a shift that starts and ends on the same day. Tell me the start and the end, like 7 in the morning to 3 in the afternoon.', { planned: false, reason: 'overnight' });
         }
         const shift = planShift(snap, profile, { now: new Date(), day, fromHour: shiftStart, untilHour: shiftEnd, heatWork: store.get(personOf()).heatWork });
-        const { hours: _hours, ...summary } = shift;
+        // Without the hours, and without the sentence, which is already the answer itself.
+        const { hours: _hours, spoken: _spoken, ...summary } = shift;
         return say(shift.spoken, { shift: summary, place: person.locationName, timezone: snap.timezone, sources: ['https://www.osha.gov/heat-exposure/rulemaking'] });
       }
       const plan = planDay(snap, profile, { now: new Date(), day, minutes, activity });
@@ -190,7 +191,8 @@ export function register(server: McpServer, personOf: () => string): void {
       description:
         'What to do when someone feels unwell in the heat or the cold: heat stroke and heat exhaustion in warm ' +
         'weather, hypothermia and frostbite in cold. Which one it answers follows the weather where the person is. ' +
-        'Pass what they describe. If it describes confusion, slurred speech, fainting or collapse, the answer tells them ' +
+        'Call it straight away, before asking anything, whenever someone says they feel unwell: dizzy, a headache, ' +
+        'sick, weak, faint, cramps, or too hot or too cold. Pass what they describe. If it describes confusion, slurred speech, fainting or collapse, the answer tells them ' +
         'to call 911 and emails any confirmed emergency contacts: read it immediately and in full. It is for someone who ' +
         'feels unwell or asks about the signs; to record how an outing went afterwards use log_outing.',
       inputSchema: {

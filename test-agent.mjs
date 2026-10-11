@@ -119,7 +119,7 @@ console.log('\nThe request configuration avoids the 400 that forced tool use wou
   check("it never forces a named tool", !/tool_choice[^\n]*type:\s*'tool'/.test(src));
   check('strict is set on every tool', /strict:\s*true/.test(src));
   check('effort is low, matching a one-shot choice', /effort:\s*'low'/.test(src));
-  check('the model is the current Opus', /claude-opus-5-5/.test(src));
+  check('the model is Haiku 4.5 by default, the cheaper one for a public page', /claude-haiku-4-5-20251001/.test(src));
   check('thinking is not disabled anywhere', !/type:\s*'disabled'/.test(src));
   check('and budget_tokens is not used', !/budget_tokens/.test(src));
 }

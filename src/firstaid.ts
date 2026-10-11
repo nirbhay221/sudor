@@ -26,6 +26,9 @@ export type Triage = {
 };
 
 const NWS = { name: 'National Weather Service, Heat Illness', url: 'https://www.weather.gov/safety/heat-illness' };
+// "Do NOT give the person medicines used to treat fever (such as aspirin or acetaminophen). They will not
+// help, and they may be harmful." A body overheated from outside is not a fever, and these act on fever.
+const MEDLINE = { name: 'MedlinePlus, Heat emergencies', url: 'https://medlineplus.gov/ency/article/000056.htm' };
 const NIOSH = { name: 'CDC NIOSH, Heat-related Illnesses and First Aid', url: 'https://www.cdc.gov/niosh/heat-stress/about/illnesses.html' };
 
 const STROKE_SIGNS: [RegExp, string][] = [
@@ -120,8 +123,8 @@ export function triage(description: string, p?: Profile, lastedMinutes?: number)
       matched: stroke,
       spoken:
         'That can be heat stroke, which is an emergency. Call 911 now. While you wait, move them somewhere cool ' +
-        'and cool them with cool wet cloths or a cool bath. Do not give them anything to drink.',
-      sources,
+        'and cool them with cool wet cloths or a cool bath. Give them nothing to drink and no fever medicine.',
+      sources: [...sources, MEDLINE],
     };
   }
 
@@ -148,7 +151,7 @@ export function triage(description: string, p?: Profile, lastedMinutes?: number)
       matched: exhaustion,
       spoken:
         `That sounds like heat exhaustion. Move somewhere cooler, ideally air conditioned, loosen clothing, use ${cool}, ` +
-        `and ${sip}. Get medical help if they vomit, it gets worse, or it lasts longer than an hour.${ms}`,
+        `and ${sip}. Aspirin, acetaminophen and ibuprofen will not bring it down, so do not take them for this. Get medical help if they vomit, it gets worse, or it lasts longer than an hour.${ms}`,
       sources,
     };
   }

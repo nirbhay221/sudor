@@ -100,6 +100,13 @@ const MECHANISM_SEVERITY: Record<Mechanism, number> = {
   // is unaware of, which compounds with heat, but it does not take the cooling
   // system away, so it does not sit with reduced sweating.
   fluid_loss: 3,
+  // Less heat leaves through the skin: a real loss of cooling, short of losing sweat.
+  reduced_vasodilation: 3,
+  // These two do not change how hot the body gets. They change what a hot day costs: a fall, or a kidney.
+  faint_risk: 2,
+  kidney_risk: 2,
+  // About the medicine, not the person, so it never moves anybody's limit.
+  heat_damaged: 0,
   photosensitivity: 0, // tracked, but this is a UV question, never a heat-index one
 };
 
@@ -133,6 +140,15 @@ export const GUIDANCE: Record<Exclude<Mechanism, 'photosensitivity'>, string> = 
     "drinking a lot of plain water at once can push it lower rather than help. Sip through the day instead of drinking a lot in one go, have something salty with your food, and ask your pharmacist what you should be drinking on hot days.",
   increased_sweating:
     "you lose fluid faster than most people, even though your cooling itself is working fine. Drink before you feel thirsty.",
+  // The four below are from the CDC's Heat and Medications guidance for clinicians.
+  faint_risk:
+    "you can go light-headed when you stand up in the heat. Get up slowly, sit down the moment you feel it, and do not stand about in the sun.",
+  kidney_risk:
+    "you need to keep from running dry more than most people do. Drink steadily through the day, and ask your pharmacist whether to keep taking it on days you are sweating a lot.",
+  reduced_vasodilation:
+    "you shed heat more slowly than most people. Take shade and rest earlier than you think you need to.",
+  heat_damaged:
+    "you need to keep it out of a hot car and out of the sun. Heat can spoil insulin, weaken an adrenaline pen and burst an inhaler, so carry it in something insulated.",
 };
 
 export type Verdict = {

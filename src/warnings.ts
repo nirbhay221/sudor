@@ -1,3 +1,4 @@
+import { inUS } from './world.js';
 /**
  * The official warnings for one address, and what the weather service itself
  * says to do about them.
@@ -54,10 +55,84 @@ const remember = (k: string, e: Entry): void => {
 const key = (lat: number, lon: number) => `${lat.toFixed(3)},${lon.toFixed(3)}`;
 
 type Fetcher = (lat: number, lon: number) => Promise<Alert[]>;
-let fetcher: Fetcher = fetchFromNws;
+/** The country each watched place is in. The weather service only covers the United States. */
+const countries = new Map<string, string>();
+const route: Fetcher = (lat, lon) => (inUS(countries.get(key(lat, lon))) ? fetchFromNws(lat, lon) : fetchFromWmo(lat, lon));
+let fetcher: Fetcher = route;
 export function configureForTest(fn: Fetcher | null): void {
-  fetcher = fn ?? fetchFromNws;
+  fetcher = fn ?? route;
   cache.clear();
+}
+
+/*
+ * Official warnings anywhere else.
+ *
+ * The World Meteorological Organization's Severe Weather Information Centre gathers the official warnings
+ * of more than 130 national weather services, in the Common Alerting Protocol, with the area each one
+ * covers. The map on its site asks its own feature server which warnings cover a point, and this asks the
+ * same question the same way. It is the server behind the WMO's public page, not a published API, so it is
+ * asked at most once per place every ten minutes and a failure is treated as "could not check", never as
+ * an all-clear. Many services publish in English; where a service does not, the event is said as given.
+ *
+ * Source: https://severeweather.wmo.int/
+ */
+const WMO = 'https://severeweather.wmo.int/f/wfs';
+const SEVERITY = ['Unknown', 'Minor', 'Moderate', 'Severe', 'Extreme'];
+
+export function parseWmo(body: unknown, now = Date.now()): Alert[] {
+  const features = (body as { features?: { properties?: Record<string, unknown> }[] } | null)?.features;
+  if (!Array.isArray(features)) throw new Error('wmo: no features');
+  const byEvent = new Map<string, Alert>();
+  for (const f of features) {
+    const p = f.properties ?? {};
+    const expires = p.expires ? Date.parse(String(p.expires)) : NaN;
+    if (Number.isFinite(expires) && expires < now) continue;
+    const raw = String(p.event ?? '').trim();
+    if (!raw) continue;
+    const s = Math.max(0, Math.min(4, Number(p.s ?? 0) || 0));
+    // "persistent rain" from one service and "Wind Advisory" from another. A severe one with no level in
+    // its name is called a warning, which is what the issuing service calls it.
+    const named = raw.charAt(0).toUpperCase() + raw.slice(1);
+    const event = s >= 3 && !/warning|watch|advisory|statement|alert/i.test(named) ? `${named} warning` : named;
+    const id = String(p.capurl ?? `${event}|${p.sent ?? ''}`);
+    const held = byEvent.get(event);
+    if (held && SEVERITY.indexOf(held.severity) >= s) continue;
+    const said = String(p.description ?? p.headline ?? '').replace(/\s+/g, ' ').trim();
+    byEvent.set(event, {
+      id,
+      event,
+      kind: classify(event),
+      severity: SEVERITY[s],
+      urgency: 'Unknown',
+      headline: String(p.headline ?? event),
+      instruction: said ? said.slice(0, 400) : null,
+      areaDesc: String(p.areadesc ?? '').slice(0, 300),
+      onset: p.onset ? String(p.onset) : null,
+      ends: p.expires ? String(p.expires) : null,
+    });
+  }
+  return [...byEvent.values()];
+}
+
+async function fetchFromWmo(lat: number, lon: number): Promise<Alert[]> {
+  const q = new URLSearchParams({
+    request: 'GetFeature',
+    version: '1.1.0',
+    typeName: 'local_postgis:postgis_geojsons',
+    outputFormat: 'json',
+    propertyName: 'event,headline,description,areadesc,sent,onset,expires,capurl,s',
+    // Latitude first: the server reads this point in that order.
+    cql_filter: `row_type<>'POINT' AND INTERSECTS(wkb_geometry,POINT(${lat.toFixed(4)} ${lon.toFixed(4)}))`,
+  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10_000);
+  try {
+    const res = await fetch(`${WMO}?${q.toString()}`, { signal: ctrl.signal, headers: { 'User-Agent': AGENT } });
+    if (!res.ok) throw new Error(`wmo ${res.status}`);
+    return parseWmo(await res.json());
+  } finally {
+    clearTimeout(timer);
+  }
 }
 export function seedForTest(lat: number, lon: number, alerts: Alert[], checkedAt = Date.now()): void {
   remember(key(lat, lon), { checkedAt, alerts });
@@ -139,7 +214,8 @@ export async function refresh(lat: number, lon: number, force = false): Promise<
   }
 }
 
-export function watch(lat: number, lon: number): void {
+export function watch(lat: number, lon: number, country?: string | null): void {
+  if (country) countries.set(key(lat, lon), country.toUpperCase());
   void refresh(lat, lon);
 }
 

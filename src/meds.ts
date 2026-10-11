@@ -56,7 +56,24 @@ export type Mechanism =
    * to take something salty, which is right for a thiazide, is not the answer here.
    * Steady plain fluid is.
    */
-  | 'fluid_loss';
+  | 'fluid_loss'
+  /**
+   * Lowers blood pressure, or causes dizziness, so standing up in the heat can end in a fall. The CDC's
+   * clinician guidance gives this for diuretics, beta blockers, calcium channel blockers, ACE inhibitors,
+   * ARBs and nitrates ("increased risk of fainting and falls", "worsened hypotension"), and for carbamazepine
+   * ("dizziness and weakness").
+   */
+  | 'faint_risk'
+  /** The kidneys are at risk once the person is dry. CDC: NSAIDs, aspirin and sulfonamide antibiotics, "kidney injury with dehydration". */
+  | 'kidney_risk'
+  /** The skin's blood vessels open less, so less heat leaves through it. CDC: antiplatelets, "reduced superficial vasodilation". */
+  | 'reduced_vasodilation'
+  /**
+   * Nothing to do with the body: the medicine itself is spoiled by heat. CDC: "Inhalers can burst in hot
+   * environments, such as car trunks on hot days. EpiPens may malfunction or deliver less epinephrine when
+   * exposed to heat. Insulin may become less effective if left in the heat for prolonged periods."
+   */
+  | 'heat_damaged';
 
 /**
  * The same medicine cabinet, read for cold.
@@ -245,6 +262,10 @@ export const MECHANISM_LABEL: Record<Mechanism, string> = {
   increased_heat_production: 'raises your own heat production',
   photosensitivity: 'makes your skin burn faster in the sun',
   fluid_loss: 'makes you lose fluid faster than you notice',
+  faint_risk: 'can make you dizzy or faint in the heat',
+  kidney_risk: 'is hard on your kidneys once you are short of water',
+  reduced_vasodilation: 'lets less heat leave through your skin',
+  heat_damaged: 'is itself spoiled by heat',
 };
 
 /** The same effects as verb phrases, for "your medications can also ...". */
@@ -257,6 +278,10 @@ export const MECHANISM_BASE: Record<Mechanism, string> = {
   increased_heat_production: 'raise your own heat production',
   photosensitivity: 'make your skin burn faster in the sun',
   fluid_loss: 'make you lose fluid faster than you notice',
+  faint_risk: 'make you dizzy or faint in the heat',
+  kidney_risk: 'be hard on your kidneys once you are short of water',
+  reduced_vasodilation: 'let less heat leave through your skin',
+  heat_damaged: 'be spoiled by heat themselves',
 };
 
 /**

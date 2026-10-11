@@ -18,6 +18,7 @@
  * machine, there is no link to send and the holder's confirmation stands alone as it did before.
  */
 
+import { textsOn, phoneOf } from './texts.js';
 import { createHash, randomBytes } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import express from 'express';
@@ -192,7 +193,11 @@ export function takeReplies(personId: string): string {
 }
 
 /** Guessing is the only way in without the email, so tries are counted per address. */
-const tries = perCaller(20, 20 / 60);
+let tries = perCaller(20, 20 / 60);
+/** Tests open these pages many times from one address. */
+export function resetTriesForTest(): void {
+  tries = perCaller(20, 20 / 60);
+}
 const GONE = '<h1>This link is no longer valid</h1><p>It may have been used already, or the person who added you may have removed you. Nothing will be sent to you.</p>';
 
 export function mountConsent(app: Express): void {
@@ -215,6 +220,10 @@ export function mountConsent(app: Express): void {
         '<p>Somebody who uses Sudor asked for you to be told when the heat or the cold is dangerous for them, or when they ask for help. ' +
         'You will never be sent anything about their health.</p>' +
         `<form method="post" action="/contact/accept"><input type="hidden" name="t" value="${t}">` +
+        (textsOn()
+          ? '<label for="m">Your mobile number, if you also want a text when they need help (optional)</label><br>' +
+            '<input id="m" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+1 602 555 0100" style="font:inherit;padding:.6rem;width:100%;margin:.5rem 0;border-radius:.4rem;border:1px solid #888"><br>'
+          : '') +
         '<button name="answer" value="yes">Yes, send them to me</button><button class="no" name="answer" value="no">No</button></form>',
     );
   });
@@ -227,9 +236,12 @@ export function mountConsent(app: Express): void {
     if (!hit) return send(res, 404, 'Link not valid', GONE);
     const hash = hashOf(t);
     if (answer === 'yes') {
+      // Their own number, typed by them, here. Anything that is not a phone number is ignored, not stored.
+      const phone = textsOn() ? phoneOf(String((req.body as { phone?: unknown })?.phone ?? '').slice(0, 30)) : null;
       store.update(hit.id, (p) => {
         const c = p.contacts.find((x) => x.acceptHash === hash);
         if (c) {
+          if (phone) c.phone = phone;
           c.acceptedAt = new Date().toISOString();
           // Used once. The stop link is what works from here on.
           c.acceptHash = null;

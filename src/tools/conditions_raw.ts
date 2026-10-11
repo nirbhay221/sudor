@@ -5,6 +5,7 @@
  * from when it lived there; only the file it lives in is new.
  */
 
+import { indoorRisk, LIMIT_F } from '../indoor.js';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { assess, heatIndexF, photoRisk, type HeatCategory } from '../domain.js';
@@ -53,8 +54,8 @@ export function register(server: McpServer, personOf: () => string): void {
       description:
         "Whether the weather right now, hot or cold, is a problem for this customer's own medications and conditions. " +
         'Call this when someone asks if it is safe to be outside, to garden, to work outdoors, how bad the heat is, or ' +
-        'how cold it is for them. Read the answer aloud in full; it names what is driving the risk and what to do. It is the ' +
-        'answer for right now. To choose a time of day use plan_my_day, for official warnings use weather_warnings, and for ' +
+        'how cold it is for them. It needs no arguments: it uses the place and medicines already saved. Read the answer aloud in full; it names what is driving the risk and what to do. It is the ' +
+        'answer for right now. To choose a time of day use plan_my_day, and for ' +
         'someone who already feels unwell use warning_signs. Pass heard when they say got it after a reminder.',
       inputSchema: {
         heard: z.boolean().optional().describe('true only when they say got it, okay, I heard you or stop reminding me, straight after a reminder about a stay-inside day'),
@@ -165,11 +166,22 @@ export function register(server: McpServer, personOf: () => string): void {
       const age = weather.ageMinutes(snap.lat, snap.lon);
       if (snap.stale && age != null && age > 60) parts.push(`My weather data is ${age} minutes old.`);
 
+      // "Stay in" is only good advice when in is cooler than out. See indoor.ts.
+      const vulnerable = person.medications.length > 0 || person.conditions.length > 0;
+      const inside = indoorRisk(snap, person, vulnerable);
+      if (inside) parts.push(inside.line);
+      // Nobody has said whether the cooling works, and they have just been told to stay in.
+      // Asked once a day at most, and it is the closing question when it is asked.
+      const today = new Date().toISOString().slice(0, 10);
+      const askCooling = !inside && !person.cooling && person.coolingAskedOn !== today && judged.status === 'avoid' && snap.tempF >= LIMIT_F;
+      if (askCooling) store.update(personOf(), (p) => void (p.coolingAskedOn = today));
+
       // The step that finishes the thought, put as one question.
-      const offer = judged.status === 'good' || officialWarning(person, snap.timezone) ? '' : 'Want me to find the safest time to go out today?';
+      // One question at a time: when the cooling is being asked about, that is the question.
+      const offer = askCooling ? 'That only holds if your cooling is working. Is it?' : judged.status === 'good' || officialWarning(person, snap.timezone) ? '' : 'Want me to find the safest time to go out today?';
       // The line about not stopping a medicine is said whatever else is held back.
       // So is the line about not stopping a medicine: it is the one sentence here that prevents a harm.
-      const mustSay = [parts.includes(MEDICATION_CAUTION) ? MEDICATION_CAUTION : ''].filter(Boolean);
+      const mustSay = [parts.includes(MEDICATION_CAUTION) ? MEDICATION_CAUTION : '', inside ? inside.line : ''].filter(Boolean);
       // A hurricane, a tornado or a flood outranks the heat index, and is said whatever else is held back.
       const official = officialWarning(person, snap.timezone);
       if (official) {
@@ -178,7 +190,9 @@ export function register(server: McpServer, personOf: () => string): void {
       }
       return say(parts.join(' '), {
         ...(official ? { warning: official.event } : {}),
-        ...(offer ? { offer, nextAction: { tool: 'plan_my_day', arguments: {} } } : {}),
+        ...(inside?.level === 'danger' ? { nextAction: { tool: 'somewhere_to_go', arguments: {} } } : askCooling ? { offer } : offer ? { offer, nextAction: { tool: 'plan_my_day', arguments: {} } } : {}),
+        ...(inside ? { indoor: { level: inside.level, basis: inside.basis, indoorF: inside.indoorF ?? null, highF: inside.highF ?? null, overnightLowF: inside.overnightLowF ?? null } } : {}),
+        ...(askCooling ? { asks: 'cooling' } : {}),
         mustSay,
         heatIndexF: verdict.heatIndexF,
         category: verdict.category,

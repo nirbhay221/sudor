@@ -5,6 +5,7 @@
  * from when it lived there; only the file it lives in is new.
  */
 
+import * as world from '../world.js';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { assess, heatIndexF, photoRisk, type HeatCategory } from '../domain.js';
@@ -70,7 +71,16 @@ export function register(server: McpServer, personOf: () => string): void {
       // The CDC's own first answer, and it is a better one than any list.
       parts.push(`If you can get to a relative or a friend who has power, do that first.`);
 
-      if (found === null) {
+      if (!world.inUS(person.country)) {
+        // The federal shelter list and the 211 line are American. Elsewhere, the people who know what is open
+        // are the local authority and the emergency services, and the nearest hospital is always somewhere.
+        const hospital = care.sentence(person.lat, person.lon);
+        parts.push(
+          `Ring your local council or town hall, which is who opens ${cold ? 'warming' : 'cooling'} places outside the United States. ` +
+            `In danger, ring ${world.known(person.country) ? world.emergencyNumber(person.country) : '112, or your local emergency number'}.` +
+            (hospital ? ` ${hospital}` : ''),
+        );
+      } else if (found === null) {
         parts.push(
           "I could not reach the federal shelter list just now, so I can't tell you what is open. " +
             'Call 211, or text your zip code to 898-211: they keep the local list.',
@@ -130,7 +140,7 @@ export function register(server: McpServer, personOf: () => string): void {
       return say(parts.join(' '), {
         // Where to go, and how not to die of carbon monoxide on the way to deciding. Heard whole.
         fullAnswer: true,
-        ...(offer ? { offer, nextAction: { tool: 'get_help', arguments: { what: cold ? 'the house is too cold to stay in' : 'the house is too hot to stay in' } } } : {}),
+        ...(offer ? { offer, nextAction: { tool: 'get_help', arguments: { what: 'looking for somewhere to go' } } } : {}),
         nearestEmergency: care.named(person.lat, person.lon),
         cold,
         ...(cold ? { whileAtHome: 'Close off the rooms you are not using and wear a hat indoors.' } : {}),

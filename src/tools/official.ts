@@ -24,6 +24,14 @@ import * as recalls from '../recalls.js';
 import * as warnings from '../warnings.js';
 import * as spaceweather from '../spaceweather.js';
 import * as shelters from '../shelters.js';
+import { hazardOf, stepsFor, mayHaveToLeave, mayLosePower, SOURCES } from '../hazard.js';
+import { OWN, NEEDS_POWER } from '../devices.js';
+
+const andWords = (xs: string[]): string => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+/** The EPA's own names for the bands of its air quality index. */
+const aqiWord = (aqi: number): string =>
+  aqi <= 50 ? 'good' : aqi <= 100 ? 'moderate' : aqi <= 150 ? 'unhealthy for sensitive groups' : aqi <= 200 ? 'unhealthy' : aqi <= 300 ? 'very unhealthy' : 'hazardous';
+import { reachable } from '../consent.js';
 import {
   fridgeMedicines,
   NO_LOCATION,
@@ -138,11 +146,12 @@ export function register(server: McpServer, personOf: () => string): void {
       title: 'Getting ready for a storm or power cut',
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
       description:
-        'What this customer should do before a storm, a power cut or a freeze, based on the medicines and conditions ' +
-        'they have registered: refrigerated medicines, dialysis, oxygen, and keeping enough of everything. Also covers ' +
-        'severe space weather, which can strain the power grid, when a geomagnetic storm is forecast. Call this ' +
-        'when someone asks how to prepare, what to do about their medicines before a storm or a solar storm, or ' +
-        'mentions losing power. It is advice on preparing, not the alerts themselves (use weather_warnings) and not somewhere ' +
+        'What this customer should do about a hurricane, flood, tornado, winter storm, wildfire smoke, power cut or ' +
+        'any other official warning where they live, fitted to their medicines and conditions: what to do first, ' +
+        'medicines that need a fridge, equipment that needs power, dialysis, and whether to leave. Also a forecast ' +
+        'geomagnetic storm. Call this when someone asks what to do about a ' +
+        'warning or a disaster, how to prepare, or mentions losing power. It needs no arguments: it reads the warnings ' +
+        'in force where they live itself, so do not ask which warning. It is advice on what to do, not somewhere ' +
         'to go once the power is already out (use somewhere_to_go).',
       inputSchema: {},
     },
@@ -150,6 +159,11 @@ export function register(server: McpServer, personOf: () => string): void {
       const person = store.get(personOf());
       const alerts = person.lat != null && person.lon != null ? warnings.current(person.lat, person.lon) ?? [] : [];
       const coming = warnings.rank(alerts).find((a) => warnings.cutsPower(a));
+      // Whatever is active where they live, of any kind, worst first: a warning before a watch before an
+      // advisory. This is what the answer is about when there is one. See hazard.ts.
+      const active = warnings
+        .rank(alerts)
+        .sort((a, b) => Number(/warning|emergency/i.test(b.event)) - Number(/warning|emergency/i.test(a.event)))[0] ?? null;
       // The weather service forecasts wind and ice. It does not forecast the
       // sun, and a severe geomagnetic storm is the other way a grid gets into
       // trouble, so that half comes from Orbita over MCP. Silence when there is
@@ -183,7 +197,18 @@ export function register(server: McpServer, personOf: () => string): void {
             'starting it early is better than starting it late.',
         );
       }
-      if (person.conditions.includes('asthma_copd')) {
+      // Equipment they have said they rely on. This is the line that matters most in a power cut, so it is
+      // built from what they told us and names the thing. It used to be guessed from a lung condition.
+      const powered = (person.equipment ?? []).filter((k) => NEEDS_POWER.includes(k));
+      const poweredNames = andWords(powered.map((k) => OWN[k]));
+      if (powered.length) {
+        steps.push(
+          `Your ${poweredNames} needs power. Charge every battery it has now, ask whoever supplies it what they do ` +
+            'in an outage, and tell your electricity company there is medical equipment in the house: many keep ' +
+            'a list of homes to restore first. Decide today where you would go that has power if yours stays off.',
+        );
+      }
+      if (person.conditions.includes('asthma_copd') && !powered.some((k) => k === 'oxygen_concentrator' || k === 'cpap')) {
         steps.push(
           'If anything you breathe with needs a socket, check its battery now and ask your supplier what they do in ' +
             'an outage. Keep an inhaler that needs no power where you can find it in the dark.',
@@ -201,6 +226,45 @@ export function register(server: McpServer, personOf: () => string): void {
           'If the heating goes, warm one room rather than the whole house, and never run a generator, grill or ' +
             'camping stove indoors or in the garage: that is how people die of carbon monoxide after a storm.',
         );
+      }
+
+      if (active) {
+        const hazard = hazardOf(active.event);
+        const needs = {
+          coldMedicine: cold.insulin || cold.injectables.length > 0 || person.conditions.includes('diabetes') || (person.equipment ?? []).includes('insulin_pump'),
+          poweredEquipment: powered.length > 0,
+          ...(powered.length ? { poweredNames } : {}),
+          dialysis: person.conditions.includes('kidney_disease') || (person.equipment ?? []).includes('dialysis'),
+          breathing: person.conditions.includes('asthma_copd'),
+          heart: person.conditions.includes('heart_disease'),
+          medicines: person.medications.length > 0 || person.recallWatch.length > 0,
+          older: person.conditions.includes('older_adult'),
+        };
+        const todo = stepsFor(hazard, needs, steps);
+        const zone = (person.lat != null && person.lon != null ? weather.current(person.lat, person.lon)?.timezone : null) ?? 'UTC';
+        const head = `There is ${/^[aeiou]/i.test(active.event) ? 'an' : 'a'} ${active.event} where you are${warnings.until(active, zone)}.`;
+        // Smoke is the one hazard with a number a person can act on, and it is read live for where they are.
+        const aqi = hazard === 'smoke' && person.lat != null && person.lon != null ? weather.current(person.lat, person.lon)?.aqi ?? null : null;
+        const air = aqi == null ? '' : ` The air quality index is ${Math.round(aqi)} right now, which is ${aqiWord(aqi)}.`;
+        const official = active.instruction ? ` The weather service says: ${warnings.brief(active.instruction, 1, 200)}` : '';
+        const family = person.contacts.filter(reachable).map((c) => c.name);
+        const leave = mayHaveToLeave(hazard);
+        return say(`${head}${air} ${todo.join(' ')}${official}${solar ? ` ${spaceweather.speak(solar)}` : ''}`, {
+          // With a hazard that can cut the power or empty the house, every line is something to do now, so it
+          // is heard whole. For the others the first steps are heard and the rest is there to be asked for.
+          fullAnswer: mayLosePower(hazard) || leave,
+          mustSay: todo.slice(0, Math.min(todo.length, 3)),
+          ...(family.length ? { offer: `Want me to tell ${family.join(' and ')} you are safe? Say tell them I'm safe.` } : {}),
+          alert: active.event,
+          ...(aqi != null ? { aqi: Math.round(aqi), aqiCategory: aqiWord(aqi) } : {}),
+          ...(powered.length ? { equipment: powered } : {}),
+          hazard,
+          steps: todo.length,
+          // Leaving home is the next question for a hazard that makes people leave; otherwise telling somebody.
+          nextAction: leave || mayLosePower(hazard) ? { tool: 'somewhere_to_go', arguments: {} } : family.length ? { tool: 'get_help', arguments: { status: 'safe' } } : null,
+          spaceWeather: solar ? { g: solar.g, when: solar.when } : null,
+          sources: [SOURCES[hazard], 'https://www.weather.gov/alerts'],
+        });
       }
 
       const opening = person.medications.length || person.conditions.length || cold.insulin

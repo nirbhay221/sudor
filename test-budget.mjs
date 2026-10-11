@@ -113,10 +113,10 @@ try {
     check('the first two are let through to the model', first.status !== 429 && second.status !== 429, `${first.status} ${second.status}`);
 
     const third = await post(s.base, '/agent', { say: 'is it safe to plant' }, { 'x-sudor-demo': ID() });
-    check('the third is refused by the daily cap', third.status === 429, String(third.status));
+    // Past the cap the model is not called again; the word rules answer instead, and say so. See rules.ts.
+    check('the third is not sent to the model', third.status === 200, String(third.status));
     const body = await third.json();
-    check('it names the budget, not a server fault', body.error === 'daily_budget', JSON.stringify(body));
-    check('and says the rest of the page still works', /still works/.test(body.detail ?? ''), body.detail);
+    check('it is answered by the word rules, and says it was', body.model === 'word rules', JSON.stringify(body).slice(0, 200));
 
     const health = await (await fetch(`${s.base}/health`)).json();
     check('health reports the spend', health.budgets.agent.used === 2 && health.budgets.agent.limit === 2, JSON.stringify(health.budgets));

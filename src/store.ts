@@ -34,6 +34,8 @@ export type Contact = {
   /** What the stop link in every email carries. */
   stopId?: string | null;
   invitedAt?: string | null;
+  /** A mobile number the contact added themselves when agreeing, for urgent texts. Never typed by the account holder. See texts.ts. */
+  phone?: string | null;
 };
 
 export type Outing = {
@@ -55,9 +57,21 @@ export type Person = {
   recallWatch: string[];
   /** Condition ids from conditions.ts. */
   conditions: string[];
+  /** Whether the cooling at home works, as they said. Unknown until they say. See indoor.ts. */
+  cooling?: 'working' | 'broken' | 'none' | 'fan';
+  /** They sleep on the top floor, right under the roof. Only ever because they said so. */
+  topFloor?: boolean;
+  /** The day the cooling was last asked about, so it is asked once a day at most. */
+  coolingAskedOn?: string;
+  /** The last temperature they read out from inside the house. Believed for three hours. */
+  indoor?: { f: number; at: string } | null;
+  /** Medical equipment they said they rely on, as category keys from devices.ts. Said, never guessed. */
+  equipment?: string[];
   lat: number | null;
   lon: number | null;
   locationName: string | null;
+  /** ISO country code of the place, "US" when not known. See world.ts. */
+  country?: string;
   /**
    * A spoken place is looked up in the background, because geocoding takes
    * longer than Alexa+ allows for a whole turn. This says where that lookup got to.

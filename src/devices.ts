@@ -88,6 +88,20 @@ export const CATEGORIES: Record<string, { terms: string[]; say: string; why: str
   },
 };
 
+/** How each is said back to the person who owns one. */
+export const OWN: Record<string, string> = {
+  oxygen_concentrator: 'oxygen concentrator',
+  insulin_pump: 'insulin pump',
+  glucose_monitor: 'glucose monitor',
+  cpap: 'breathing machine',
+  dialysis: 'home dialysis machine',
+  infusion_pump: 'infusion pump',
+  wheelchair: 'powered wheelchair',
+};
+
+/** The ones that stop when the mains does, or run down within a day of it. */
+export const NEEDS_POWER = ['oxygen_concentrator', 'cpap', 'dialysis', 'infusion_pump', 'wheelchair'];
+
 export type DeviceRecall = {
   /** The category key this matched, not the product. */
   category: string;

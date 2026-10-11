@@ -5,6 +5,7 @@
  * from when it lived there; only the file it lives in is new.
  */
 
+import { OWN } from '../devices.js';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { assess, heatIndexF, photoRisk, type HeatCategory } from '../domain.js';
@@ -63,17 +64,31 @@ export function register(server: McpServer, personOf: () => string): void {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
       description:
         'Set where to check the heat, by the place the customer names: a city and state such as "Phoenix, Arizona", ' +
-        'or a US zip code. Pass lat and lon only if they are already known exactly. Call this when they say where they live ' +
+        'a city and country such as "Munich, Germany", or a US zip code. Pass lat and lon only if they are already known exactly. Call this when they say where they live ' +
         'or ask to check somewhere else. It only sets the place; it does not report the weather (use weather_check).',
       inputSchema: {
-        place: z.string().describe('The place as spoken, city and state or a zip code'),
+        place: z.string().describe('The place as spoken: city and state, city and country, or a zip code'),
+        confirm: z.boolean().optional().describe('true only after the customer said yes to replacing the place they already have saved'),
         lat: z.number().min(-90).max(90).optional().describe('Latitude in decimal degrees, only if known exactly'),
         lon: z.number().min(-180).max(180).optional().describe('Longitude in decimal degrees, west negative, only if known exactly'),
       },
     },
-    async ({ place, lat, lon }) => {
+    async ({ place, lat, lon, confirm }) => {
       place = clean(place, 80);
       const id = personOf();
+      /*
+       * A place already saved is not replaced on a single mention. "My dad is in Tucson" is about somebody
+       * else, and a host once tried to save it as the customer's own home. The answer is the same yes-first
+       * step every other change to who gets told goes through: say what is saved, and ask.
+       */
+      const saved = store.get(id);
+      const same = (a: string | null) => (a ?? '').toLowerCase().split(',')[0].trim() === place.toLowerCase().split(',')[0].trim();
+      if (!confirm && saved.locationName && saved.locationStatus === 'ready' && !same(saved.locationName)) {
+        return say(
+          `You are set to ${saved.locationName}. Should I change your own place to ${place}? I only keep your details, not other people's.`,
+          { status: 'confirm', saved: saved.locationName, place, nextAction: { tool: 'about_me', arguments: { place, confirmPlace: true } } },
+        );
+      }
       if (!/[a-z0-9]/i.test(place)) {
         return say('Tell me the city and state, or a zip code, and I will look it up.', { status: 'needs_place' });
       }
@@ -353,6 +368,9 @@ export function register(server: McpServer, personOf: () => string): void {
         // Named but not recognised, so there is no heat advice for them, but they are still on record here.
         p.recallWatch.length ? `Watching the recall list only for: ${p.recallWatch.join(', ')}.` : '',
         profile.conditions.length ? `Conditions: ${profile.conditions.map((c) => c.label).join(', ')}.` : 'No conditions.',
+        p.cooling ? `Cooling at home: ${p.cooling === 'working' ? 'working' : p.cooling === 'fan' ? 'a fan only' : p.cooling === 'broken' ? 'not working' : 'none'}.` : '',
+        p.topFloor ? 'You sleep on the top floor.' : '',
+        (p.equipment ?? []).length ? `Equipment: ${(p.equipment ?? []).map((k) => OWN[k] ?? k).join(', ')}.` : '',
         p.contacts.length
           ? `Contacts: ${p.contacts.map((c) => `${c.name}${!c.confirmedAt ? ', not confirmed yet' : awaiting(c) ? ', waiting for them to agree' : ''}`).join('; ')}.`
           : 'No contacts.',

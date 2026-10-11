@@ -17,7 +17,7 @@ import { profileOf, judgeHour, planDay, planShift, precautions } from '../person
 import * as wbgt from '../wbgt.js';
 import { triage } from '../firstaid.js';
 import { geocode } from '../geocode.js';
-import { alertEmergency, alertHelp } from '../alerts.js';
+import { alertEmergency, alertHelp, alertSafe } from '../alerts.js';
 import * as care from '../care.js';
 import { emailConfigured, sendEmail, canEmailFor, toDemoPhone, DEMO_PHONE } from '../notify.js';
 import { consentRequired, reachable, awaiting, newInvite, invitation, alwaysAsk, newEntry } from '../consent.js';
@@ -232,13 +232,16 @@ export function register(server: McpServer, personOf: () => string): void {
       title: 'Let somebody check on your day',
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       description:
-        'Let a family member or carer ask how this person\'s day is looking, from their own account. They hear ' +
-        'whether it is a fine day, a day to take care or a day to stay in, and never a medicine or a condition. ' +
-        'action invite gives a one-time code to read to them. action join is said by the other person, with the code. ' +
-        'action leave is the other person stopping. action stop ends it for everybody. Call this when someone says ' +
-        'let my daughter check on me, I have a code, or stop sharing. It is not for adding somebody to be emailed; that is contact.',
+        "Let a family member or carer ask how this person's day is looking, from their own account, without ever " +
+        'hearing a medicine or a condition. Call this when someone says let my daughter check on me (invite, which ' +
+        'gives a one-time code), I have a code (join), how is Mum doing today or should I check on Dad (check), or ' +
+        'stop sharing (leave for the other person, stop to end it for everybody). It is not for adding somebody to be ' +
+        'emailed; that is contact.',
       inputSchema: {
-        action: z.enum(['invite', 'join', 'leave', 'stop']).describe('invite for the person, join with a code, leave to stop checking, stop to end all sharing'),
+        action: z.enum(['invite', 'join', 'check', 'leave', 'stop']).describe('invite for the person, join with a code, check to ask how their day is looking once joined, leave to stop checking, stop to end all sharing'),
+        crewLink: z.string().optional().describe('Only with check, and only for a crew service: the link it was given when it joined'),
+        shiftStart: z.number().int().min(0).max(23).optional().describe('Only with check and a crew link: hour the working day starts'),
+        shiftEnd: z.number().int().min(1).max(24).optional().describe('Only with check and a crew link: hour the working day ends'),
         code: z.string().optional().describe('The eight digit code, as spoken, only when joining'),
         as: z.enum(['family', 'crew']).optional().describe('crew only when another service is joining on behalf of a work crew; family otherwise'),
       },
@@ -405,7 +408,7 @@ export function register(server: McpServer, personOf: () => string): void {
       _meta: { ui: { resourceUri: CARD } },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       description:
-        "Tell the customer's confirmed contacts, by email and straight away, that they need help: what they said, " +
+        "Tell the customer's confirmed contacts, by email and straight away, that they need help, or with status safe that they are all right: what they said, " +
         'roughly where they are, and the nearest open shelter and emergency department. Call this when someone says ' +
         'get help, call for help, tell my daughter I need help, let my family know, or asks for somebody to come, ' +
         'including while they are looking for somewhere to go. It cannot phone anyone and cannot reach 911, and the ' +
@@ -413,12 +416,30 @@ export function register(server: McpServer, personOf: () => string): void {
         'contacts when it hears an emergency), and not for adding or removing a contact (use contact).',
       inputSchema: {
         what: z.string().optional().describe('What is wrong, in their words, e.g. "the power is out and I am cold"'),
+        status: z.enum(['need_help', 'safe']).optional().describe('safe when they say tell my family I am safe, I am okay, or we made it; need_help otherwise, which is the default'),
       },
     },
-    async ({ what }) => {
+    async ({ what, status }) => {
       const id = personOf();
       const person = store.get(id);
       const said = clean(what ?? '', 200);
+      // The other message that matters in a disaster: I'm all right. Same people, opposite news.
+      if (status === 'safe') {
+        const to = person.contacts.filter(reachable);
+        if (!to.length) return say('There is nobody I can tell yet. Tell me who to add, and next time I can let them know you are safe.', { told: [], reason: 'no_contacts' });
+        const result = alertSafe(id, said);
+        const who = andList(result.trying.length ? result.trying : to.map((c) => c.name));
+        return say(
+          result.demo
+            ? `I'm telling ${who} you are safe. ${DEMO_PHONE}`
+            : !result.configured
+              ? `I can't email ${who}, because email isn't set up on this server yet.`
+              : result.trying.length
+                ? `I'm emailing ${who} that you are safe.`
+                : `I have already emailed ${andList(result.limited)} several times this hour, so I have not sent another.`,
+          { told: result.configured && !result.demo ? result.trying : [], status: 'safe', ...(result.demo ? { demo: true } : {}) },
+        );
+      }
       const hospital = care.sentence(person.lat, person.lon);
       const yours = 'I cannot phone anyone or reach 911 for you. If you are in danger, call 911 yourself now.';
       const confirmed = person.contacts.filter(reachable);

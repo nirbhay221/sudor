@@ -57,3 +57,8 @@ button { font: inherit; cursor: pointer; }
 .chip[disabled] { opacity: .55; cursor: progress; }
 .foot { max-width: 76rem; margin: 0 auto; padding: 0 1.25rem 2rem; color: var(--soft); font-size: .85rem; }
 .link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; }
+.free-wrap { max-width: 76rem; margin: 0 auto; padding: 0 1.25rem 1rem; }
+.free { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.free label { font-weight: 600; width: 100%; }
+.free input { flex: 1 1 16rem; min-width: 0; font: inherit; padding: .55rem .7rem; border-radius: .5rem; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+.free-wrap .note { margin-top: .4rem; }

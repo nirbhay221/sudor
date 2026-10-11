@@ -10,11 +10,13 @@
  * sets a location answers at once and this runs in the background; the next
  * question finds the place already resolved.
  *
- * US only, because Alexa+ is US only. That matters in practice: an unrestricted
- * search for "Winnipeg" happily returns Winnipeg, Missouri.
+ * The United States first, because that is where Alexa+ is sold: an unrestricted search for "Lyon" would
+ * otherwise answer for France when the speaker meant Lyon, Mississippi. When a country is said ("Lyon,
+ * France"), the search is worldwide and the country is matched. When nothing in the United States has that
+ * name, the most prominent place elsewhere is used.
  */
 
-export type Place = { name: string; state: string | null; lat: number; lon: number; timezone: string | null };
+export type Place = { name: string; state: string | null; lat: number; lon: number; timezone: string | null; country: string; countryName: string | null };
 export type GeoResult = {
   name: string;
   admin1?: string;
@@ -22,6 +24,7 @@ export type GeoResult = {
   longitude: number;
   timezone?: string;
   country_code?: string;
+  country?: string;
 };
 
 const STATES: Record<string, string> = {
@@ -51,7 +54,7 @@ function stateFrom(word: string): string | null {
 }
 
 /** "Phoenix, AZ", "Phoenix Arizona", "Kansas City, Missouri", "85004". */
-export function splitQuery(query: string): { name: string; state: string | null; elsewhere?: boolean } {
+export function splitQuery(query: string): { name: string; state: string | null; elsewhere?: boolean; country?: string } {
   const q = query.trim().replace(/\s+/g, ' ');
   if (/^\d{5}$/.test(q)) return { name: q, state: null };
   if (q.includes(',')) {
@@ -59,7 +62,7 @@ export function splitQuery(query: string): { name: string; state: string | null;
     const said = rest.join(' ').replace(/\b(usa|us|u\.s\.a?\.?|united states( of america)?)\b/gi, '').trim();
     // Something was said after the comma and it is not a state: "Lyon, France". This is a different place,
     // and must not be answered with the American town of the same name.
-    return { name: name.trim(), state: stateFrom(said), ...(said && !stateFrom(said) ? { elsewhere: true } : {}) };
+    return { name: name.trim(), state: stateFrom(said), ...(said && !stateFrom(said) ? { elsewhere: true, country: said } : {}) };
   }
   const words = q.split(' ');
   // Two word states first ("New York", "North Carolina"), then one word, then an
@@ -75,27 +78,48 @@ export function splitQuery(query: string): { name: string; state: string | null;
 
 /** Pick the right result: the named state if one was said, otherwise the first (most prominent) US match. */
 export function pickPlace(query: string, results: GeoResult[]): Place | null {
-  const { state, elsewhere } = splitQuery(query);
-  if (elsewhere) return null;
+  const { state, elsewhere, country } = splitQuery(query);
+  const of = (hit: GeoResult): Place => ({
+    name: hit.name,
+    state: (hit.country_code ?? 'US') === 'US' ? hit.admin1 ?? null : null,
+    lat: hit.latitude,
+    lon: hit.longitude,
+    timezone: hit.timezone ?? null,
+    country: hit.country_code ?? 'US',
+    countryName: hit.country ?? null,
+  });
+  if (elsewhere) {
+    // "Lyon, France", "Munich, Bavaria", "Pune, IN": the country, the region, or its two letter code.
+    const want = (country ?? '').toLowerCase().replace(/^the /, '');
+    const hit = results.find((r) => [r.country, r.admin1, r.country_code].some((v) => (v ?? '').toLowerCase() === want)) ??
+      results.find((r) => [r.country, r.admin1].some((v) => !!v && v.toLowerCase().includes(want)));
+    return hit ? of(hit) : null;
+  }
   const us = results.filter((r) => !r.country_code || r.country_code === 'US');
   const hit = state ? us.find((r) => (r.admin1 ?? '').toLowerCase() === state.toLowerCase()) : us[0];
-  if (!hit) return null;
-  return { name: hit.name, state: hit.admin1 ?? null, lat: hit.latitude, lon: hit.longitude, timezone: hit.timezone ?? null };
+  if (hit) return of(hit);
+  // Nothing in the United States by that name, and nothing else said: the most prominent place anywhere.
+  return !state && results[0] ? of(results[0]) : null;
 }
 
 export async function geocode(query: string, timeoutMs = 8000): Promise<Place | null> {
-  const { name } = splitQuery(query);
+  const { name, elsewhere, state } = splitQuery(query);
   if (!name) return null;
-  const url =
-    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}` +
-    `&count=10&language=en&format=json&countryCode=US`;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
+  const search = async (us: boolean): Promise<GeoResult[]> => {
+    const url =
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}` +
+      `&count=10&language=en&format=json${us ? '&countryCode=US' : ''}`;
     const res = await fetch(url, { signal: ctrl.signal });
-    if (!res.ok) return null;
-    const body = (await res.json()) as { results?: GeoResult[] };
-    return pickPlace(query, body.results ?? []);
+    if (!res.ok) return [];
+    return ((await res.json()) as { results?: GeoResult[] }).results ?? [];
+  };
+  try {
+    if (elsewhere) return pickPlace(query, await search(false));
+    const inUS = pickPlace(query, await search(true));
+    if (inUS || state) return inUS;
+    return pickPlace(query, await search(false));
   } catch {
     return null;
   } finally {

@@ -46,7 +46,7 @@ export function onRepeat(id: string, name: string, args: unknown, result: Result
   const parts = sentences(text);
   if (parts.length < 2) return result;
   const short = `In short: ${parts[0]} Ask me why, or what to do about it.`;
-  return withText(result, short, { repeated: true, full: text });
+  return withText(result, short, { repeated: true });
 }
 
 /* ---------------------------------------------------------------- the standing reminder */

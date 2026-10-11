@@ -24,7 +24,7 @@
  * One lookup, when a medicine is added, with a short timeout. Never while answering about the weather.
  */
 
-import type { Mechanism, ColdMechanism } from './meds.js';
+import { MEDICATIONS, type Mechanism, type ColdMechanism } from './meds.js';
 
 export type Classified = {
   generic: string;
@@ -36,35 +36,54 @@ export type Classified = {
   source: 'rxnorm';
 };
 
-type Rule = { atc: string; drugClass: string; mechanisms: Mechanism[]; cold?: ColdMechanism[] };
+type Rule = { atc: string; drugClass: string; mechanisms: Mechanism[]; cold?: ColdMechanism[]; /** Only these ingredients, where the class is wider than what the CDC names. */ only?: string[] };
 
 /**
  * ATC class to mechanism. Longest prefix wins, so lithium (N05AN) is read before the rest of N05A.
  * Each line carries the same mechanisms meds.ts gives the named drugs of that class.
  */
 export const RULES: Rule[] = [
-  { atc: 'C03C', drugClass: 'loop diuretic', mechanisms: ['electrolyte_imbalance'] },
-  { atc: 'C03A', drugClass: 'thiazide diuretic', mechanisms: ['electrolyte_imbalance', 'hyponatremia_risk', 'photosensitivity'] },
-  { atc: 'C03B', drugClass: 'thiazide-like diuretic', mechanisms: ['electrolyte_imbalance', 'hyponatremia_risk', 'photosensitivity'] },
-  { atc: 'C03D', drugClass: 'diuretic', mechanisms: ['electrolyte_imbalance'] },
-  { atc: 'C03E', drugClass: 'diuretic', mechanisms: ['electrolyte_imbalance'] },
-  { atc: 'C07', drugClass: 'beta blocker', mechanisms: ['electrolyte_imbalance', 'reduced_sweating'], cold: ['reduced_heat_production'] },
-  { atc: 'C08', drugClass: 'calcium channel blocker', mechanisms: ['electrolyte_imbalance'] },
-  { atc: 'C09A', drugClass: 'ACE inhibitor', mechanisms: ['reduced_thirst_or_sedation'] },
-  { atc: 'C09B', drugClass: 'ACE inhibitor', mechanisms: ['reduced_thirst_or_sedation'] },
-  { atc: 'C09C', drugClass: 'ARB', mechanisms: ['reduced_thirst_or_sedation'] },
-  { atc: 'C09D', drugClass: 'ARB', mechanisms: ['reduced_thirst_or_sedation'] },
+  // Every row is a class the CDC's Heat and Medications guidance for clinicians names, with the effects it
+  // gives, or a class from the cold literature in meds.ts. The class a medicine belongs to is never decided
+  // here: it is read live from the National Library of Medicine. RxClass answers at the fourth ATC level
+  // (five characters), so where the CDC names single drugs inside a wider class, `only` narrows the row.
+  { atc: 'C03C', drugClass: 'loop diuretic', mechanisms: ['electrolyte_imbalance', 'faint_risk'] },
+  { atc: 'C03A', drugClass: 'thiazide diuretic', mechanisms: ['electrolyte_imbalance', 'hyponatremia_risk', 'photosensitivity', 'faint_risk'] },
+  { atc: 'C03B', drugClass: 'thiazide-like diuretic', mechanisms: ['electrolyte_imbalance', 'hyponatremia_risk', 'photosensitivity', 'faint_risk'] },
+  { atc: 'C03D', drugClass: 'diuretic', mechanisms: ['electrolyte_imbalance', 'faint_risk'] },
+  { atc: 'C03E', drugClass: 'diuretic', mechanisms: ['electrolyte_imbalance', 'faint_risk'] },
+  { atc: 'S01EC', drugClass: 'diuretic', mechanisms: ['electrolyte_imbalance', 'faint_risk'], only: ['acetazolamide'] },
+  { atc: 'C07', drugClass: 'beta blocker', mechanisms: ['electrolyte_imbalance', 'reduced_sweating', 'reduced_vasodilation', 'faint_risk'], cold: ['reduced_heat_production'] },
+  { atc: 'C08', drugClass: 'calcium channel blocker', mechanisms: ['electrolyte_imbalance', 'faint_risk'] },
+  { atc: 'C09A', drugClass: 'ACE inhibitor', mechanisms: ['reduced_thirst_or_sedation', 'faint_risk'] },
+  { atc: 'C09B', drugClass: 'ACE inhibitor', mechanisms: ['reduced_thirst_or_sedation', 'faint_risk'] },
+  { atc: 'C09C', drugClass: 'ARB', mechanisms: ['reduced_thirst_or_sedation', 'faint_risk'] },
+  { atc: 'C09D', drugClass: 'ARB', mechanisms: ['reduced_thirst_or_sedation', 'faint_risk'] },
+  { atc: 'C01DA', drugClass: 'nitrate', mechanisms: ['faint_risk'] },
+  { atc: 'B01AC', drugClass: 'antiplatelet', mechanisms: ['reduced_vasodilation'] },
+  { atc: 'N02BA', drugClass: 'aspirin', mechanisms: ['kidney_risk'] },
+  { atc: 'M01A', drugClass: 'anti-inflammatory painkiller', mechanisms: ['kidney_risk'] },
+  { atc: 'J01E', drugClass: 'sulfonamide antibiotic', mechanisms: ['kidney_risk'] },
+  { atc: 'J05AE', drugClass: 'antiretroviral', mechanisms: ['kidney_risk'], only: ['indinavir'] },
   { atc: 'A10BJ', drugClass: 'GLP-1 agonist', mechanisms: ['fluid_loss'] },
   { atc: 'A10BK', drugClass: 'SGLT2 inhibitor', mechanisms: ['fluid_loss'] },
+  { atc: 'A10A', drugClass: 'insulin', mechanisms: ['heat_damaged'] },
+  { atc: 'C01CA', drugClass: 'adrenaline pen', mechanisms: ['heat_damaged'], only: ['epinephrine'] },
+  { atc: 'R03A', drugClass: 'inhaler', mechanisms: ['heat_damaged'] },
+  { atc: 'R03B', drugClass: 'inhaler', mechanisms: ['heat_damaged'] },
   { atc: 'R06AA', drugClass: 'anticholinergic antihistamine', mechanisms: ['reduced_sweating'], cold: ['reduced_awareness_cold'] },
   { atc: 'R06AB', drugClass: 'anticholinergic antihistamine', mechanisms: ['reduced_sweating'], cold: ['reduced_awareness_cold'] },
   { atc: 'R06AD', drugClass: 'anticholinergic antihistamine', mechanisms: ['reduced_sweating'], cold: ['reduced_awareness_cold'] },
   { atc: 'N04A', drugClass: 'anticholinergic', mechanisms: ['reduced_sweating'] },
   { atc: 'G04BD', drugClass: 'anticholinergic', mechanisms: ['reduced_sweating'] },
-  { atc: 'N05AN', drugClass: 'mood stabiliser', mechanisms: ['electrolyte_imbalance'] },
+  { atc: 'N05AN', drugClass: 'mood stabiliser', mechanisms: ['electrolyte_imbalance', 'fluid_loss', 'faint_risk'] },
   { atc: 'N05A', drugClass: 'antipsychotic', mechanisms: ['reduced_sweating'], cold: ['impaired_shivering'] },
   { atc: 'N06AA', drugClass: 'tricyclic antidepressant', mechanisms: ['reduced_sweating'], cold: ['reduced_awareness_cold'] },
   { atc: 'N06AB', drugClass: 'SSRI', mechanisms: ['increased_sweating', 'hyponatremia_risk', 'reduced_thirst_or_sedation'] },
+  { atc: 'N06AX', drugClass: 'SNRI', mechanisms: ['increased_sweating'], only: ['venlafaxine', 'desvenlafaxine', 'duloxetine'] },
+  { atc: 'N03AX', drugClass: 'antiseizure medicine', mechanisms: ['reduced_sweating'], only: ['topiramate'] },
+  { atc: 'N03AF', drugClass: 'antiseizure medicine', mechanisms: ['increased_sweating', 'fluid_loss'], only: ['oxcarbazepine'] },
+  { atc: 'N03AF', drugClass: 'antiseizure medicine', mechanisms: ['faint_risk'], only: ['carbamazepine'] },
   { atc: 'N02A', drugClass: 'opiate', mechanisms: ['reduced_thirst_or_sedation'], cold: ['reduced_awareness_cold'] },
   { atc: 'N05BA', drugClass: 'benzodiazepine', mechanisms: ['reduced_thirst_or_sedation'], cold: ['reduced_awareness_cold'] },
   { atc: 'N05CD', drugClass: 'benzodiazepine', mechanisms: ['reduced_thirst_or_sedation'], cold: ['reduced_awareness_cold'] },
@@ -72,13 +91,23 @@ export const RULES: Rule[] = [
   { atc: 'H03AA', drugClass: 'thyroid hormone', mechanisms: ['increased_sweating'] },
   { atc: 'J01AA', drugClass: 'tetracycline antibiotic', mechanisms: ['photosensitivity'] },
   { atc: 'J01MA', drugClass: 'fluoroquinolone antibiotic', mechanisms: ['photosensitivity'] },
+  { atc: 'J01XD', drugClass: 'antibiotic', mechanisms: ['photosensitivity'], only: ['metronidazole'] },
+  { atc: 'P01AB', drugClass: 'antibiotic', mechanisms: ['photosensitivity'], only: ['metronidazole'] },
+  { atc: 'J02AC', drugClass: 'antifungal', mechanisms: ['photosensitivity'], only: ['voriconazole'] },
+  { atc: 'J02AX', drugClass: 'antifungal', mechanisms: ['photosensitivity'], only: ['flucytosine'] },
+  { atc: 'D01BA', drugClass: 'antifungal', mechanisms: ['photosensitivity'], only: ['griseofulvin'] },
   { atc: 'C10AA', drugClass: 'statin', mechanisms: ['photosensitivity'] },
 ];
 
 /** The rule for an ATC class id, longest prefix first, or null when the class is not one the guidance covers. */
-export function ruleFor(atcId: string): Rule | null {
+export function ruleFor(atcId: string, ingredient = ''): Rule | null {
   const id = atcId.toUpperCase();
-  return [...RULES].sort((a, b) => b.atc.length - a.atc.length).find((r) => id.startsWith(r.atc)) ?? null;
+  const name = ingredient.toLowerCase();
+  return (
+    [...RULES]
+      .sort((a, b) => b.atc.length - a.atc.length)
+      .find((r) => id.startsWith(r.atc) && (!r.only || r.only.some((o) => name === o || name.startsWith(`${o} `)))) ?? null
+  );
 }
 
 /** What a medicine's class does in the cold, for a medicine that came from RxNorm and is not in meds.ts. */
@@ -102,14 +131,20 @@ export function parse(body: unknown): Classified | null {
   for (const row of list as Info[]) {
     const name = typeof row.minConcept?.name === 'string' ? row.minConcept.name.toLowerCase().trim() : '';
     const atc = typeof row.rxclassMinConceptItem?.classId === 'string' ? row.rxclassMinConceptItem.classId : '';
-    if (!name || !atc || row.minConcept?.tty !== 'IN' || name.includes('/')) continue;
-    const rule = ruleFor(atc);
+    // IN is an ingredient and PIN its salt or ester ("olmesartan medoxomil", "liothyronine sodium"). Both are
+    // one drug. Refusing PIN is how a third of the ARBs and thyroid hormones went unrecognised.
+    const tty = row.minConcept?.tty;
+    if (!name || !atc || (tty !== 'IN' && tty !== 'PIN') || name.includes('/')) continue;
+    const rule = ruleFor(atc, name);
     if (rule) hits.push({ name, rule, atc });
   }
   if (!hits.length) return null;
   // One drug: the first ingredient named. A name that resolves to several different ingredients is ambiguous.
   const names = [...new Set(hits.map((h) => h.name))];
-  if (names.length !== 1) return null;
+  // Several ingredients under one name are still one answer when they all fall in the same class: "insulin
+  // aspart" comes back as the insulin and its protamine form, and both are insulin. Different classes stay ambiguous.
+  if (names.length !== 1 && new Set(hits.map((h) => h.rule.drugClass)).size !== 1) return null;
+  names.sort((a, b) => a.length - b.length);
   const mine = hits.filter((h) => h.name === names[0]);
   return {
     generic: names[0].slice(0, 60),
@@ -149,4 +184,17 @@ export async function classify(spoken: string): Promise<Classified | null> {
 
 export function configureForTest(fn: Lookup | null): void {
   lookup = fn ?? ((name) => fetchClass(name));
+}
+
+/*
+ * The curated medicines in meds.ts get the same effects as their class does here.
+ *
+ * Otherwise benazepril, read from RxClass, would be told about fainting and lisinopril, from the curated
+ * list, would not, and they are the same class with the same CDC row. Only effects are added, never
+ * removed, and only for classes the row covers whole.
+ */
+for (const m of MEDICATIONS) {
+  const rule = RULES.find((r) => !r.only && r.drugClass === m.drugClass);
+  if (!rule) continue;
+  for (const mech of rule.mechanisms) if (!m.mechanisms.includes(mech)) m.mechanisms.push(mech);
 }

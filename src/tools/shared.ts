@@ -80,7 +80,8 @@ export function resolveLocation(personId: string, place: string): void {
       if (found) {
         p.lat = found.lat;
         p.lon = found.lon;
-        p.locationName = found.state ? `${found.name}, ${found.state}` : found.name;
+        p.locationName = found.state ? `${found.name}, ${found.state}` : found.countryName && found.country !== 'US' ? `${found.name}, ${found.countryName}` : found.name;
+        p.country = found.country;
         p.locationStatus = 'ready';
       } else {
         p.locationStatus = 'not_found';
@@ -89,6 +90,7 @@ export function resolveLocation(personId: string, place: string): void {
     if (found) {
       weather.watch(found.lat, found.lon, !personId.startsWith('demo:'));
       care.watch(found.lat, found.lon, found.state ? `${found.name}, ${found.state}` : found.name);
+      warnings.watch(found.lat, found.lon, found.country);
     }
   });
 }
@@ -106,7 +108,7 @@ const TOO_OLD_MINUTES = 180;
 export function locate(person: store.Person): { lat: number; lon: number } | string {
   if (person.locationStatus === 'locating') return `I'm still looking up ${person.locationName}. Ask me again in a moment.`;
   if (person.locationStatus === 'not_found') {
-    return `I couldn't find ${person.locationName}. I can check places in the United States: tell me the city and state, or a zip code.`;
+    return `I couldn't find ${person.locationName}. Tell me the city and the state, or the city and the country, or a US zip code.`;
   }
   if (person.lat == null || person.lon == null) return NO_LOCATION;
   return { lat: person.lat, lon: person.lon };

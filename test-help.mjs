@@ -200,7 +200,7 @@ const mum = await connect('acct:mum');
 {
   const names = (await mum.tools()).map((t) => t.name);
   check('asking for help, shelters and storm preparation are published by default', ['get_help', 'somewhere_to_go', 'storm_prep'].every((n) => names.includes(n)), names.join(','));
-  check('the neighbouring products are still held back', SECONDARY_TOOLS.every((n) => !names.includes(n)) && SECONDARY_TOOLS.length === 4);
+  check('the neighbouring products are still held back', SECONDARY_TOOLS.every((n) => !names.includes(n)) && SECONDARY_TOOLS.length === 3 && !names.includes('medicine_recalls'));
   const tool = (await mum.tools()).find((t) => t.name === 'get_help');
   check('the description says it cannot phone or reach 911', /cannot phone anyone and cannot reach 911/.test(tool.description));
   check('it is declared as a write that reaches the outside world', tool.annotations.readOnlyHint === false && tool.annotations.openWorldHint === true);

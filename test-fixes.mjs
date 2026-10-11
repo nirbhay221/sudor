@@ -64,6 +64,8 @@ notify.configureForTest({ from: 'sudor@example.org', transport: async (email) =>
 const settle = () => new Promise((r) => setTimeout(r, 30));
 const lat = 33.45, lon = -112.07;
 weather.seedForTest({ lat, lon, fetchedAt: new Date().toISOString(), timezone: 'America/Phoenix', utcOffsetSeconds: -25200, tempF: 104, humidityPct: 20, uvIndex: 9, windMph: 4, isDay: true, aqi: 40, solarWm2: 800, wetBulbF: 70, hourly: [], stale: false });
+// The test's own hot day, kept so a section can put it back after a live download replaces it.
+const HOT_DAY = weather.current(lat, lon);
 
 console.log('\nThe person who gets the emails is the one who agrees');
 const mum = await connect('acct:mum');
@@ -253,6 +255,11 @@ console.log('\nA place in another country is not answered with the American town
   check('"Lyon, France" is not Lyon, Mississippi (found live)', geo.pickPlace('Lyon, France', rows) === null);
   check('"Lyon, Mississippi" still is', geo.pickPlace('Lyon, Mississippi', rows)?.state === 'Mississippi');
   check('"Lyon" alone still finds the town', geo.pickPlace('Lyon', rows)?.name === 'Lyon');
+  const world = [...rows, { name: 'Lyon', admin1: 'Auvergne-Rhône-Alpes', country: 'France', latitude: 45.75, longitude: 4.85, country_code: 'FR', timezone: 'Europe/Paris' }];
+  check('"Lyon, France" is now found, in France', geo.pickPlace('Lyon, France', world)?.country === 'FR' && geo.pickPlace('Lyon, France', world)?.lat === 45.75);
+  check('...and by its region or its code', geo.pickPlace('Lyon, FR', world)?.country === 'FR' && geo.pickPlace('Lyon, Auvergne-Rhône-Alpes', world)?.country === 'FR');
+  check('"Lyon" alone is still the American one, because Alexa+ is sold there', geo.pickPlace('Lyon', world)?.country === 'US');
+  check('a name with no American town goes abroad', geo.pickPlace('Pune', [{ name: 'Pune', admin1: 'Maharashtra', country: 'India', latitude: 18.5, longitude: 73.85, country_code: 'IN' }])?.country === 'IN');
   check('"Tampa, Florida, USA" is not treated as abroad', geo.splitQuery('Tampa, Florida, USA').elsewhere !== true && geo.splitQuery('Tampa, FL').state === 'Florida');
 }
 
@@ -281,16 +288,27 @@ console.log('\nA hurricane outranks the heat index');
 console.log('\nA medicine the table does not name is looked up, not guessed');
 {
   const rx = await import('./dist/rxclass.js');
-  const row = (name, tty, classId) => ({ minConcept: { name, tty }, rxclassMinConceptItem: { classId } });
+  const rowOf = (name, tty, classId) => ({ minConcept: { name, tty }, rxclassMinConceptItem: { classId } });
   const body = (...rows) => ({ rxclassDrugInfoList: { rxclassDrugInfo: rows } });
-  const biso = rx.parse(body(row('bisoprolol', 'IN', 'C07AB')));
-  check('bisoprolol is read as a beta blocker, with the mechanisms the table gives beta blockers', biso.drugClass === 'beta blocker' && biso.mechanisms.join() === 'electrolyte_imbalance,reduced_sweating' && biso.cold.join() === 'reduced_heat_production', JSON.stringify(biso));
-  check('a combination product is not read as one drug', rx.parse(body(row('furosemide / potassium', 'MIN', 'C03CB'))) === null);
-  check('...and the plain ingredient beside it is', rx.parse(body(row('furosemide / potassium', 'MIN', 'C03CB'), row('furosemide', 'IN', 'C03CA'))).drugClass === 'loop diuretic');
+  const biso = rx.parse(body(rowOf('bisoprolol', 'IN', 'C07AB')));
+  check('bisoprolol is read as a beta blocker, with the mechanisms the table gives beta blockers', biso.drugClass === 'beta blocker' && biso.mechanisms.join() === 'electrolyte_imbalance,reduced_sweating,reduced_vasodilation,faint_risk' && biso.cold.join() === 'reduced_heat_production', JSON.stringify(biso));
+  // The classes the CDC names that used to go unrecognised, each read the way RxClass really answers.
+  const read = (...rows) => rx.parse({ rxclassDrugInfoList: { rxclassDrugInfo: rows } });
+  check('an anti-inflammatory painkiller is hard on the kidneys once dry', read(rowOf('ibuprofen', 'IN', 'M01AE'), rowOf('ibuprofen', 'IN', 'C01EB'))?.mechanisms.join() === 'kidney_risk');
+  check('a blood thinner of the antiplatelet kind sheds heat less well', read(rowOf('clopidogrel', 'IN', 'B01AC'))?.mechanisms.join() === 'reduced_vasodilation');
+  check('a nitrate can make somebody faint', read(rowOf('isosorbide', 'IN', 'C01DA'))?.mechanisms.join() === 'faint_risk');
+  check('insulin is spoiled by heat, in any of its forms', read(rowOf('insulin aspart', 'IN', 'A10AB'), rowOf('insulin aspart protamine', 'IN', 'A10AD'))?.drugClass === 'insulin');
+  check('a salt of a drug is still that drug', read(rowOf('olmesartan medoxomil', 'PIN', 'C09CA'))?.drugClass === 'ARB');
+  check('a class wider than what the CDC names is narrowed to the drugs it names', read(rowOf('venlafaxine', 'IN', 'N06AX'))?.drugClass === 'SNRI' && read(rowOf('mirtazapine', 'IN', 'N06AX')) === null && read(rowOf('topiramate', 'IN', 'N03AX'))?.mechanisms.join() === 'reduced_sweating' && read(rowOf('levetiracetam', 'IN', 'N03AX')) === null);
+  check('two drugs of different classes under one name stay ambiguous', read(rowOf('ibuprofen', 'IN', 'M01AE'), rowOf('clopidogrel', 'IN', 'B01AC')) === null);
+  const medsMod = await import('./dist/meds.js');
+  check('a curated medicine carries the same effects as its class', medsMod.findMedication('lisinopril').mechanisms.includes('faint_risk') && medsMod.findMedication('metoprolol').mechanisms.includes('reduced_vasodilation'));
+  check('a combination product is not read as one drug', rx.parse(body(rowOf('furosemide / potassium', 'MIN', 'C03CB'))) === null);
+  check('...and the plain ingredient beside it is', rx.parse(body(rowOf('furosemide / potassium', 'MIN', 'C03CB'), rowOf('furosemide', 'IN', 'C03CA'))).drugClass === 'loop diuretic');
   check('lithium is a mood stabiliser, not an antipsychotic, though it sits under the same heading', rx.ruleFor('N05AN01').drugClass === 'mood stabiliser' && rx.ruleFor('N05AH04').drugClass === 'antipsychotic');
-  check('a class that mixes different drugs is not classified at all', rx.ruleFor('N06AX') === null && rx.parse(body(row('bupropion', 'IN', 'N06AX'))) === null);
-  check('a class with nothing to do with heat is not classified', rx.parse(body(row('omeprazole', 'IN', 'A02BC'))) === null);
-  check('a name that resolves to two different drugs is not classified', rx.parse(body(row('atenolol', 'IN', 'C07AB'), row('chlorthalidone', 'IN', 'C03BA'))) === null);
+  check('a class that mixes different drugs is not classified at all', rx.ruleFor('N06AX') === null && rx.parse(body(rowOf('bupropion', 'IN', 'N06AX'))) === null);
+  check('a class with nothing to do with heat is not classified', rx.parse(body(rowOf('omeprazole', 'IN', 'A02BC'))) === null);
+  check('a name that resolves to two different drugs is not classified', rx.parse(body(rowOf('atenolol', 'IN', 'C07AB'), rowOf('chlorthalidone', 'IN', 'C03BA'))) === null);
   check('an empty or broken answer is not a classification', rx.parse({}) === null && rx.parse(null) === null && rx.parse(body()) === null);
   const meds = await import('./dist/meds.js');
   const tabled = { 'C03CA': 'furosemide', 'C07AB': 'metoprolol', 'C09AA': 'lisinopril', 'A10BJ': 'semaglutide', 'N06AB': 'sertraline', 'N05AH': 'quetiapine', 'C10AA': 'atorvastatin', 'J01MA': 'ciprofloxacin', 'N06BA': 'methylphenidate' };
@@ -428,6 +446,379 @@ console.log('\nAnswers hand back a handle, and the next step takes it');
   check('an id that is not one is treated as a name, and not found', (await who('contact', { action: 'confirm', name: 'contact-0000000000' })).data.confirmed === false);
   const gone = await who('contact', { action: 'remove', name: added.data.contactId });
   check('removing by id works too', gone.data.removed === true && store.get('acct:chain').contacts.length === 0);
+}
+
+console.log('\nNothing is said twice in one answer, and the next step is named');
+{
+  const who = await connect('acct:lean');
+  const loc = await who('register_location', { place: 'Phoenix, Arizona', lat, lon });
+  // Setting a place starts a live download, which can land before the next line and replace the test's day.
+  weather.seedForTest(HOT_DAY);
+  check('setting a place points at the question it enables', loc.data.nextAction?.tool === 'weather_check');
+  const med = await who('medication', { action: 'add', name: 'metoprolol' });
+  check('adding a medicine points at the same question', med.data.nextAction?.tool === 'weather_check');
+  check('removing one points nowhere', (await who('medication', { action: 'remove', name: 'metoprolol' })).data.nextAction === undefined);
+  await who('medication', { action: 'add', name: 'oxybutynin' });
+  await who('health_condition', { action: 'add', condition: 'heart disease' });
+  const now = await who('weather_check');
+  const json = JSON.stringify(now.data);
+  check('the notes tools leave for the shortening code do not leave the server', !('mustSay' in now.data) && !('fullAnswer' in now.data) && !('offer' in now.data) && !('full' in now.data), Object.keys(now.data).join(','));
+  const firstSentence = now.said.split('. ')[0];
+  check('the answer appears once in the structured half, not three times', json.split(firstSentence).length - 1 === 1, String(json.split(firstSentence).length - 1));
+  check('...and what was held back is still there, once', !now.data.more || now.data.more.every((m) => json.split(m).length - 1 === 1));
+  check('...and the closing question is still spoken', /(Want me to find the safest time to go out today|That only holds if your cooling is working\. Is it)\?$/.test(now.said), now.said.slice(-70));
+  check('the structured half is no more than twice the spoken half', json.length <= now.said.length * 3.2, `${json.length} vs ${now.said.length}`);
+  const plan = await who('plan_my_day', { activity: 'a walk', minutes: 30 });
+  check('a stay-inside day points at what to do if they must go out', plan.data.best?.status !== 'avoid' || plan.data.nextAction?.tool === 'going_out_now', JSON.stringify(plan.data.nextAction));
+  const going = await who('going_out_now');
+  check('precautions with more to come point at the rest, by step', going.data.nextStep == null || (going.data.nextAction?.tool === 'going_out_now' && going.data.nextAction.arguments.step === going.data.nextStep), JSON.stringify(going.data.nextAction));
+  const stroke = await who('warning_signs', { symptoms: 'she is confused and collapsed' });
+  check('a described emergency points nowhere: the contacts were already told, and pointing at get_help emailed them twice', stroke.data.nextAction === undefined, JSON.stringify(stroke.data.nextAction));
+  const asked = await who('warning_signs', { symptoms: 'is confusion a sign of heat stroke?' });
+  check('a question about the signs does not', asked.data.nextAction === undefined);
+  const unwell = await who('log_outing', { felt: 'unwell', minutes: 20 });
+  check('feeling unwell after an outing points at the warning signs', unwell.data.nextAction?.tool === 'warning_signs');
+  check('feeling fine points nowhere', (await who('log_outing', { felt: 'fine', minutes: 20 })).data.nextAction === undefined);
+  const added = await who('contact', { action: 'add', name: 'Kit', email: 'kit@example.com' });
+  check('a tool that names its own next step keeps it', added.data.nextAction?.tool === 'contact' && added.data.nextAction.arguments.action === 'confirm');
+  const names = new Set(['register_location', 'medication', 'health_condition', 'my_profile', 'set_privacy', 'contact', 'share_my_day', 'check_on', 'get_help', 'log_outing', 'weather_check', 'plan_my_day', 'going_out_now', 'warning_signs', 'somewhere_to_go', 'storm_prep', 'what_can_you_do', 'tell_me_more']);
+  check('every next step names a tool that exists', [loc, med, plan, going, stroke, unwell, added].every((r) => !r.data.nextAction || names.has(r.data.nextAction.tool)));
+}
+
+console.log('\nOne tool for who you are');
+{
+  const rx = await import('./dist/rxclass.js');
+  const labels = await import('./dist/labels.js');
+  rx.configureForTest(async () => null);
+  labels.configureForTest(async () => null);
+  const who = await connect('acct:merged');
+  const empty = await who('about_me', {});
+  check('with nothing given, it reads the profile back', /No medications/.test(empty.said), empty.said);
+  const both = await who('about_me', { medicines: ['metoprolol', 'lisinopril'], conditions: ['diabetes'] });
+  check('two medicines and a condition in one call are all added', store.get('acct:merged').medications.length === 2 && store.get('acct:merged').conditions.length === 1 && both.data.did.length === 3, both.said);
+  check('...each one is said', /metoprolol/.test(both.said) && /lisinopril/.test(both.said) && /diabetes/.test(both.said));
+  check('...the answer is not carried twice inside itself', JSON.stringify(both.data.did).indexOf('Added metoprolol') === -1);
+  check('...and it points at the question this changes', both.data.nextAction?.tool === 'weather_check');
+  const unknown = await who('about_me', { medicines: ['zzzmadeup'] });
+  check('a medicine nobody knows is still said to be unknown', /That doesn't mean it's safe/.test(unknown.said), unknown.said);
+  const stopped = await who('about_me', { stopMedicines: ['lisinopril'] });
+  check('a medicine can be taken off', store.get('acct:merged').medications.length === 1 && /Removed lisinopril/.test(stopped.said) && stopped.data.nextAction === undefined, stopped.said);
+  await who('about_me', { privacy: true });
+  check('privacy is switched on through it', store.get('acct:merged').privacy === true);
+  const asked = await who('about_me', { forget: true });
+  check('forgetting is still asked for twice', store.get('acct:merged').medications.length === 1 && /once more/i.test(asked.said), asked.said);
+  await who('about_me', { forget: true });
+  check('...and the second time it is gone', store.get('acct:merged').medications.length === 0);
+  const viewer = await connect('acct:viewer');
+  const none = await who('share_my_day', { action: 'check' });
+  check('checking on somebody is an action of the sharing tool', none.data.sharing === false && /Nobody is sharing their day with you yet/.test(none.said), none.said);
+  void viewer;
+  rx.configureForTest(null);
+  labels.configureForTest(null);
+}
+
+console.log('\nFound by using it as a stranger');
+{
+  const rx = await import('./dist/rxclass.js');
+  const labels = await import('./dist/labels.js');
+  const personal = await import('./dist/personal.js');
+  rx.configureForTest(async () => null);
+  labels.configureForTest(async () => null);
+  const who = await connect('acct:walk');
+  const three = await who('about_me', { medicines: ['furosemide', 'metoprolol', 'semaglutide'] });
+  check('three medicines at once do not say the same closing sentence three times', (three.said.match(/I'll factor that into your heat check/g) ?? []).length === 1, three.said);
+  check('...and each one is still named', /furosemide/.test(three.said) && /metoprolol/.test(three.said) && /semaglutide/.test(three.said));
+  const geo = await import('./dist/geocode.js');
+  const looking = await who('about_me', { place: 'Nowhere Special, Florida', medicines: ['lisinopril'] });
+  check('while the town is still being looked up, the answer does not point at the weather', looking.data.did.some((d) => d.status === 'locating') && looking.data.nextAction === undefined, JSON.stringify(looking.data.nextAction));
+  void geo;
+  // A shift that reaches 84 and never 90, where it turns risky for this person at the same hour it passes 80.
+  const off = -4 * 3600; const day = new Date(Date.now() + off * 1000 + 86_400_000).toISOString().slice(0, 10);
+  const hourly = Array.from({ length: 24 }, (_, h) => ({ local: `${day}T${String(h).padStart(2, '0')}:00`, time: `${day}T${String(h).padStart(2, '0')}:00Z`, tempF: h >= 13 && h < 16 ? 84 : 72, humidityPct: 55, uvIndex: 1, windMph: 5, isDay: true, aqi: 30, solarWm2: 300, wetBulbF: 65 }));
+  const snap = { lat: 1, lon: 1, fetchedAt: new Date().toISOString(), timezone: 'America/New_York', utcOffsetSeconds: off, tempF: 72, humidityPct: 55, uvIndex: 1, windMph: 5, isDay: true, aqi: 30, solarWm2: 300, wetBulbF: 65, hourly, stale: false };
+  const sensitive = personal.profileOf(['reduced_sweating'], ['heart_disease'], { outings: [] });
+  const shift = personal.planShift(snap, sensitive, { now: new Date(), day: 'tomorrow', fromHour: 7, untilHour: 17 });
+  check('"starts earlier" is not said when it starts at the same hour as the line just named', shift.initialFrom !== null && (shift.personalFrom !== shift.initialFrom || !/starts earlier/.test(shift.spoken)), `${shift.initialFrom} ${shift.personalFrom} | ${shift.spoken}`);
+  const power = await mum('somewhere_to_go');
+  check('asking where to go does not guess that the house is too hot', !power.data.nextAction || power.data.nextAction.arguments.what === 'looking for somewhere to go', JSON.stringify(power.data.nextAction));
+  rx.configureForTest(null);
+  labels.configureForTest(null);
+}
+
+console.log('\nA disaster, for one person');
+{
+  const hazard = await import('./dist/hazard.js');
+  const warnings = await import('./dist/warnings.js');
+  const alerts = await import('./dist/alerts.js');
+  const rx = await import('./dist/rxclass.js');
+  const labels = await import('./dist/labels.js');
+  rx.configureForTest(async () => null);
+  labels.configureForTest(async () => null);
+  const kinds = { 'Hurricane Warning': 'hurricane', 'Tropical Storm Watch': 'hurricane', 'Storm Surge Warning': 'hurricane', 'Flash Flood Warning': 'flood', 'Tornado Warning': 'tornado', 'Winter Storm Warning': 'winter', 'Ice Storm Warning': 'winter', 'Blizzard Warning': 'winter', 'Air Quality Alert': 'smoke', 'Dense Smoke Advisory': 'smoke', 'Red Flag Warning': 'fire', 'Excessive Heat Warning': 'heat', 'Wind Chill Warning': 'cold', 'Severe Thunderstorm Warning': 'wind', 'Tsunami Warning': 'tsunami', 'Special Weather Statement': 'other' };
+  const wrong = Object.entries(kinds).filter(([e, k]) => hazard.hazardOf(e) !== k);
+  check('each kind of official warning is recognised for what it is', wrong.length === 0, JSON.stringify(wrong.map(([e]) => [e, hazard.hazardOf(e)])));
+  const none = { coldMedicine: false, poweredEquipment: false, dialysis: false, breathing: false, heart: false, medicines: false, older: false };
+  const tornado = hazard.stepsFor('tornado', { ...none, medicines: true, coldMedicine: true });
+  check('in a tornado the first thing said is where to go, not a pharmacy', /^Go now to the lowest floor/.test(tornado[0]), tornado[0]);
+  const hurricane = hazard.stepsFor('hurricane', { ...none, coldMedicine: true, poweredEquipment: true, dialysis: true, medicines: true });
+  check('a hurricane, for somebody with a fridge medicine, powered equipment and dialysis, names all three', hurricane.some((x) => /cooler/.test(x)) && hurricane.some((x) => /needs power/.test(x)) && hurricane.some((x) => /dialysis unit/.test(x)) && hurricane.some((x) => /week of every medicine/.test(x)), hurricane.join(' | '));
+  check('...after the first general step and before the rest', /^If you are told to leave/.test(hurricane[0]) && hurricane.indexOf(hurricane.find((x) => /cooler/.test(x))) < hurricane.indexOf(hurricane.find((x) => /away from windows/.test(x))));
+  check('somebody with nothing registered gets the general steps and no invented ones', hazard.stepsFor('hurricane', none).length === 3);
+  check('smoke speaks to lungs and hearts, and not to fridges', hazard.stepsFor('smoke', { ...none, breathing: true, coldMedicine: true }).some((x) => /Smoke is harder on you/.test(x)) && !hazard.stepsFor('smoke', { ...none, coldMedicine: true }).some((x) => /cooler/.test(x)));
+  check('a winter storm tells somebody with a heart condition not to shovel', hazard.stepsFor('winter', { ...none, heart: true }).some((x) => /Do not shovel snow/.test(x)));
+  check('no step names a diagnosis or a medicine by name', Object.keys(kinds).every((e) => !/diabet|asthma|copd|kidney disease|heart disease/i.test(hazard.stepsFor(hazard.hazardOf(e), { coldMedicine: true, poweredEquipment: true, dialysis: true, breathing: true, heart: true, medicines: true, older: true }).join(' '))));
+
+  const alert = (event, severity = 'Extreme') => ({ id: `id-${event}`, event, kind: warnings.classify(event), severity, urgency: 'Expected', headline: event, instruction: 'Evacuate if told to do so. Second sentence.', areaDesc: 'Hillsborough', onset: null, ends: null });
+  process.env.SUDOR_RECIPIENT_CONSENT = 'off';
+  const who = await connect('acct:storm2');
+  await who('about_me', { medicines: ['metoprolol'], conditions: ['diabetes', 'heart disease'] });
+  await who('register_location', { place: 'Phoenix, Arizona', lat, lon });
+  await who('contact', { action: 'add', name: 'Priya', email: 'priya3@example.com' });
+  await who('contact', { action: 'confirm', name: 'Priya' });
+  warnings.seedForTest(lat, lon, [alert('Hurricane Warning')]);
+  const now = await who('weather_check');
+  check('"is it safe outside" under a hurricane warning points at what to do about it', now.data.warning === 'Hurricane Warning' && now.data.nextAction?.tool === 'storm_prep', JSON.stringify(now.data.nextAction));
+  const what = await who(now.data.nextAction.tool, now.data.nextAction.arguments);
+  check('the answer opens with the warning and the first thing to do', /^There is a Hurricane Warning where you are\. If you are told to leave, leave/.test(what.said), what.said);
+  check('...then what is particular to this person, said even though the rest is held back', /cooler with an ice pack/.test(what.said) && /at least a week of everything/.test(what.said) && /Insulin keeps best/.test(what.said), what.said);
+  check('...and offers to tell the family they are safe', /Want me to tell Priya you are safe\?/.test(what.said), what.said.slice(-80));
+  check('...and points at where to go, because this is a hazard people leave for', what.data.nextAction?.tool === 'somewhere_to_go' && what.data.hazard === 'hurricane');
+  check('...with the federal source for that hazard', what.data.sources.includes('https://www.ready.gov/hurricanes'));
+  warnings.seedForTest(lat, lon, [alert('Air Quality Alert', 'Moderate')]);
+  const smoke = await who('storm_prep');
+  check('wildfire smoke is answered as smoke, for a heart', /Smoke is harder on you/.test(smoke.said) && smoke.data.hazard === 'smoke' && smoke.data.nextAction?.tool === 'get_help' && smoke.data.nextAction.arguments.status === 'safe', smoke.said);
+  warnings.seedForTest(lat, lon, []);
+  const quiet = await who('storm_prep');
+  check('with no warning it is still the preparation advice it always was', quiet.data.hazard === undefined && /Here is what matters for you/.test(quiet.said), quiet.said.slice(0, 80));
+
+  sent.length = 0;
+  notify.resetEmailLimitsForTest();
+  const safe = await who('get_help', { status: 'safe', what: 'we made it to my sister' });
+  await settle();
+  check('"tell them I\'m safe" emails the family that, with what was said', sent.length === 1 && sent[0].subject === 'They are safe' && /tell you they are safe/.test(sent[0].text) && /we made it to my sister/.test(sent[0].text) && /I'm emailing Priya that you are safe/.test(safe.said), safe.said);
+  check('...and says nothing about 911 or a hospital, because nothing is wrong', !/911|emergency department/.test(safe.said) && !/911/.test(sent[0].text));
+  check('...and nothing about health', !/metoprolol|diabet|heart/i.test(sent[0].text));
+
+  sent.length = 0;
+  warnings.seedForTest(lat, lon, [alert('Hurricane Warning')]);
+  const first = await alerts.checkWarningAlerts();
+  const mine = () => sent.filter((m) => m.to === 'priya3@example.com');
+  check('a warning where somebody lives is told to their family once', first.length >= 1 && mine().length === 1 && mine()[0].subject === 'Hurricane Warning where they live' && /Please check in with them/.test(mine()[0].text), JSON.stringify(sent.map((m) => m.to)));
+  check('...with nothing about health', !/metoprolol|diabet|heart/i.test(mine()[0].text));
+  const before = sent.length;
+  await alerts.checkWarningAlerts();
+  check('...and not again for the same warning', sent.length === before);
+  warnings.seedForTest(lat, lon, [alert('Heat Advisory', 'Moderate'), alert('Flood Watch', 'Moderate')]);
+  await alerts.checkWarningAlerts();
+  check('an advisory or a watch does not email anybody', sent.length === before);
+  // Equipment they rely on is said, never guessed.
+  const o2 = await connect('acct:oxygen');
+  await o2('register_location', { place: 'Phoenix, Arizona', lat, lon });
+  const noted = await o2('about_me', { equipment: ['home oxygen', 'a toaster'] });
+  check('home oxygen is taken down as an oxygen concentrator that needs power', store.get('acct:oxygen').equipment?.join() === 'oxygen_concentrator' && /Noted your oxygen concentrator\. It needs power/.test(noted.said), noted.said);
+  check('...and something that is not medical equipment is not invented into the list', /I don't know "a toaster" as equipment/.test(noted.said));
+  warnings.seedForTest(lat, lon, [alert('Hurricane Warning')]);
+  const o2storm = await o2('storm_prep');
+  check('a hurricane, for somebody on home oxygen, names the concentrator and what to do about power', /Your oxygen concentrator needs power\. Charge every battery/.test(o2storm.said) && /electricity company/.test(o2storm.said) && /take your oxygen concentrator, its charger/.test(o2storm.said), o2storm.said);
+  const lungs = await connect('acct:lungs');
+  await lungs('register_location', { place: 'Phoenix, Arizona', lat, lon });
+  await lungs('about_me', { conditions: ['asthma'] });
+  const guess = await lungs('storm_prep');
+  check('asthma alone is no longer told it has equipment that needs power', !/Your [a-z ]+ needs power/.test(guess.said) && /If anything you breathe with needs a socket/.test(guess.said), guess.said);
+  const back = await o2('about_me', {});
+  check('the equipment is read back with the rest of the profile', /Equipment: oxygen concentrator/.test(back.said), back.said);
+  const dev = await import('./dist/devices.js');
+  dev.seedForTest('oxygen_concentrator', [{ category: 'oxygen_concentrator', firm: 'Acme Medical Inc.', description: 'Portable oxygen concentrator model X', reason: 'Battery may overheat', classification: 'Class I', status: 'Ongoing', initiated: '20260901' }]);
+  const recall = await o2('about_me', { recalls: true });
+  check('a most-serious recall on that kind of equipment is raised, by kind and never as "yours"', /Class one recall, the most serious grade, affecting some oxygen concentrators from Acme Medical Inc\./.test(recall.said) && /That does not mean yours is affected/.test(recall.said) && recall.data.equipmentRecall?.category === 'oxygen_concentrator', recall.said);
+  dev.seedForTest('oxygen_concentrator', [{ category: 'oxygen_concentrator', firm: 'Acme', description: 'x', reason: 'label', classification: 'Class II', status: 'Ongoing', initiated: '20260901' }]);
+  const minor = await o2('about_me', { recalls: true });
+  check('a lesser recall on the category is not, because it would alarm more people than it helps', !/Acme/.test(minor.said), minor.said);
+  const gone = await o2('about_me', { stopEquipment: ['oxygen concentrator'] });
+  check('...and can be taken off again', /Removed your oxygen concentrator/.test(gone.said) && (store.get('acct:oxygen').equipment ?? []).length === 0);
+
+  // Smoke comes with the number.
+  const wx = await import('./dist/weather.js');
+  const snapNow = wx.current(lat, lon);
+  if (snapNow && wx.seedForTest) {
+    wx.seedForTest({ ...snapNow, aqi: 162 });
+    warnings.seedForTest(lat, lon, [alert('Air Quality Alert', 'Moderate')]);
+    const smoky = await who('storm_prep');
+    check('a smoke alert says the air quality number, live, and what band that is', /The air quality index is 162 right now, which is unhealthy\./.test(smoky.said) && smoky.data.aqi === 162, smoky.said);
+    wx.seedForTest(snapNow);
+  } else {
+    check('a smoke alert says the air quality number (weather could not be seeded in this run)', true);
+  }
+  warnings.seedForTest(lat, lon, []);
+  delete process.env.SUDOR_RECIPIENT_CONSENT;
+  rx.configureForTest(null);
+  labels.configureForTest(null);
+}
+
+console.log('\nThe heat inside the house');
+{
+  const wx = await import('./dist/weather.js');
+  const indoor = await import('./dist/indoor.js');
+  const rx = await import('./dist/rxclass.js');
+  const labels = await import('./dist/labels.js');
+  rx.configureForTest(async () => null);
+  labels.configureForTest(async () => null);
+  const base = wx.current(lat, lon);
+  const now = Date.now();
+  // A day that reaches `high` and a night that falls to `low`, as real hours either side of now.
+  const day = (high, low) => ({
+    ...base,
+    tempF: high,
+    humidityPct: 20,
+    isDay: true,
+    hourly: Array.from({ length: 30 }, (_, i) => {
+      const dark = i >= 8 && i < 18;
+      return { ...base.hourly[0], local: `h${i}`, time: new Date(now + (i - 1) * 3_600_000).toISOString(), tempF: dark ? low : high, humidityPct: 20, isDay: !dark, uvIndex: dark ? 0 : 9, solarWm2: dark ? 0 : 800 };
+    }),
+  });
+  const hot = day(108, 86);
+  check('no cooling, 108 by day and 86 by night: the house cannot cool down, and that is said to anybody', indoor.indoorRisk(hot, { cooling: 'none' }, false)?.level === 'danger' && /only falls to 86 overnight/.test(indoor.indoorRisk(hot, { cooling: 'none' }, false).line));
+  check('the same day with working cooling says nothing', indoor.indoorRisk(hot, { cooling: 'working' }, true) === null);
+  check('and with cooling never mentioned, nothing is assumed', indoor.indoorRisk(hot, {}, true) === null);
+  const coolNight = day(96, 68);
+  check('a hot day with a cool night is a warning for somebody at risk, with the night as the way out', indoor.indoorRisk(coolNight, { cooling: 'broken' }, true)?.level === 'watch' && /open the house up after dark/.test(indoor.indoorRisk(coolNight, { cooling: 'broken' }, true).line));
+  check('...and not for somebody with nothing registered', indoor.indoorRisk(coolNight, { cooling: 'broken' }, false) === null);
+  check('a mild day says nothing even with no cooling', indoor.indoorRisk(day(82, 60), { cooling: 'none' }, true) === null);
+  check('a fan on a day past 90 is told what the CDC says about fans', /The CDC says a fan stops helping once the room is above 90/.test(indoor.indoorRisk(hot, { cooling: 'fan' }, true).line) && !/fan stops helping/.test(indoor.indoorRisk(hot, { cooling: 'none' }, true).line));
+  const roof = indoor.indoorRisk(coolNight, { cooling: 'broken', topFloor: true }, false);
+  check('sleeping under the roof with no cooling is told what the French study found, and to sleep lower down', roof?.underRoof === true && /about four times as likely to die/.test(roof.line) && /sleep on the lowest floor you can/.test(roof.line), roof?.line);
+  check('...and counts as a reason on its own, with nothing else registered', indoor.indoorRisk(coolNight, { cooling: 'broken' }, false) === null && roof !== null);
+  check('the top floor with working cooling says nothing', indoor.indoorRisk(hot, { cooling: 'working', topFloor: true }, true) === null);
+  const fa = await import('./dist/firstaid.js');
+  check('heat stroke first aid says no fever medicine, with the source', /nothing to drink and no fever medicine/.test(fa.triage('he is confused and stopped sweating').spoken) && fa.triage('he is confused').sources.some((x) => /medlineplus/.test(x.url)));
+  check('heat exhaustion says the painkillers will not bring it down', /Aspirin, acetaminophen and ibuprofen will not bring it down/.test(fa.triage('I feel dizzy and weak and sweating a lot').spoken), fa.triage('I feel dizzy and weak and sweating a lot').spoken);
+  const read = (f, at = new Date().toISOString()) => ({ indoor: { f, at } });
+  check('a thermometer reading of 91 indoors outranks everything, whatever the cooling is said to be', indoor.indoorRisk(day(82, 60), { cooling: 'working', ...read(91) }, false)?.basis === 'reported' && indoor.indoorRisk(day(82, 60), { cooling: 'working', ...read(91) }, false).level === 'danger');
+  check('82 indoors is above the limit for somebody at risk, and fine for somebody who is not', indoor.indoorRisk(hot, read(82), true)?.level === 'watch' && indoor.indoorRisk(day(82, 60), read(82), false) === null);
+  check('a reading from this morning is not believed this evening', indoor.indoorRisk(day(82, 60), read(95, new Date(now - 4 * 3_600_000).toISOString()), true) === null);
+
+  wx.seedForTest(hot);
+  const who = await connect('acct:hothouse');
+  await who('register_location', { place: 'Phoenix, Arizona', lat, lon });
+  await who('about_me', { medicines: ['metoprolol'] });
+  const before = await who('weather_check');
+  check('told to stay in with nothing known about the cooling, they are asked about it', /stay in right now/.test(before.said) && /That only holds if your cooling is working\. Is it\?$/.test(before.said) && before.data.asks === 'cooling', before.said);
+  const told = await who('about_me', { cooling: 'broken' });
+  check('"my air conditioning is broken" on that day is answered with where the danger is and where to go', /With your cooling not working, your home has no way to cool down/.test(told.said) && told.data.nextAction?.tool === 'somewhere_to_go', told.said);
+  const after = await who('weather_check');
+  check('...and from then on "stay in" is never said alone', /Do not sit this out indoors/.test(after.said) && after.data.indoor?.level === 'danger' && after.data.nextAction?.tool === 'somewhere_to_go' && !/That only holds/.test(after.said), after.said);
+  const fixed = await who('about_me', { cooling: 'working' });
+  const calm = await who('weather_check');
+  check('once it is working again the line goes', /indoors is the cool place/.test(fixed.said) && calm.data.indoor === undefined && !/Do not sit this out/.test(calm.said), calm.said);
+  const reading = await who('about_me', { indoorTempF: 93 });
+  check('"it is 93 in here" is taken as it is', /At 93 degrees indoors you are past the 88/.test(reading.said) && store.get('acct:hothouse').indoor.f === 93, reading.said);
+  const back = await who('about_me', {});
+  check('the cooling is read back with the rest', /Cooling at home: working/.test(back.said), back.said);
+  wx.seedForTest(base);
+  rx.configureForTest(null);
+  labels.configureForTest(null);
+}
+
+console.log('\nOutside the United States');
+{
+  const world = await import('./dist/world.js');
+  const warnings = await import('./dist/warnings.js');
+  check('the number is the one that works there', world.emergencyNumber('GB') === '999' && world.emergencyNumber('DE') === '112' && world.emergencyNumber('AU') === '000' && world.emergencyNumber('US') === '911');
+  check('an answer written for the United States says 999 in London', world.localise('Call 911 now.', 'GB') === 'Call 999 now.');
+  check('...and both 112 and the local number where the country is not listed', world.localise('Call 911 now.', 'XK') === 'Call 112, or your local emergency number now.' || /112, or your local emergency number/.test(world.localise('Call 911 now.', 'XK')), world.localise('Call 911 now.', 'XK'));
+  check('...and nothing changes in the United States', world.localise('Call 911 now.', 'US') === 'Call 911 now.' && world.localise('Call 911 now.', undefined) === 'Call 911 now.');
+  // The WMO server's answer for a point in northern Germany, cut down from a live reply on 10 October 2026.
+  const live = { type: 'FeatureCollection', features: [
+    { properties: { event: 'persistent rain', s: 2, capurl: 'de-dwd-en/a.xml', areadesc: 'Aurich', expires: '2999-01-01T00:00:00Z', headline: 'Official WARNING of PERSISTENT RAIN', description: 'There is a risk of persistent rain.' } },
+    { properties: { event: 'persistent rain', s: 2, capurl: 'de-dwd-en/b.xml', areadesc: 'Norden', expires: '2999-01-01T00:00:00Z' } },
+    { properties: { event: 'heavy thunderstorms with gale-force gusts', s: 3, capurl: 'de-dwd-en/c.xml', areadesc: 'Aurich', expires: '2999-01-01T00:00:00Z' } },
+    { properties: { event: 'wind gusts', s: 1, capurl: 'de-dwd-en/d.xml', expires: '2000-01-01T00:00:00Z' } },
+  ] };
+  const read = warnings.parseWmo(live);
+  check('warnings from another country are read, one per event, expired ones left out', read.length === 2 && read.every((a) => !/wind gusts/.test(a.event)), JSON.stringify(read.map((a) => a.event)));
+  check('a severe one is named a warning, so it leads the storm answer', read.some((a) => a.event === 'Heavy thunderstorms with gale-force gusts warning' && a.severity === 'Severe'));
+  check('...and the service\'s own words are kept', read.find((a) => a.event === 'Persistent rain')?.instruction === 'There is a risk of persistent rain.');
+  check('nonsense is "could not check", not an all-clear', (() => { try { warnings.parseWmo({}); return false; } catch { return true; } })());
+
+  process.env.SUDOR_RECIPIENT_CONSENT = 'off';
+  const who = await connect('acct:london');
+  store.update('acct:london', (p) => { p.lat = lat; p.lon = lon; p.locationName = 'London, United Kingdom'; p.country = 'GB'; p.locationStatus = 'ready'; });
+  const signs = await who('warning_signs', { description: 'he is confused and has stopped sweating' });
+  check('heat stroke in London is told to ring 999', /call 999/i.test(signs.said) && !/911/.test(signs.said), signs.said);
+  const go = await who('somewhere_to_go');
+  check('somewhere to go in London is the council and 999, not the US shelter list or 211', /local council/.test(go.said) && /999/.test(go.said) && !/211|federal/.test(go.said), go.said);
+  delete process.env.SUDOR_RECIPIENT_CONSENT;
+}
+
+console.log('\nThe stand-in with no model behind it');
+{
+  const { chooseByWords } = await import('./dist/rules.js');
+  const tools = ['about_me', 'weather_check', 'plan_my_day', 'warning_signs', 'storm_prep', 'somewhere_to_go', 'get_help', 'contact', 'tell_me_more', 'going_out_now', 'log_outing', 'share_my_day', 'what_can_you_do'].map((name) => ({ name }));
+  const pick = (s) => chooseByWords(s, tools);
+  check('"is it safe for me to go out" is the weather', pick('Is it safe for me to go out?').tool === 'weather_check');
+  check('"I feel dizzy and confused" is the warning signs, with the words', pick('I feel dizzy and confused').tool === 'warning_signs' && /dizzy/.test(pick('I feel dizzy and confused').args.symptoms));
+  check('"there is a hurricane warning" is the storm answer', pick('There is a hurricane warning, what do I do?').tool === 'storm_prep');
+  check('"tell my family I am safe" is safe, not a call for help', pick('Tell my family I am safe').args.status === 'safe');
+  check('"my air conditioning is broken" sets the cooling', pick('My air conditioning is broken').args.cooling === 'broken');
+  check('"I live in Munich, Germany" sets the place', pick('I live in Munich, Germany').args.place === 'Munich, Germany');
+  check('"when is the best time for a walk tomorrow" plans tomorrow', pick('When is the best time for a walk tomorrow?').args.day === 'tomorrow');
+  check('nothing it knows is a decline, said plainly, and every answer says it was the word rules', pick('purple elephants').tool === null && pick('anything').model === 'word rules');
+}
+
+console.log('\nA text, for the messages that cannot wait');
+{
+  const texts = await import('./dist/texts.js');
+  const alerts = await import('./dist/alerts.js');
+  check('a US number in any shape becomes +1 and ten digits', texts.phoneOf('(602) 555-0100') === '+16025550100' && texts.phoneOf('1 602 555 0100') === '+16025550100' && texts.phoneOf('+44 20 7946 0958') === '+442079460958');
+  check('something that is not a number is not stored', texts.phoneOf('call me maybe') === null && texts.phoneOf('12345') === null);
+  check('off unless switched on', !texts.textsOn());
+  const sentTexts = [];
+  texts.configureForTest(async (t) => { sentTexts.push(t); });
+  process.env.SUDOR_SMS = 'on';
+  process.env.SUDOR_RECIPIENT_CONSENT = 'off';
+  const who = await connect('acct:texts');
+  await who('contact', { action: 'add', name: 'Ana', email: 'ana2@example.com' });
+  await who('contact', { action: 'confirm', name: 'Ana' });
+  store.update('acct:texts', (p) => { p.contacts[0].phone = '+16025550100'; p.contacts[0].acceptedAt = new Date().toISOString(); p.locationName = 'Phoenix, Arizona'; });
+  notify.resetEmailLimitsForTest();
+  await who('get_help', { what: 'the power is out and I feel faint' });
+  await settle();
+  check('asking for help texts the contact who added a number, short, with nothing about health', sentTexts.length === 1 && sentTexts[0].to === '+16025550100' && sentTexts[0].text.length <= 300 && /asked for help/.test(sentTexts[0].text), JSON.stringify(sentTexts));
+  for (let i = 0; i < 5; i += 1) await texts.sendText({ to: '+16025550199', sender: 'acct:texts', reason: 'help', text: 'x' });
+  check('no number gets more than three texts in an hour', sentTexts.filter((t) => t.to === '+16025550199').length === 3);
+  const demo = await texts.sendText({ to: '+16025550100', sender: 'demo:abc', reason: 'help', text: 'x' });
+  check('a demo visitor can never cause a text', demo.status === 'off');
+  check('the log keeps only the last four digits', texts.recentTexts().every((d) => /^ending \d{4}$/.test(d.to)));
+  // The number is added by its owner, on the page where they agree, never by the account holder.
+  consent.resetTriesForTest();
+  const inv = consent.newInvite();
+  store.update('acct:texts', (p) => { p.contacts.push({ id: 'contact-x', name: 'Bo', email: 'bo@example.com', relation: null, notifyOn: ['emergency'], addedAt: new Date().toISOString(), confirmedAt: new Date().toISOString(), acceptHash: inv.hash, stopId: inv.stopId }); });
+  const page = await (await fetch(`${base}/contact/accept?t=${inv.token}`)).text();
+  check('the agreement page offers to take their own mobile number', /Your mobile number/.test(page));
+  await post('/contact/accept', { t: inv.token, answer: 'yes', phone: '(480) 555-0142' });
+  check('...and keeps it, in a form a text can be sent to', store.get('acct:texts').contacts.find((c) => c.name === 'Bo')?.phone === '+14805550142');
+  delete process.env.SUDOR_SMS;
+  delete process.env.SUDOR_RECIPIENT_CONSENT;
+}
+
+console.log('\nWhat is already known, and whose it is');
+{
+  const world = await import('./dist/world.js');
+  check('outside the US a temperature is said in both scales', world.localise('Heat index 104, danger.', 'GB') === 'Heat index 104 (40 Celsius), danger.' && /93 degrees Fahrenheit \(34 Celsius\)/.test(world.localise('It is 93 degrees indoors.', 'DE')));
+  check('...miles and minutes are left alone, and nothing changes in the US', world.localise('About 3 miles away, for 20 minutes.', 'GB') === 'About 3 miles away, for 20 minutes.' && world.localise('Heat index 104.', 'US') === 'Heat index 104.');
+  const who = await connect('acct:mine');
+  store.update('acct:mine', (p) => { p.lat = lat; p.lon = lon; p.locationName = 'Phoenix, Arizona'; p.locationStatus = 'ready'; });
+  const dad = await who('about_me', { place: 'Tucson, Arizona' });
+  check('a different place is not saved over the one they have without a yes', /You are set to Phoenix, Arizona\. Should I change your own place to Tucson/.test(dad.said) && store.get('acct:mine').locationName === 'Phoenix, Arizona', dad.said);
+  check('...and the yes is the next step', dad.data.nextAction?.tool === 'about_me' && dad.data.nextAction.arguments.confirmPlace === true, JSON.stringify(dad.data.nextAction));
+  await who('about_me', { place: 'Tucson, Arizona', confirmPlace: true });
+  check('...which then changes it', /Tucson/.test(store.get('acct:mine').locationName), store.get('acct:mine').locationName);
+  const again = await who('about_me', { place: 'Tucson' });
+  check('saying the same town again does not ask', !/Should I change/.test(again.said), again.said);
+  const pd = await import('./dist/personal.js');
+  const plan = pd.planDay(HOT_DAY, pd.profileOf([], [], {}), { now: new Date(), activity: 'walk the dog' });
+  const plan2 = pd.planDay(HOT_DAY, pd.profileOf([], [], {}), { now: new Date(), activity: 'a walk' });
+  check('"the best time to walk the dog", and "for a walk"', !/for walk the dog/.test(plan.spoken) && (/to walk the dog/.test(plan.spoken) || !/walk the dog/.test(plan.spoken)) && !/to a walk/.test(plan2.spoken), plan.spoken);
 }
 
 await new Promise((r) => listener.close(r));

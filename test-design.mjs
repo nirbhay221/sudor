@@ -23,7 +23,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 const store = await import('./dist/store.js');
 const weather = await import('./dist/weather.js');
 const brief = await import('./dist/brief.js');
-const { registerTools, SECONDARY_TOOLS } = await import('./dist/tools.js');
+const { registerTools, SECONDARY_TOOLS, MERGED_AWAY } = await import('./dist/tools.js');
 const { speakErrorsPlainly } = await import('./dist/plainly.js');
 globalThis.fetch = async () => { throw new Error('network is off for this test'); };
 
@@ -67,11 +67,11 @@ const mum = await connect('acct:mum');
 {
   const names = (await mum.tools()).map((t) => t.name);
   check('shovelling, warnings, sunburn and recalls are not published by default', SECONDARY_TOOLS.every((n) => !names.includes(n)), names.join(','));
-  check('the heat and cold story is all there', ['weather_check', 'plan_my_day', 'going_out_now', 'warning_signs', 'log_outing', 'medication', 'health_condition', 'contact'].every((n) => names.includes(n)));
+  check('the heat and cold story is all there', ['weather_check', 'plan_my_day', 'going_out_now', 'warning_signs', 'log_outing', 'about_me', 'contact'].every((n) => names.includes(n)));
   process.env.SUDOR_SCOPE = 'all';
   const all = await connect('acct:all');
   const allNames = (await all.tools()).map((t) => t.name);
-  check('with the scope set to all, they are published', SECONDARY_TOOLS.every((n) => allNames.includes(n)) && allNames.length === names.length + SECONDARY_TOOLS.length);
+  check('with the scope set to all, they are published', SECONDARY_TOOLS.every((n) => allNames.includes(n)) && MERGED_AWAY.every((n) => allNames.includes(n) && !names.includes(n)) && !allNames.includes('about_me') && names.length === 13, `${names.length} ${names.join(',')}`);
   await all.close();
   delete process.env.SUDOR_SCOPE;
 }
@@ -88,8 +88,10 @@ console.log('\nAnswers are short, and the rest is kept for when it is asked for'
   check('it leads with the answer for this person', /^For you, it is better to stay in/.test(r.said), r.said.slice(0, 60));
   check('then the number', /Heat index \d+/.test(brief.sentences(r.said)[1]), r.said);
   check('the line about not stopping a medicine is said too', /Don't stop or change a medication/.test(r.said), r.said);
-  check('the whole answer is still returned', typeof r.data.full === 'string' && Array.isArray(r.data.more));
-  check('it ends on one question, the next step', /Want me to find the safest time to go out today\?$/.test(r.said) && r.data.nextAction?.tool === 'plan_my_day', r.said.slice(-70));
+  check('the rest of the answer is still returned, once, and the whole of it is not repeated', Array.isArray(r.data.more) && r.data.more.length > 0 && r.data.full === undefined);
+  check('told to stay in, with nothing known about the cooling, it ends on that one question', /That only holds if your cooling is working\. Is it\?$/.test(r.said) && r.data.asks === 'cooling', r.said.slice(-70));
+  const again = await mum.call('weather_check');
+  check('asked once: after that it ends on the next step', /Want me to find the safest time to go out today\?$/.test(again.said) && again.data.nextAction?.tool === 'plan_my_day', again.said.slice(-70));
   const more = await mum.call('tell_me_more');
   check('"tell me more" continues', more.said.length > 20 && !/nothing more/.test(more.said), more.said);
 
@@ -100,7 +102,7 @@ console.log('\nAnswers are short, and the rest is kept for when it is asked for'
   check('asking for the rest reads the next two', rest.said.length > 20 && !rest.said.startsWith('It is heat index'));
 
   const signs = await mum.call('warning_signs', { symptoms: 'she is confused and has fainted' });
-  check('an emergency is never shortened', /Call 911 now/.test(signs.said) && /Do not give them anything to drink/.test(signs.said) && !signs.data.more, signs.said);
+  check('an emergency is never shortened', /Call 911 now/.test(signs.said) && /Give them nothing to drink and no fever medicine/.test(signs.said) && !signs.data.more, signs.said);
   check('...and comes with the one card that has to be read from across the room', signs.data.card?.title === 'Call 911 now' && signs.data.card.status.tone === 'bad');
   check('"what can you do" is under sixty words (it was 116)', words((await mum.call('what_can_you_do')).said) <= 60);
 
@@ -124,7 +126,7 @@ console.log('\nA card that fits the task');
   const tools = await mum.tools();
   const ui = (n) => tools.find((t) => t.name === n)?._meta?.ui?.resourceUri;
   check('the day strip is still the view for the weather', ui('weather_check') === 'ui://sudor/window.html');
-  check('the profile, the emergency and sharing use the card view', ['my_profile', 'warning_signs', 'share_my_day', 'check_on'].every((n) => ui(n) === 'ui://sudor/card.html'), ['my_profile', 'warning_signs', 'share_my_day', 'check_on'].map(ui).join(','));
+  check('the profile, the emergency and sharing use the card view', ['about_me', 'warning_signs', 'share_my_day'].every((n) => ui(n) === 'ui://sudor/card.html'), ['about_me', 'warning_signs', 'share_my_day'].map(ui).join(','));
 
   const sent = [];
   const view = new JSDOM(readFileSync('ui/card.html', 'utf8'), {

@@ -188,6 +188,24 @@ const stale = await fetch(`${BASE}/mcp`, {
 check('a session id from some other server is ignored rather than refused, because we keep no sessions',
   stale.status === 200, String(stale.status));
 
+console.log('\nThe add-on tells a host what this person has saved, never what it is');
+{
+  const me = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const rpc = async (method, params) => {
+    const res = await fetch(`${BASE}/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'x-sudor-demo': me }, body: JSON.stringify({ jsonrpc: '2.0', id: 990, method, params }) });
+    const raw = await res.text();
+    const line = raw.split('\n').find((l) => l.startsWith('data: '));
+    return JSON.parse(line ? line.slice(6) : raw);
+  };
+  const hello = { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'known-test', version: '0' } };
+  const before = (await rpc('initialize', hello)).result?.instructions ?? '';
+  check('before anything is saved, the host is told nothing is', /not saved anything yet/.test(before), before.slice(-120));
+  await rpc('tools/call', { name: 'medication', arguments: { action: 'add', name: 'furosemide' } });
+  const after = (await rpc('initialize', hello)).result?.instructions ?? '';
+  check('after, the host is told what kind of thing is saved, and not to ask again', after.includes('1 medicine') && /do not ask/.test(after), after.slice(-160));
+  check('...without the name of any medicine, field or town', !/furosemide|Fargo|North/.test(after.slice(after.indexOf('already saved'))), after.slice(-160));
+}
+
 stop();
 rmSync(DATA, { force: true });
 console.log(`\n${pass} passed, ${fail} failed\n`);

@@ -48,10 +48,21 @@ function speak(text) {
   window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
 }
 
-function showCard(card) {
+function showCard(card, enterAt) {
   const box = el('card');
   box.replaceChildren();
-  if (!card || card.kind !== 'card') { box.hidden = true; return; }
+  // A page to type an email address on, when the answer handed one back. Opens in a new tab.
+  if (enterAt && /^https?:\/\//.test(enterAt)) {
+    const a = document.createElement('a');
+    a.href = enterAt;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = 'Type the email address here';
+    box.append(a);
+    box.hidden = false;
+    if (!card || card.kind !== 'card') return;
+  }
+  if (!card || card.kind !== 'card') { if (!enterAt) box.hidden = true; return; }
   const title = document.createElement('h3');
   title.textContent = card.title ?? '';
   box.append(title);
@@ -81,7 +92,7 @@ async function say(line, button) {
     const r = await callTool(line.tool, line.args ?? {});
     el('answer').textContent = r.text;
     el('meta').textContent = `${line.tool} answered in ${r.ms} ms`;
-    showCard(r.data.card);
+    showCard(r.data.card, r.data.enterAt);
     speak(r.text);
   } catch (err) {
     el('answer').textContent = err.message;
@@ -186,3 +197,71 @@ async function start() {
 }
 
 void start();
+
+/* ---------------------------------------------------------------- say anything */
+
+/*
+ * Say anything, by typing or with the microphone.
+ *
+ * The sentence goes to /agent, where a model reads this server's own tool list and picks a tool, the way
+ * Alexa+ would; with no model available the server's word rules pick instead. Either way the page shows
+ * which tool was chosen and by what, so it is clear what was decided and what was answered. Speech in and
+ * out is the browser's own (Chrome and Edge hear; most browsers speak), so nothing about the voice leaves
+ * the visitor's machine except the words.
+ */
+async function sayAnything(words, button) {
+  const buttons = [...document.querySelectorAll('.chip, #free button')];
+  buttons.forEach((b) => (b.disabled = true));
+  el('heard').classList.remove('idle');
+  el('heard').textContent = words;
+  el('answer').textContent = '…';
+  try {
+    const res = await fetch('/agent', { method: 'POST', headers: { 'content-type': 'application/json', 'x-sudor-demo': session }, body: JSON.stringify({ say: words }) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || `The server said no (HTTP ${res.status}).`);
+    const text = body.result?.content?.[0]?.text ?? body.said ?? '';
+    el('answer').textContent = text;
+    const by = body.model === 'word rules' ? 'word rules (no model running)' : body.model;
+    el('meta').textContent = body.chose ? `${by} chose ${body.chose.tool}` : `${by} chose no tool`;
+    showCard(body.result?.structuredContent?.card, body.result?.structuredContent?.enterAt);
+    speak(text);
+  } catch (err) {
+    el('answer').textContent = err.message;
+    el('meta').textContent = '';
+    showCard(null);
+  } finally {
+    buttons.forEach((b) => (b.disabled = false));
+    button?.focus();
+    if (typeof readPhone === 'function') void readPhone();
+  }
+}
+
+function setUpFree() {
+  const form = el('free');
+  if (!form) return;
+  const box = el('free-text');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const words = box.value.trim();
+    if (words) void sayAnything(words, form.querySelector('button[type=submit]'));
+  });
+  const Hear = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const mic = el('mic');
+  if (!Hear) { mic.hidden = true; return; }
+  mic.addEventListener('click', () => {
+    const r = new Hear();
+    r.lang = 'en-US';
+    r.interimResults = false;
+    mic.textContent = 'Listening…';
+    mic.disabled = true;
+    r.onresult = (ev) => {
+      const words = ev.results[0][0].transcript;
+      box.value = words;
+      void sayAnything(words, mic);
+    };
+    r.onend = () => { mic.textContent = 'Speak'; mic.disabled = false; };
+    r.onerror = () => { mic.textContent = 'Speak'; mic.disabled = false; };
+    r.start();
+  });
+}
+setUpFree();
