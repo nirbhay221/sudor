@@ -61,7 +61,7 @@ console.log('\nThe sentence never claims the customer own device is affected');
 {
   const said = d.speak(recall());
   check('it names the category, not the person device', said.includes('some oxygen concentrators'), said);
-  check('it says plainly that theirs may not be affected', said.includes('does not mean yours is affected'), said);
+  check('it says plainly that theirs may not be affected', said.includes('Yours may not be affected'), said);
   check('it tells them how to find out', said.includes('Check the model') || said.includes('ask your supplier'), said);
   check('it never says "your oxygen concentrator is recalled"',
     !/your (oxygen concentrator|device|equipment) is recalled/i.test(said), said);
@@ -113,7 +113,7 @@ console.log('\nA long reason is trimmed without cutting a word in half');
 {
   const long = d.speak(recall({ reason: 'A'.repeat(40) + ' ' + 'verylongword '.repeat(30) }));
   check('it ends in a full stop', long.trim().endsWith('.'), long.slice(-60));
-  check('it does not end mid-word', !/\s\S{1,3}\.$/.test(long.trim()) || long.includes('yours is affected'));
+  check('it does not end mid-word', !/\s\S{1,3}\.$/.test(long.trim()) || long.includes('may not be affected'));
   check('whitespace in the source reason is collapsed', !d.speak(recall()).includes('   '));
 }
 

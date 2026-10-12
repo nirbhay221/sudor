@@ -86,10 +86,10 @@ console.log('\nAnswers are short, and the rest is kept for when it is asked for'
   const r = await mum.call('weather_check');
   check('the spoken answer is at most seventy five words, next step included', words(r.said) <= 75, `${words(r.said)}: ${r.said}`);
   check('it leads with the answer for this person', /^For you, it is better to stay in/.test(r.said), r.said.slice(0, 60));
-  check('then the number', /Heat index \d+/.test(brief.sentences(r.said)[1]), r.said);
-  check('the line about not stopping a medicine is said too', /Don't stop or change a medication/.test(r.said), r.said);
+  check('then how it feels, in plain words', /It feels like \d+ degrees/.test(brief.sentences(r.said)[1]), r.said);
+  check('the line about not stopping a medicine is said too', /Keep taking it unless your doctor says otherwise/.test(r.said), r.said);
   check('the rest of the answer is still returned, once, and the whole of it is not repeated', Array.isArray(r.data.more) && r.data.more.length > 0 && r.data.full === undefined);
-  check('told to stay in, with nothing known about the cooling, it ends on that one question', /That only holds if your cooling is working\. Is it\?$/.test(r.said) && r.data.asks === 'cooling', r.said.slice(-70));
+  check('told to stay in, with nothing known about the cooling, it ends on that one question', /Staying in only helps if your cooling works\. Is it working\?$/.test(r.said) && r.data.asks === 'cooling', r.said.slice(-70));
   const again = await mum.call('weather_check');
   check('asked once: after that it ends on the next step', /Want me to find the safest time to go out today\?$/.test(again.said) && again.data.nextAction?.tool === 'plan_my_day', again.said.slice(-70));
   const more = await mum.call('tell_me_more');

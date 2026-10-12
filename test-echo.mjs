@@ -68,10 +68,17 @@ const hourly = [];
 for (const date of [local(Date.now()).slice(0, 10), local(Date.now() + 86_400_000).slice(0, 10)]) {
   for (let h = 0; h < 24; h += 1) {
     const at = `${date}T${String(h).padStart(2, '0')}:00`;
-    hourly.push({ local: at, time: weather.localToUtc(at, off), tempF: h < 7 ? 84 : 104, humidityPct: 25, uvIndex: 8, windMph: 5, isDay: h >= 6 && h < 19, aqi: 40, solarWm2: 700, wetBulbF: 70 });
+    hourly.push({ local: at, time: weather.localToUtc(at, off), tempF: 104, humidityPct: 25, uvIndex: 8, windMph: 5, isDay: h >= 6 && h < 19, aqi: 40, solarWm2: 700, wetBulbF: 70 });
   }
 }
 weather.seedForTest({ lat, lon, fetchedAt: new Date().toISOString(), timezone: 'America/Phoenix', utcOffsetSeconds: off, tempF: 104, humidityPct: 25, uvIndex: 8, windMph: 5, isDay: true, aqi: 40, solarWm2: 700, wetBulbF: 70, hourly, stale: false });
+// No live weather in these tests: a download landing mid-test replaced the hot day with the real one.
+{
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => (/open-meteo\.com/.test(String(url)) ? new Response('{}', { status: 503 }) : realFetch(url, init));
+}
+// The test's own hot day, put back wherever setting a place starts a live download that could replace it.
+const HOT_DAY = weather.current(lat, lon);
 care.configureForTest(null);
 care.seedForTest(lat, lon, [{ name: 'Banner University Medical Center Phoenix', address: '1012 E Willetta St', city: 'Phoenix', phone: '602-839-2000', lat: 33.464, lon: -112.06, emergency: true }]);
 
@@ -95,7 +102,7 @@ console.log('\nThe story the page tells, start to finish, through the same calls
   const said = {};
   for (const group of scenes.groups.slice(0, 1)) for (const line of group.lines) said[line.say] = await visitor.call(line.tool, line.args);
   check('none of the setup lines is refused', Object.values(said).every((r) => !r.isError && r.said.length > 10), JSON.stringify(Object.fromEntries(Object.entries(said).map(([k, v]) => [k, v.said.slice(0, 40)]))));
-  check('a brand name is resolved to the real medicine', /carvedilol, which is what Coreg is/.test(said["I'm in Phoenix, Arizona, and I take Lasix and Coreg."].said), said["I'm in Phoenix, Arizona, and I take Lasix and Coreg."].said);
+  check('a brand name is resolved to the real medicine', /Coreg is carvedilol/.test(said["I'm in Phoenix, Arizona, and I take Lasix and Coreg."].said), said["I'm in Phoenix, Arizona, and I take Lasix and Coreg."].said);
   check('...and a place and two medicines given in one breath are all taken in one call', /Phoenix, Arizona/.test(said["I'm in Phoenix, Arizona, and I take Lasix and Coreg."].said) && /furosemide/.test(said["I'm in Phoenix, Arizona, and I take Lasix and Coreg."].said) && store.get(ID).medications.length === 2 && store.get(ID).locationName === 'Phoenix, Arizona', said["I'm in Phoenix, Arizona, and I take Lasix and Coreg."].said);
   check('..."what do you know about me" reads it back', /Medications: furosemide, carvedilol/.test(said['What do you know about me?'].said), said['What do you know about me?'].said);
   // On the page the town is looked up in the background. Here it is pinned, through the older tool that
@@ -144,6 +151,7 @@ console.log('\nAsked the same thing twice');
   attention.resetForTest();
   const who = await connect('acct:twice');
   await who.call('register_location', { place: 'Phoenix, Arizona', lat, lon });
+  weather.seedForTest(HOT_DAY);
   await who.call('medication', { action: 'add', name: 'metoprolol' });
   // The cooling is known, so nothing is asked about it and the two answers are the same answer.
   await who.call('about_me', { cooling: 'working' });
@@ -172,6 +180,7 @@ console.log('\nA stay-inside day is mentioned until it is heard');
   attention.resetForTest();
   const who = await connect('acct:reminder');
   await who.call('register_location', { place: 'Phoenix, Arizona', lat, lon });
+  weather.seedForTest(HOT_DAY);
   await who.call('medication', { action: 'add', name: 'oxybutynin' });
   await who.call('health_condition', { action: 'add', condition: 'heart disease' });
   const before = await who.call('my_profile');

@@ -58,7 +58,11 @@ export type Person = {
   /** Condition ids from conditions.ts. */
   conditions: string[];
   /** Whether the cooling at home works, as they said. Unknown until they say. See indoor.ts. */
-  cooling?: 'working' | 'broken' | 'none' | 'fan';
+  cooling?: 'working' | 'broken' | 'none' | 'fan' | 'power_cuts';
+  /** They live alone, so a dangerous day with no word from them is told to family. See checkOnAlone in alerts.ts. */
+  livesAlone?: boolean;
+  /** When they last spoke to Sudor. */
+  lastSeenAt?: string;
   /** They sleep on the top floor, right under the roof. Only ever because they said so. */
   topFloor?: boolean;
   /** The day the cooling was last asked about, so it is asked once a day at most. */

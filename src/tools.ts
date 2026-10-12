@@ -1,3 +1,4 @@
+import { reachable } from './consent.js';
 import * as world from './world.js';
 import * as indoor from './indoor.js';
 import * as devices from './devices.js';
@@ -102,6 +103,8 @@ function localDateOf(id: string): string | null {
   return snap ? new Date(Date.now() + snap.utcOffsetSeconds * 1000).toISOString().slice(0, 10) : null;
 }
 
+const andWords = (xs: string[]): string => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
 export function registerTools(server: McpServer, personOf: () => string): void {
   const scope = process.env.SUDOR_SCOPE;
   const raw = server.registerTool.bind(server) as (name: string, config: Record<string, unknown>, cb: unknown) => unknown;
@@ -116,6 +119,8 @@ export function registerTools(server: McpServer, personOf: () => string): void {
     const readOnly = (config.annotations as { readOnlyHint?: boolean } | undefined)?.readOnlyHint === true;
     const answer = async (...args: unknown[]) => {
       const id = personOf();
+      // Any word from them is a check-in. See checkOnAlone in alerts.ts.
+      if (!id.startsWith('demo:')) store.update(id, (p) => void (p.lastSeenAt = new Date().toISOString()));
       type R = { content?: { type: string; text?: string }[]; structuredContent?: Record<string, unknown>; isError?: boolean };
       // Checking on somebody is asked through the sharing tool. See MERGED_AWAY.
       const run = name === 'share_my_day' && (args[0] as { action?: string } | undefined)?.action === 'check' ? impl.get('check_on') ?? cb : cb;
@@ -194,7 +199,8 @@ export function registerTools(server: McpServer, personOf: () => string): void {
           stopMedicines: z.array(z.string()).max(8).optional().describe('Medicines they no longer take, to remove'),
           conditions: z.array(z.string()).max(8).optional().describe('Health conditions they have, to add, the way they say it'),
           stopConditions: z.array(z.string()).max(8).optional().describe('Conditions to remove'),
-          cooling: z.enum(['working', 'broken', 'none', 'fan']).optional().describe('The cooling at home, when they say: working, broken (it is there and not working, or they cannot run it), none, or fan when a fan is all they have'),
+          cooling: z.enum(['working', 'broken', 'none', 'fan', 'power_cuts']).optional().describe('The cooling at home, when they say: working, broken (it is there and not working, or they cannot run it), none, power_cuts when the power keeps going off (load shedding), or fan when a fan is all they have'),
+          livesAlone: z.boolean().optional().describe('true when they say they live alone, false when somebody lives with them'),
           topFloor: z.boolean().optional().describe('true when they say they live or sleep on the top floor, in an attic room or right under the roof; false when they say they have moved downstairs'),
           indoorTempF: z.number().min(40).max(130).optional().describe('The temperature inside their home in Fahrenheit, when they read it out'),
           equipment: z.array(z.string()).max(6).optional().describe('Medical equipment they rely on at home, to add, as spoken: oxygen concentrator, CPAP, home dialysis, insulin pump, powered wheelchair'),
@@ -205,7 +211,7 @@ export function registerTools(server: McpServer, personOf: () => string): void {
         },
       },
       async (input: unknown) => {
-        const a = (input ?? {}) as { confirmPlace?: boolean; place?: string; medicines?: string[]; stopMedicines?: string[]; conditions?: string[]; stopConditions?: string[]; equipment?: string[]; stopEquipment?: string[]; cooling?: indoor.Cooling; indoorTempF?: number; topFloor?: boolean; privacy?: boolean; recalls?: boolean; forget?: boolean };
+        const a = (input ?? {}) as { confirmPlace?: boolean; place?: string; medicines?: string[]; stopMedicines?: string[]; conditions?: string[]; stopConditions?: string[]; equipment?: string[]; stopEquipment?: string[]; cooling?: indoor.Cooling; indoorTempF?: number; topFloor?: boolean; livesAlone?: boolean; privacy?: boolean; recalls?: boolean; forget?: boolean };
         const call = (tool: string, args: Record<string, unknown>) => impl.get(tool)!(args) as Promise<Part>;
         if (a.forget) return call('my_profile', { action: 'forget' });
         // Recalls are asked about what they take and use, so they are asked here. See MERGED_AWAY.
@@ -275,9 +281,49 @@ export function registerTools(server: McpServer, personOf: () => string): void {
           );
           did.push({ tool: 'home', cooling: p.cooling ?? null, ...(risk ? { indoor: risk.level, basis: risk.basis } : {}) });
         }
+        if (typeof a.livesAlone === 'boolean') {
+          store.update(personOf(), (p) => void (p.livesAlone = a.livesAlone));
+          const family = store.get(personOf()).contacts.filter(reachable).map((c) => c.name);
+          said.push(
+            !a.livesAlone
+              ? 'Noted.'
+              : family.length
+                ? `Noted. On a dangerous heat day, if I have not heard from you by two in the afternoon, I will ask ${family.join(' and ')} to check on you. Talking to me at all counts.`
+                : 'Noted. Add somebody who can check on you, and on a dangerous heat day I will ask them to if I have not heard from you by two in the afternoon.',
+          );
+          did.push({ tool: 'home', livesAlone: a.livesAlone });
+        }
         if (typeof a.privacy === 'boolean') await step('set_privacy', { on: a.privacy });
         if (!did.length) return call('my_profile', { action: 'show' });
         const added = !!a.place || !!a.medicines?.length || !!a.conditions?.length;
+        /*
+         * Saving details is confirmed in one sentence: "Got it: Phoenix, furosemide and metoprolol, heart disease."
+         * Each medicine and condition used to be read back with its own advice, 81 words for one sentence of
+         * details. The advice is said when it matters, in the answer about the weather. Anything that needs the
+         * person's attention, a name read as something else, a medicine not recognised, a question, is still said.
+         */
+        const plainAdds: string[] = [];
+        const readAs: string[] = [];
+        const keep: string[] = [];
+        did.forEach((d, k) => {
+          const text = said[k] ?? '';
+          const simpleMed = d.tool === 'medication' && d.recognized === true && /^Added /.test(text);
+          const simpleCondition = d.tool === 'health_condition' && /^Added /.test(text);
+          const locating = d.tool === 'register_location' && d.status === 'locating';
+          if (simpleMed) {
+            plainAdds.push(String(d.generic ?? ''));
+            // A brand is still said back as what it was read as, so a wrong reading is heard.
+            const brand = /which is what (.+?) is\b/.exec(text)?.[1];
+            if (brand) readAs.push(`${brand} is ${String(d.generic)}`);
+          }
+          else if (simpleCondition) plainAdds.push(String((d as { label?: string }).label ?? text.replace(/^Added ([^.]+)\..*$/, '$1')));
+          else if (locating) plainAdds.unshift(String(d.place ?? ''));
+          else keep.push(text);
+        });
+        if (plainAdds.filter(Boolean).length >= 2) {
+          said.length = 0;
+          said.push(`Got it: ${andWords(plainAdds.filter(Boolean))}.${readAs.length ? ` ${andWords(readAs)}.` : ''} I'll use them in every answer.`, ...keep);
+        }
         // Several things at once repeat the same closing sentence, once each. It is said once, at the end.
         const sentencesSaid = said.filter(Boolean).flatMap((t) => sentences(t));
         const once = sentencesSaid.filter((x, i) => sentencesSaid.lastIndexOf(x) === i);

@@ -97,9 +97,10 @@ export function profileOf(
   } else if (extremeMedication) {
     sensitivity = 'extreme';
     because = `because your medication ${MECHANISM_LABEL[extremeMedication]}`;
-  } else if (conditions.length) {
+  } else if (conditions.some((c) => c.sensitivity !== 'general')) {
+    // Hay fever and migraine change some advice and do not move anybody's heat limit.
     sensitivity = 'sensitive';
-    because = `with ${conditions[0].label}`;
+    because = `with ${conditions.find((c) => c.sensitivity !== 'general')!.label}`;
   } else if (heat.length) {
     sensitivity = 'sensitive';
     because = `because your medication ${MECHANISM_LABEL[heat[0]]}`;
@@ -537,7 +538,7 @@ export function precautions(now: Judged, p: Profile, step = 0, opts: { includePr
   const read = steps.slice(from, from + (calm ? 1 : 2));
   const left = steps.length - (from + read.length);
   const intro =
-    from > 0 ? '' : now.status === 'good' ? 'Conditions are fine for you right now.' : `It is heat index ${Math.round(now.heatIndexF)} right now.`;
+    from > 0 ? '' : now.status === 'good' ? 'Conditions are fine for you right now.' : `It feels like ${Math.round(now.heatIndexF)} degrees right now.`;
 
   // Below a heat index of 80 the heat itself is not the danger, and a heat stroke warning on a 71 degree day
   // is the sentence that teaches somebody to stop listening. It stays in the list of steps, unspoken.
@@ -545,8 +546,8 @@ export function precautions(now: Judged, p: Profile, step = 0, opts: { includePr
   const spoken = [
     intro,
     ...read,
-    left > 0 ? `I have ${left} more, ask me for the rest.` : '',
     mild ? '' : STROKE,
+    left > 0 ? `I have ${left} more, if you want them.` : '',
   ]
     .filter(Boolean)
     .join(' ');

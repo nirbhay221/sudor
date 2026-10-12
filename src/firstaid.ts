@@ -129,7 +129,8 @@ export function triage(description: string, p?: Profile, lastedMinutes?: number)
   }
 
   const cool = p?.noIce ? 'cool, not icy, wet cloths' : 'cool wet cloths or a cool bath';
-  const sip = p?.fluidLimit ? 'sip water within your fluid plan' : 'sip water';
+  const fasting = !!p?.conditions.some((c) => c.id === 'fasting');
+  const sip = p?.fluidLimit ? 'sip water within your fluid plan' : fasting ? 'break your fast and sip water' : 'sip water';
 
   if (vomiting || (exhaustion.length && lastedMinutes != null && lastedMinutes > 60)) {
     return {

@@ -5,6 +5,8 @@
  * from when it lived there; only the file it lives in is new.
  */
 
+import * as recallsuk from '../recallsuk.js';
+import * as recallsca from '../recallsca.js';
 import * as world from '../world.js';
 import * as devices from '../devices.js';
 import { z } from 'zod';
@@ -74,6 +76,30 @@ export function register(server: McpServer, personOf: () => string): void {
       const person = store.get(personOf());
       // Everything with a name, whether or not the heat table knows it.
       const watched = [...person.medications.map((m) => m.generic), ...person.recallWatch];
+      // In the UK, the MHRA's alerts come first, for the same reason.
+      if (person.country === 'GB' && watched.length) {
+        const uk = recallsuk.forMedicines(watched);
+        if (uk === null) recallsuk.start();
+        if (uk && uk.length && !person.privacy) {
+          const more = uk.length > 1 ? ` There ${uk.length === 2 ? 'is 1 more alert' : `are ${uk.length - 1} more alerts`} from the MHRA.` : '';
+          return say(`${recallsuk.speak(uk[0])}${more}`, { recalls: uk.length, source: 'mhra', items: uk.slice(0, 5) });
+        }
+        if (uk && !uk.length) {
+          return say(`No MHRA recalls in the last three years name ${watched.length === 1 ? 'your medicine' : `any of your ${watched.length} medicines`}.`, { recalls: 0, source: 'mhra' });
+        }
+      }
+      // In Canada, Health Canada's own list comes first: it is the one that names the products on Canadian shelves.
+      if (person.country === 'CA' && watched.length) {
+        const ca = recallsca.forMedicines(watched);
+        if (ca === null) recallsca.start();
+        if (ca && ca.length && !person.privacy) {
+          const more = ca.length > 1 ? ` There ${ca.length === 2 ? 'is 1 more notice' : `are ${ca.length - 1} more notices`} on Health Canada's list.` : '';
+          return say(`${recallsca.speak(ca[0])}${more}`, { recalls: ca.length, source: 'health-canada', items: ca.slice(0, 5) });
+        }
+        if (ca && !ca.length) {
+          return say(`No Health Canada recalls in the last three years name ${watched.length === 1 ? 'your medicine' : `any of your ${watched.length} medicines`}.`, { recalls: 0, source: 'health-canada' });
+        }
+      }
       // The equipment they rely on is on the FDA's device recall list, not the drug one. Only the most serious
       // grade is raised, by category, and never as "yours is recalled": see devices.ts for why.
       const worst = devices.rank((person.equipment ?? []).flatMap((k) => devices.known(k) ?? [])).filter((r) => r.classification === 'Class I')[0];
@@ -134,7 +160,9 @@ export function register(server: McpServer, personOf: () => string): void {
       // way the precautions are.
       const start = Math.min(Math.max(from ?? 0, 0), Math.max(found.length - 1, 0));
       const page = found.slice(start, start + 2);
-      const lead = start > 0 ? '' : affected.size > 1 ? `${affected.size} of your medicines have open recalls. ` : '';
+      // Outside the United States this is the FDA's list, for American packs; said as such, so nobody in Lyon checks a lot number that was never sold there.
+      const usOnly = !world.inUS(person.country) && start === 0 ? 'On the United States FDA list, which covers American packs only: ' : '';
+      const lead = start > 0 ? usOnly : `${usOnly}${affected.size > 1 ? `${affected.size} of your medicines have open recalls. ` : ''}`;
       const spoken = [recalls.speak(page[0]), ...page.slice(1).map((r) => recalls.speak(r, true))];
       const left = found.length - (start + page.length);
       const more = left > 0 ? ` There ${left === 1 ? 'is 1 more notice' : `are ${left} more notices`}, ask me for the rest.` : '';

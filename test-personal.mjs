@@ -137,7 +137,7 @@ check('a photosensitive medication in high UV gets the EPA sun advice', photo.st
 const insulin = precautions(inHeat, profileOf([], ['diabetes']));
 check('insulin is kept below 86 degrees', insulin.steps.some((s) => /86 degrees/.test(s)));
 const many = precautions(inHeat, profileOf(['reduced_sweating'], ['multiple_sclerosis', 'diabetes']));
-check('never more than two precautions read at once, with the rest offered', many.nextStep === 2 && /ask me for the rest/.test(many.spoken), many.spoken);
+check('never more than two precautions read at once, with the rest offered', many.nextStep === 2 && /if you want them\.$/.test(many.spoken), many.spoken);
 check('the heat stroke line is always spoken in the heat, however long the list', [em, kidney, thirsty, insulin, many].every((p) => /call 911/.test(p.spoken)));
 check('below a heat index of 80 it is not said aloud, and is still in the list', !/call 911/.test(photo.spoken) && photo.steps.some((s) => /call 911/.test(s)), photo.spoken);
 const justHot = precautions(judgeHour(hour(84, 45, { uvIndex: 9 }), profileOf(['photosensitivity'], [])), profileOf(['photosensitivity'], []));
@@ -191,7 +191,7 @@ store.update('tester', (p) => {
   p.medications.push({ spoken: 'metoprolol', generic: 'metoprolol', drugClass: 'beta blocker', mechanisms: ['electrolyte_imbalance', 'reduced_sweating'] });
 });
 const heat = await handlers.weather_check({});
-check('a heat check that names a medication warns not to stop it', /doctor or pharmacist/.test(heat.content[0].text), heat.content[0].text);
+check('a heat check that names a medication warns not to stop it', /unless your doctor says otherwise/.test(heat.content[0].text), heat.content[0].text);
 check('...and tells this person to stay in', /better to stay in/.test(heat.content[0].text));
 const cond = await handlers.health_condition({ action: 'add', condition: 'I have MS' });
 check('registering MS reads back its plan', /Added multiple sclerosis/.test(cond.content[0].text), cond.content[0].text);

@@ -182,6 +182,56 @@ export async function checkWarningAlerts(): Promise<Delivery[]> {
   return attempted;
 }
 
+/**
+ * Somebody who lives alone, on a dangerous day, who has not been heard from.
+ *
+ * In the 1995 Chicago heat wave the people who died were, above all, the ones nobody saw: living alone more
+ * than doubled the odds of dying (odds ratio 2.3), and not leaving home each day multiplied them by 6.7
+ * (Semenza and others, NEJM 1996). Having friends or group contact nearby protected people. So for somebody
+ * who has said they live alone, on a day whose heat is in the danger range for them, if they have not spoken
+ * to Sudor since the morning by 2 pm their time, the contacts who agreed to hear about bad days are emailed
+ * once: check on them. Nothing about health is in it.
+ */
+export const CHECK_HOUR = 14;
+export async function checkOnAlone(now = new Date()): Promise<Delivery[]> {
+  const attempted: Delivery[] = [];
+  for (const [id, p] of store.allEntries()) {
+    if (!p.livesAlone || !canEmailFor(id) || p.lat == null || p.lon == null) continue;
+    const to = recipients(p, 'hot_day');
+    if (!to.length) continue;
+    const snap = weather.current(p.lat, p.lon);
+    if (!snap || !snap.hourly.length) continue;
+    const local = new Date(now.getTime() + snap.utcOffsetSeconds * 1000);
+    if (local.getUTCHours() < CHECK_HOUR) continue;
+    const date = local.toISOString().slice(0, 10);
+    const key = `alone:${date}`;
+    if (p.alertsSent.includes(key)) continue;
+    // Heard from since six this morning, their time, is heard from.
+    const morning = Date.parse(`${date}T06:00:00Z`) - snap.utcOffsetSeconds * 1000;
+    if (p.lastSeenAt && Date.parse(p.lastSeenAt) >= morning) continue;
+    const profile = profileOf(p.medications.flatMap((m) => [...m.mechanisms, ...(m.label?.mechanisms ?? [])]), p.conditions, { outings: p.outings, private: true });
+    const plan = planDay(snap, profile, { now, day: 'today' });
+    if (!plan.best || plan.best.status !== 'avoid') continue;
+    store.update(id, (x) => void (x.alertsSent = [...x.alertsSent.slice(-29), key]));
+    for (const c of to) {
+      attempted.push(
+        await sendEmail({
+          to: c.email,
+          sender: id,
+          reason: 'hot_day',
+          subject: 'Please check on them today',
+          text:
+            `Today's heat is in the dangerous range for the person you look after${p.locationName ? `, near ${p.locationName}` : ''}, ` +
+            'they live alone, and they have not spoken to Sudor since this morning. Please ring them or call round.\n\n' +
+            'You are getting this because you were added as a contact for dangerous days and agreed to it.' +
+            stopFooter(c),
+        }),
+      );
+    }
+  }
+  return attempted;
+}
+
 const EVENING_HOUR = 17;
 
 /** Checked on the same cadence as the weather. Returns what it attempted, for logs and tests. */

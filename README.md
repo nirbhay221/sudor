@@ -1,23 +1,39 @@
 # Sudor
 
-**"Alexa, when is the best time for me to go out today?"**
+**Heat, cold and disasters, checked against your own medicines.**
 
-**Live:** [on a screen, with the family's phone beside it](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html) ·
-[try it in a browser](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/) ·
-MCP endpoint `https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/mcp` (account linking required) ·
+> **You:** Alexa, is it safe for me to go out?<br>
+> **Alexa:** For you, it is better to stay in right now if you can. It feels like 109 degrees out, which the
+> weather service calls danger. Your metoprolol blocks your sweating, so you may not feel overheating until it
+> is serious. Keep taking it unless your doctor says otherwise. Staying in only helps if your cooling works.
+> Is it working?
+
+**Try it:** [talk to it on a screen, with the family's phone beside it](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html)
+(press **Speak**, or type) ·
+MCP endpoint `https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/mcp` (account linking) ·
 [health](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/health)
 
-An Alexa+ add-on that plans a day around the heat and the cold for one person's own body: the medications
-they take and the health conditions they have, against the live heat, UV and air quality where
-they are. It finds the best time to go out, says what to do when going out cannot wait, and knows
-the warning signs of heat illness, including when the answer is to call 911.
+Water pills, beta blockers, some antidepressants and a dozen conditions change what heat and cold do to a
+body. A weather app tells everybody the same thing. Sudor is an Alexa+ add-on that remembers one person's
+medicines, conditions, home and town, and answers for that person:
 
-The Latin `sudor` is sweat, the thing several of these medications and conditions quietly take
-away.
+| Ask | What happens |
+|---|---|
+| "Is it safe for me to go out?" | A verdict for this body, with what is driving it |
+| "When should I walk the dog?" | The safest hours today or tomorrow |
+| "I feel dizzy and confused" | First aid at once; heat stroke signs get the emergency number for the country and the nearest hospital, and the family is emailed |
+| "What do I do about this hurricane warning?" | The official warning where they live, turned into steps for them: insulin, oxygen, dialysis, whether to leave |
+| "My air conditioning is broken" or "the power keeps cutting out" | Stops saying "stay in" when indoors is the danger, and warns about nights that stay too hot to recover |
+| "I live alone" | On a dangerous day with no word from them by 2 pm, a family member who agreed is asked to check on them |
+| "I'm keeping the Ramadan fast" | Drinking between sunset and dawn, the hottest hours indoors, and "break your fast" in first aid |
+| "I have hay fever" | A thunderstorm in pollen season is warned about, because it can set off a severe asthma attack |
+| "Tell my daughter I need help" / "Tell them I'm safe" | Email, and a text if she added her number, only after she agreed |
 
 Built for the [Build, Ship, Shape: Amazon Developer Hackathon](https://amazonappdev2026.devpost.com),
-Alexa+ track, plus the Open Source and AWS Builder mini challenges. Self-hosted MCP server,
-spec 2025-11-25, Streamable HTTP, with an MCP Apps panel for the Echo Show.
+Alexa+ track, plus the Open Source and AWS Builder mini challenges. Self-hosted MCP server, spec 2025-11-25,
+Streamable HTTP, 13 tools by default, with an MCP Apps panel for the Echo Show. Its sister add-on
+[Orbita](https://github.com/nirbhay221/orbita) does the same for GPS-guided field work, and the two talk to
+each other.
 
 ## What is real, and what is not
 
@@ -25,37 +41,38 @@ Nothing here is mocked for the demo. Where something stands in for a thing we co
 
 | Part | Status |
 |---|---|
-| MCP server, spec 2025-11-25, Streamable HTTP, 18 tools by default | **Real and deployed** on AWS, behind account linking. 1,833 automated checks |
-| Weather, UV, air quality, official warnings, shelters, recalls | **Real, live feeds**: Open-Meteo, the National Weather Service, FEMA, openFDA. Polled in the background, never inside a turn |
-| Medicines | **Real sources**: the CDC's clinical guidance for the 57 it names, and the National Library of Medicine's RxNorm for every other name, by drug class. Checked live with Coreg, Lasix, Seroquel, Jardiance, Xanax and oxybutynin |
-| What each medicine's label says | **Real, read live**: the current FDA label from openFDA, searched for the few phrases that state a heat risk outright. Checked live with topiramate, oxybutynin, olanzapine, doxycycline and zonisamide |
-| Nearest emergency department | **Real**: Amazon Location Service for position and distance, Medicare's hospital list for which ones have emergency services. Checked live in Phoenix, Minneapolis, Tampa and Anchorage |
-| Geomagnetic storm notice | **Real**: asked of the deployed Orbita server over MCP |
-| Emails to family | **Real code, switched off on the deployed server**: no sending address is configured, so nothing is sent and every answer says so. The public demo never sends email |
-| Alexa+ itself | **Not available to us.** The demo page's assistant is Claude Opus reading the real tool list. It is a stand-in, and routing measured with it is routing for that model, not for Alexa+ |
-| Echo Show panel | **Real MCP App**, tested against a simulated host. Not seen on a real device |
-| Phone calls, text messages, 911 | **Not built.** The server cannot ring anyone, and says so each time |
+| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,025 automated checks, run on every push |
+| Weather, UV, air quality | **Real, live**: Open-Meteo, worldwide |
+| Official warnings | **Real, live**: the National Weather Service in the US, MeteoAlarm in Europe, INMET in Brazil, SACHET in India, and the WMO Severe Weather Information Centre elsewhere. In the US also the Weather Service's 7-day HeatRisk, the hurricane centre's cones and river flood forecasts |
+| Medicines | **Real sources**: the CDC's clinical guidance on heat and medications, and the National Library of Medicine's RxClass for every other name, by drug class. Brand names from the regulators of India, Canada, France, Brazil, Italy and Spain. Measured against the 286 most prescribed ingredients in the US (ClinCalc, 2024): 119 recognised; the rest are mostly drugs the CDC lists no heat effect for. `node evals/coverage.mjs` re-runs it |
+| Medicine and equipment recalls | **Real, live**: openFDA drug and device enforcement reports |
+| Nearest emergency department | **Real**: Amazon Location Service, confirmed against Medicare's hospital list in the US |
+| Emails to family | **Real**, through Amazon SES, only after the recipient agrees. The account is in the SES sandbox (production access requested), so today it reaches verified addresses only. The public demo never sends email; it shows the message on a phone panel instead |
+| Text messages to family | **Real code**, through Amazon SNS, for urgent messages only, to a number the family member typed in themselves. Switched on; while the account's SMS is in its sandbox only verified numbers receive them |
+| The talking demo | **Real model**: Claude Haiku 4.5 reads the server's real tool list and picks a tool, as Alexa+ would. When no model is available, plain word rules pick instead, and the screen says which. Speech in and out is the browser's own |
+| Alexa+ itself | **Not available to us.** MCP add-on access is in preview. Routing measured on the demo is that model's, not Alexa+'s |
+| Phone calls | **Not built.** It cannot ring anyone, and says so |
 
-**Where it works:** the United States. The weather is worldwide, but the place lookup, official warnings, shelters,
-hospitals and the 211 line are American, so a place outside the country is refused, not guessed at.
+**Where it works:** anywhere. The United States is matched first when a place is ambiguous, because that is where
+Alexa+ is sold. Outside it, the emergency number is the local one (999 in London, 112 across Europe, 000 in
+Australia), temperatures are said in Celsius as well, and the US shelter list and 211 line are replaced by the local
+council.
 
 ## Start here
 
-This file is long because the reasoning is the work. If you are reading it to evaluate the project,
-these are the things worth your time:
+This file is long because the reasoning is the work. If you are evaluating the project:
 
 | If you want | Read |
 |---|---|
+| To try it in two minutes | [The demo page](#the-demo-page) |
 | What it does, in one exchange | [What it does](#what-it-does) |
 | Why it is not a wrapper around a weather app | [Why it is not a wrapper around a weather app](#why-it-is-not-a-wrapper-around-a-weather-app) |
-| The correctness argument for the heat number | [The number that knows the sun is out](#the-number-that-knows-the-sun-is-out) |
-| What the protocol is doing that is unusual | [Asking, instead of guessing](#asking-instead-of-guessing), [One add-on asking another](#one-add-on-asking-another) |
+| Disasters, for one person | [Warnings, and what a storm means for a medicine cabinet](#warnings-and-what-a-storm-means-for-a-medicine-cabinet) |
+| When home is the problem | [When the house is the problem](#when-the-house-is-the-problem) |
 | Where it is wrong, or cannot know | [Honest limitations](#honest-limitations) |
 
-Free sources, no API keys. Every tool call is answered from memory; nothing external is called inside
-a turn, because two of the sources blow the whole turn budget on their own. `npm test` runs 1,833 checks.
-One source is not free of setup: the nearest hospital comes from Amazon Location Service, which needs AWS
-credentials and no key.
+Free sources, no API keys for the data. Every tool call is answered from memory; nothing external is called
+inside a turn. `npm test` runs 2,025 checks.
 
 ## The problem
 
@@ -92,13 +109,11 @@ someone who said they take metoprolol and lisinopril and have multiple sclerosis
 ```
 "Alexa, I have to go out now."
 
-"It is heat index 100 right now. Keep it as short as you can, and stay in shade
- or air conditioning on the way. Cool down before you go, and take something to
- stay cool, like a cooling vest, a neck wrap or a cold drink. Your medication
- blocks your sweating, so you may not get the usual warning signs of overheating
- before it is serious. ... I have 2 more, ask me for the rest. If you or anyone
+"It feels like 100 degrees right now. Keep it as short as you can, and stay in
+ shade or air conditioning on the way. Cool down before you go, and take something
+ to stay cool, like a cooling vest, a neck wrap or a cold drink. If you or anyone
  with you becomes confused, slurs their words or faints, that can be heat stroke:
- call 911."
+ call 911. I have 3 more, if you want them."
 ```
 
 ```
@@ -297,46 +312,39 @@ absorb one. Only Class I is ever volunteered inside an answer about going outsid
 
 ## Tools
 
-Eighteen tools by default, and four more with `SUDOR_SCOPE=all`.
+Thirteen tools by default. Related actions share one tool, because tool choice gets worse as the list
+grows: everything about the person is `about_me`, every change to the family list is `contact`.
+With `SUDOR_SCOPE=all` the original, finer-grained tools are listed instead.
 
 **Answers**
-* `weather_check` whether right now is fine, a time for care, or better spent inside, and why. An active official
-  warning that is not about heat or cold (a hurricane, a tornado, a flood) is said in the same answer
-* `plan_my_day` the best time to go out today or tomorrow for an errand of a given length, and the hours to
-  avoid. Given shift hours, it plans a shift that cannot be moved
-* `going_out_now` precautions for going out when it cannot wait, two at a time, ending on the heat stroke line
-  whenever the heat index is 80 or more
+* `weather_check` whether right now is fine, a time for care, or better spent inside, and why. Needs no
+  arguments: it uses the saved place and medicines. An active official warning is said in the same answer, and
+  "stay in" is never said alone when the cooling at home is out
+* `plan_my_day` the best time to go out today or tomorrow, and the hours to avoid. Given shift hours, it plans a
+  shift, with the OSHA proposed 80 and 90 degree lines and acclimatization for a new worker
+* `going_out_now` precautions for going out when it cannot wait, two at a time
 * `warning_signs` what to do for the symptoms someone describes, in the heat or the cold. In an emergency it says
-  911 first, names the nearest emergency department, and emails contacts who have agreed. A question about the
-  signs gets the same advice and emails nobody
-* `storm_prep` what a storm or a power cut means for their medicines: refrigeration, dialysis, oxygen, supply
-* `somewhere_to_go` open shelters near this address when the house is too cold or too hot to stay in, and the
-  211 line. It ends by offering to tell the family
-* `get_help` tells every contact who has agreed that this person needs help, with where they are and the nearest
-  shelter and emergency department. It cannot phone anyone or reach 911, and says so
-* `what_can_you_do` including that it is not a doctor and not medical advice
-* `tell_me_more` the rest of the last answer
+  the local emergency number first, names the nearest emergency department, and emails contacts who have agreed
+* `storm_prep` the official warning where they live, turned into steps for this person: what to do first, insulin
+  and injection pens, equipment that needs power, dialysis, and whether to leave
+* `somewhere_to_go` open shelters near this address in the US, or the local council elsewhere, and the nearest
+  emergency department
+* `get_help` tells every contact who has agreed that this person needs help, or with `status: safe` that they are
+  all right. Email, and a text to anyone who added their number. It cannot phone anyone or reach the emergency services
+* `log_outing` records how a trip outside went, so the next answer can learn from it
+* `what_can_you_do`, `tell_me_more`
 
 **About you**
-* `register_location` by city and state or zip code
-* `medication` adds or removes one, by generic or brand name
-* `health_condition` adds or removes one, the way people say it
-* `my_profile` reads back everything it has been told, and `action forget` deletes all of it, only when asked a
-  second time
-* `set_privacy` keeps medications and conditions out of spoken answers
-* `log_outing` records how a trip outside went
+* `about_me` where they live (a city and state, a city and country, or a zip code), medicines, conditions, medical
+  equipment, whether the cooling at home works, the indoor temperature they read out, whether they sleep on the top
+  floor, privacy, recalls, and forgetting everything. Several at once. A saved place is not replaced without a yes,
+  so "my dad is in Tucson" is never saved as the speaker's own home
 
 **Family**
-* `contact` adds, confirms or removes a family member or caregiver. The account holder's yes sends one
-  invitation; nothing else is sent until that person agrees
-* `share_my_day` gives a one-time code so a family member can ask how the day is looking
-* `check_on` is that family member asking. They never hear a medicine or a condition
-
-**Published only with `SUDOR_SCOPE=all`:** `should_i_shovel`, `weather_warnings`, `sun_check`, `medicine_recalls`.
-
-Every tool declares what it does to the world, in the annotations the specification carries: whether it only reads,
-whether it can take something away, whether saying it twice changes anything, and whether its answer depends on a
-service outside this process.
+* `contact` adds, confirms or removes a family member or caregiver. With no address said, it hands back a page to
+  type it on. The account holder's yes sends one invitation; nothing else is sent until that person agrees
+* `share_my_day` a one-time code so a family member, or a crew lead on Orbita, can see how the day is looking,
+  never why
 
 ## When the house is the problem
 
@@ -363,6 +371,80 @@ Three rules, all tested:
   quietly leaving it out.
 * **The relative or friend comes first**, because that is the CDC's own first line, and a test fails
   the build if a shelter name ever appears before it.
+
+### In the heat, when indoors is the danger
+
+The usual answer on the worst days is "stay in", and it is only good advice when in is cooler than out.
+Maricopa County's 2025 report on heat deaths found an air conditioner in 94 percent of the homes where somebody
+died indoors, and not working in 72 percent of those; nine in ten of the people were over fifty. So Sudor asks,
+once a day at most, whether the cooling is working, and remembers the answer (`src/indoor.ts`):
+
+* **The numbers are Health Canada's.** 79F (26C) is its upper indoor limit for adults over sixty, from trials in
+  which strain did not rise over eight hours at 26C and rose above it; 88F (31C) is where it says sustained
+  exposure should be avoided for anybody heat-susceptible. The CDC's line that a fan stops helping above 90F is
+  said to anybody whose only cooling is a fan.
+* **It never pretends to measure a room.** If they read out the thermometer, that number is used for three
+  hours. Otherwise the live forecast says whether the house can cool at all: a home without working cooling ends
+  the day about as hot as outside, so a high of 108 and a night that only falls to 86 is said as exactly that.
+* **Sleeping under the roof.** In the 2003 French heat wave, older people whose bedroom was directly under the
+  roof had about four times the odds of dying (Vandentorren and others, 2006). Somebody who says they sleep on
+  the top floor is told that, with the one thing to do about it: sleep lower down until it passes.
+
+## Outside the United States
+
+Alexa+ is sold in the United States, Canada and the UK, and in early access in Brazil, Mexico, Germany, Austria,
+France, Italy, Spain, Australia and India. A place is matched in the US first when it is ambiguous ("Lyon" is Lyon,
+Mississippi), and anywhere else when a country is said ("Lyon, France").
+
+| | Medicine brand names | Official warnings | Emergency number | Recalls |
+|---|---|---|---|---|
+| United States | RxNorm | National Weather Service, plus HeatRisk, hurricane cones and river forecasts | 911 | FDA |
+| Canada | Health Canada, 6,052 brands | WMO centre | 911 | Health Canada |
+| India | 174,000 brands | NDMA SACHET (IMD, state authorities) | 112, or 108 for an ambulance | FDA, said as the US list |
+| France | ANSM, 8,940 brands | MeteoAlarm | 112 | FDA, said as the US list |
+| Brazil | ANVISA, 6,672 brands | INMET | 192 | FDA, said as the US list |
+| Italy | AIFA, 2,625 brands | MeteoAlarm | 112 | FDA, said as the US list |
+| Spain | AEMPS, asked live | MeteoAlarm | 112 | FDA, said as the US list |
+| United Kingdom | generic names | MeteoAlarm, matched by town | 999 | MHRA |
+| Germany, Austria | generic names | MeteoAlarm | 112 | FDA, said as the US list |
+| Mexico | generic names | hurricane cones only | 911 | FDA, said as the US list |
+| Australia | generic names | WMO centre | 000 | FDA, said as the US list |
+
+* **Names from other countries.** A generic name is the same nearly everywhere, and the dozen that differ
+  (salbutamol, paracetamol, frusemide) are mapped to the American ones (`src/brands.ts`). A name in another
+  language, "furosemida", "nifedipino", "levotiroxina", is looked up in the National Library of Medicine's
+  approximate match and kept only when the English name is spelled within a quarter of the word of what was said:
+  without that rule, "nifédipine" came back as budipine, a different drug. Brand names are read from each
+  country's own regulator; the answer always says what a brand was read as ("Amlong is amlodipine").
+* **Warnings** come from each country's official service where one is published as data: MeteoAlarm for 32
+  European countries, with the outlines of its 2,104 warning areas (`assets/meteoalarm-areas.json`); INMET for
+  Brazil; SACHET for India; otherwise the WMO Severe Weather Information Centre, whose map server is asked which
+  warnings cover the point. A failure is always "could not check", never an all-clear.
+* **Language.** Amazon Translate is not available to this AWS account, and Alexa+ is itself a language model that
+  answers in the customer's own language, so the server's instructions tell the host which language this person
+  most likely speaks and to keep every number, medicine name and the emergency number exactly as given. The
+  answers this server writes are English.
+* **Somewhere to go** is the local council, the emergency number and the nearest hospital, in place of the US
+  shelter list and the 211 line. **Temperatures** are said in Celsius as well.
+
+### Data from other countries, and the terms it comes under
+
+| Data | Source | Terms |
+|---|---|---|
+| Indian brand names | A-Z Medicine Dataset of India (Kaggle), via github.com/junioralive/Indian-Medicine-Dataset | CC BY-SA 4.0 |
+| Canadian brand names and recalls | Health Canada Drug Product Database; Recalls and Safety Alerts open data | Open Government Licence - Canada |
+| French brand names | ANSM, Base de données publique des médicaments (base-donnees-publique.medicaments.gouv.fr), as downloaded October 2026 | Free reuse with the source and date given, data unaltered |
+| Brazilian brand names | ANVISA, Dados abertos de medicamentos registrados | Brazilian open data, source cited |
+| Italian brand names | AIFA, Class A medicines by trade name, 30 June 2025 | AIFA open data, source cited |
+| Spanish medicines | AEMPS, CIMA search service, asked live | Public service, source cited |
+| UK recalls | MHRA drug and device alerts, via the GOV.UK search API | Open Government Licence v3.0 |
+| European warnings | MeteoAlarm feeds | CC BY 4.0 |
+| European warning areas | EMMA_ID outlines from the MIT-licensed `meteoalarm` package (github.com/NiklasJordan/meteoalarm); NUTS3 outlines from Eurostat GISCO, © EuroGeographics for the administrative boundaries | MIT; Eurostat GISCO terms |
+| Brazilian warnings | INMET | Reuse with the source cited |
+| Indian warnings | NDMA SACHET | Public alerting service |
+
+The brand lists are rebuilt with `scripts/build-india-brands.py` and `scripts/build-country-brands.py`, and the
+warning areas with `scripts/build-meteoalarm-areas.py`.
 
 ## One add-on asking another
 
@@ -447,8 +529,12 @@ things about drug names a model should not second-guess. And if what they descri
 in trouble right now, confusion, fainting, hot dry skin, reach for the tool that handles symptoms
 rather than the one that plans a day.
 
-It is not Alexa, and that disclaimer travels in the response payload rather than living here. Off
-unless `SUDOR_ANTHROPIC_KEY` is set.
+It is not Alexa, and that disclaimer travels in the response payload rather than living here. The model is
+Claude Haiku 4.5, with a daily cap of 25 calls; the server's own instructions, which tell a host what this
+person has already saved (as counts, never names), are passed to it exactly as a host receives them. With no
+key, or once the cap is reached, plain word rules choose the tool instead (`src/rules.ts`), as another entry in
+this hackathon, Recall Check, does, and the screen says which chose. The demo page takes typed or spoken words;
+hearing and speaking are the browser's own.
 
 ## Hearing it
 
@@ -516,6 +602,17 @@ That personal half is the part nobody else can do:
 A cold outage adds the warning that kills people after the storm rather than during it: no generator, grill or
 camping stove indoors or in the garage.
 
+**Disasters, for one person.** When any official warning is in force where somebody lives, `storm_prep` leads with
+it and its first step (`src/hazard.ts`): a hurricane, flood, tornado, winter storm, wildfire smoke, extreme heat or
+cold, high wind or a tsunami. "Go now to the lowest floor" comes before anything about a pharmacy. The general steps
+are Ready.gov's and the CDC's, shortened to be said aloud; there is no feed of what to do, only of what is coming,
+and what is coming is always read live. Then what is particular to them: the equipment they said they rely on
+("your oxygen concentrator needs power: charge every battery, tell your electricity company there is medical
+equipment in the house"), insulin in a cooler if they leave, dialysis, no shovelling with a heart condition. Smoke
+comes with the live air quality index and the EPA's name for its band. The answer ends by offering to tell the
+family they are safe, and the family is emailed once, with nothing about health, when a warning starts where they
+live.
+
 ## Recalls on the medicines you take
 
 Sudor already holds the one thing a recall notice needs to be useful: the list. A recall is published
@@ -552,8 +649,9 @@ labelled example day. `test-panel.mjs` runs it against a simulated host.
 ## On a screen, with the family's phone beside it
 
 `/echo.html` is a stand-in for an Echo Show. Down the page are the lines somebody might say; each is a real tool
-call with real arguments (`web/echo-scenes.json`), and a test calls every one. No assistant model runs on that
-page, so the lines are fixed and the answers are whatever the server says today.
+call with real arguments (`web/echo-scenes.json`), and a test calls every one. Under them, **Or say anything**
+takes typed or spoken words (press Speak, in Chrome or Edge) and sends them to the stand-in, which picks the tool;
+the screen says which tool was chosen and whether a model or the word rules chose it.
 
 Beside the screen is the phone of the person who gets told. The public demo never sends email, so the message a
 contact would have been sent is kept, word for word, against that visitor's own sandbox id and shown there
@@ -595,13 +693,13 @@ Or without installing Node at all:
 docker build -t sudor . && docker run -p 8789:8789 sudor
 ```
 
-`npm test` runs everything, 1,833 checks. It is also what CI runs on every push, on Node 20 and 22,
+`npm test` runs everything, 2,025 checks. It is also what CI runs on every push, on Node 20 and 22,
 with the live suite in its own job so an outage at a weather service is never mistaken for a
 regression here.
 
 ```bash
-npm run test:unit           # 1,538 checks, no live data
-npm run test:live           # 295 checks, against a running server and the real forecast
+npm run test:unit           # 1,727 checks, no live data
+npm run test:live           # 298 checks, against a running server and the real forecast
 
 node test.mjs               # heat index formula, categories, medications, how the lines read aloud
 node test-personal.mjs      # conditions, an age said aloud, sensitivity, planning, precautions, first aid
@@ -751,13 +849,19 @@ or a reason, and the link dies the moment they stop sharing. Orbita then says it
   ("For you, it is better to stay in right now"). The rest is returned as `more` in the structured result and spoken
   when the customer says "tell me more" (`tell_me_more`). The line about not stopping a medicine is always said. An
   answer that mentions 911, a write, and a tool that pages its own steps are never shortened. See `src/brief.ts`.
+* **Plain words, one message.** The heat is said as "it feels like 108 degrees", and the weather service's level
+  only when it is danger, so "stay in" is never followed by "caution". A medicine is named ("your metoprolol blocks
+  your sweating") and the line about it is "Keep taking it unless your doctor says otherwise."
+* **As long as the danger.** A wind advisory is its headline and one step, 27 words; a hurricane warning is read in
+  full. Saving several details is one sentence ("Got it: furosemide, metoprolol and heart disease"), 13 words where
+  reading each back with its advice took 81. "I have 3 more, if you want them" comes last, after the 911 line.
 * **One story by default.** The default tool set is one person, the weather outside, what they take, and the day the
   power goes out. Shovelling, the full list of official warnings, sunburn and recalls are published only with
   `SUDOR_SCOPE=all`.
 * **Asked twice, answered differently.** The same question inside a minute and a half, with the same answer, gets the
   verdict alone and what to ask next, not the same sixty words. An answer that mentions 911 is said in full every time.
 * **Said until it is heard.** Once a day has been planned as a stay-inside day, the next answers start by saying so,
-  three times at most, until the person says "got it". Never in front of an emergency. See `src/attention.ts`.
+  three times at most, until the person says "got it". Never in front of an emergency, a symptom or a call for help. See `src/attention.ts`.
 * **An address is typed, not spelled.** "Tell my daughter Priya" with no address hands back a page to type it on. A
   host that supports MCP's URL-mode elicitation is sent the page directly; any other gets the link in the answer's
   data. The page stages the contact and nothing is sent until the person says yes. See `src/consent.ts`.
@@ -783,7 +887,7 @@ differ, from heat alone. It does not show that anybody was harmed or protected. 
 The golden set and the saved baseline were run with the full tool set (`SCOPE=all`) and before the sharing,
 "tell me more", `get_help` and shift-planning additions. The new sentences for those are checked against the tool
 list and have not been run against a model, so the routing figures below do not cover them. The model in that run
-was Claude Opus 5.5 standing in for Alexa+: it shows the descriptions work for that model, and nothing about the
+was Claude Opus 5.5 standing in for Alexa+ (the live demo now uses Haiku 4.5): it shows the descriptions work for that model, and nothing about the
 one Alexa+ uses.
 
 `npm test` shows the server gives the right answer once a tool is chosen. It cannot show that a host would
@@ -892,14 +996,16 @@ pair is 33 before anything else is connected. On a host with a ceiling, connect 
 
 * The one level offset between sensitivity groups follows HeatRisk's own grouping, applied to the NWS
   heat index categories. That is an approximation, not a clinical threshold for any one person.
-* **United States only.** A place in another country is refused. Before this was checked against the live server,
-  "Lyon, France" was answered with the weather in Lyon, Mississippi.
+* **Outside the United States** the weather, warnings, emergency number and hospitals are real, but the heat
+  thresholds are American ones (the NWS heat index, OSHA's proposed lines), and warnings come from the server behind
+  the WMO's public map, which is not a published API and could change. A failure there is "could not check", never an
+  all-clear.
 * The nearest emergency department is the nearest general hospital that Medicare lists as having emergency
   services. It is not a promise that it is open or right for the problem. The first live check in Anchorage named a
   psychiatric hospital; psychiatric, children's and veterans' hospitals are now left out.
-* No email is sent from the deployed server until a sending address is set, and a contact has to agree before they
-  are sent anything but the invitation.
-* Twelve conditions, and medicines from two sources. Fifty-seven are named one by one in the CDC's clinical guidance
+* Email is real but the SES account is in its sandbox until Amazon approves production access, so only verified
+  addresses receive it. A contact has to agree before they are sent anything but the invitation.
+* Twelve conditions, and medicines from two sources: 119 of the 286 most prescribed ingredients are recognised. Fifty-seven are named one by one in the CDC's clinical guidance
   on heat and medicines. Any other name is looked up in RxNorm, the National Library of Medicine's drug vocabulary,
   which gives the ingredient and its ATC class; the class is then read against the same CDC guidance, and the answer
   says it rests on the class (`src/rxclass.ts`). Classes that mix drugs with different effects are left
@@ -921,12 +1027,12 @@ pair is 33 before anything else is connected. On a host with a ceiling, connect 
 * Air quality is a forecast model, not a monitor on the person's street.
 * It plans waking hours, 6 am to 10 pm, and the heat index is one number for one point. Shade, air
   conditioning and exertion change real risk.
-* Places are US only, because Alexa+ is.
-* Family email needs Amazon SES with a verified sender, and while an account is in the SES sandbox
-  every recipient must be verified too.
+* Text messages need the AWS account's SMS service activated, and while it is in its sandbox only verified numbers
+  receive them.
 * A learned limit comes from what the person reports, not a measurement, and it only tightens.
-* Eighteen tools is a lot for a model to choose between. Descriptions carry the words people
-  actually say, but tool choice on real Alexa+ still has to be tested.
+* Thirteen tools by default. On fifteen varied sentences through the live talking demo, Claude Haiku 4.5 chose an
+  expected tool for 13; the same sentence can come out differently from run to run, and tool choice on real Alexa+
+  still has to be tested.
 * The WBGT is estimated from weather variables, not measured with three thermometers. Globe
   temperature follows Hunter and Minyard (1999) and natural wet bulb follows Malchaire (1976); the
   authoritative method is Liljegren et al. (2008) and this sits within one or two degrees Celsius of

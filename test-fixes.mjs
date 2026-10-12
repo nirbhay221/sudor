@@ -466,8 +466,10 @@ console.log('\nNothing is said twice in one answer, and the next step is named')
   const firstSentence = now.said.split('. ')[0];
   check('the answer appears once in the structured half, not three times', json.split(firstSentence).length - 1 === 1, String(json.split(firstSentence).length - 1));
   check('...and what was held back is still there, once', !now.data.more || now.data.more.every((m) => json.split(m).length - 1 === 1));
-  check('...and the closing question is still spoken', /(Want me to find the safest time to go out today|That only holds if your cooling is working\. Is it)\?$/.test(now.said), now.said.slice(-70));
-  check('the structured half is no more than twice the spoken half', json.length <= now.said.length * 3.2, `${json.length} vs ${now.said.length}`);
+  check('...and the closing question is still spoken', /(Want me to find the safest time to go out today|Staying in only helps if your cooling works\. Is it working)\?$/.test(now.said), now.said.slice(-70));
+  // What is held back for "tell me more" is counted apart: a shorter spoken answer holds more of it.
+  const { more: _held, ...facts } = now.data;
+  check('the structured half is no more than twice the spoken half', JSON.stringify(facts).length <= now.said.length * 3.2, `${JSON.stringify(facts).length} vs ${now.said.length}`);
   const plan = await who('plan_my_day', { activity: 'a walk', minutes: 30 });
   check('a stay-inside day points at what to do if they must go out', plan.data.best?.status !== 'avoid' || plan.data.nextAction?.tool === 'going_out_now', JSON.stringify(plan.data.nextAction));
   const going = await who('going_out_now');
@@ -526,7 +528,8 @@ console.log('\nFound by using it as a stranger');
   labels.configureForTest(async () => null);
   const who = await connect('acct:walk');
   const three = await who('about_me', { medicines: ['furosemide', 'metoprolol', 'semaglutide'] });
-  check('three medicines at once do not say the same closing sentence three times', (three.said.match(/I'll factor that into your heat check/g) ?? []).length === 1, three.said);
+  check('three medicines at once do not say the same closing sentence three times', (three.said.match(/I'll factor that into your heat check/g) ?? []).length <= 1, three.said);
+  check('...confirmed in one short sentence, not read back one by one', three.said.split(/\s+/).length <= 20, three.said);
   check('...and each one is still named', /furosemide/.test(three.said) && /metoprolol/.test(three.said) && /semaglutide/.test(three.said));
   const geo = await import('./dist/geocode.js');
   const looking = await who('about_me', { place: 'Nowhere Special, Florida', medicines: ['lisinopril'] });
@@ -587,6 +590,9 @@ console.log('\nA disaster, for one person');
   warnings.seedForTest(lat, lon, [alert('Air Quality Alert', 'Moderate')]);
   const smoke = await who('storm_prep');
   check('wildfire smoke is answered as smoke, for a heart', /Smoke is harder on you/.test(smoke.said) && smoke.data.hazard === 'smoke' && smoke.data.nextAction?.tool === 'get_help' && smoke.data.nextAction.arguments.status === 'safe', smoke.said);
+  warnings.seedForTest(lat, lon, [alert('Wind Advisory', 'Moderate')]);
+  const windy = await who('storm_prep');
+  check('a wind advisory is a heads-up: the headline and one step, not the hurricane checklist', windy.said.split(/\s+/).length <= 35 && /Wind Advisory/.test(windy.said) && !/pharmacist/.test(windy.said), windy.said);
   warnings.seedForTest(lat, lon, []);
   const quiet = await who('storm_prep');
   check('with no warning it is still the preparation advice it always was', quiet.data.hazard === undefined && /Here is what matters for you/.test(quiet.said), quiet.said.slice(0, 80));
@@ -630,7 +636,7 @@ console.log('\nA disaster, for one person');
   const dev = await import('./dist/devices.js');
   dev.seedForTest('oxygen_concentrator', [{ category: 'oxygen_concentrator', firm: 'Acme Medical Inc.', description: 'Portable oxygen concentrator model X', reason: 'Battery may overheat', classification: 'Class I', status: 'Ongoing', initiated: '20260901' }]);
   const recall = await o2('about_me', { recalls: true });
-  check('a most-serious recall on that kind of equipment is raised, by kind and never as "yours"', /Class one recall, the most serious grade, affecting some oxygen concentrators from Acme Medical Inc\./.test(recall.said) && /That does not mean yours is affected/.test(recall.said) && recall.data.equipmentRecall?.category === 'oxygen_concentrator', recall.said);
+  check('a most-serious recall on that kind of equipment is raised, by kind and never as "yours"', /Class one recall, the most serious grade, affecting some oxygen concentrators from Acme Medical Inc\./.test(recall.said) && /Yours may not be affected/.test(recall.said) && recall.data.equipmentRecall?.category === 'oxygen_concentrator', recall.said);
   dev.seedForTest('oxygen_concentrator', [{ category: 'oxygen_concentrator', firm: 'Acme', description: 'x', reason: 'label', classification: 'Class II', status: 'Ongoing', initiated: '20260901' }]);
   const minor = await o2('about_me', { recalls: true });
   check('a lesser recall on the category is not, because it would alarm more people than it helps', !/Acme/.test(minor.said), minor.said);
@@ -702,11 +708,11 @@ console.log('\nThe heat inside the house');
   await who('register_location', { place: 'Phoenix, Arizona', lat, lon });
   await who('about_me', { medicines: ['metoprolol'] });
   const before = await who('weather_check');
-  check('told to stay in with nothing known about the cooling, they are asked about it', /stay in right now/.test(before.said) && /That only holds if your cooling is working\. Is it\?$/.test(before.said) && before.data.asks === 'cooling', before.said);
+  check('told to stay in with nothing known about the cooling, they are asked about it', /stay in right now/.test(before.said) && /Staying in only helps if your cooling works\. Is it working\?$/.test(before.said) && before.data.asks === 'cooling', before.said);
   const told = await who('about_me', { cooling: 'broken' });
   check('"my air conditioning is broken" on that day is answered with where the danger is and where to go', /With your cooling not working, your home has no way to cool down/.test(told.said) && told.data.nextAction?.tool === 'somewhere_to_go', told.said);
   const after = await who('weather_check');
-  check('...and from then on "stay in" is never said alone', /Do not sit this out indoors/.test(after.said) && after.data.indoor?.level === 'danger' && after.data.nextAction?.tool === 'somewhere_to_go' && !/That only holds/.test(after.said), after.said);
+  check('...and from then on "stay in" is never said alone', /Do not sit this out indoors/.test(after.said) && after.data.indoor?.level === 'danger' && after.data.nextAction?.tool === 'somewhere_to_go' && !/Staying in only helps/.test(after.said), after.said);
   const fixed = await who('about_me', { cooling: 'working' });
   const calm = await who('weather_check');
   check('once it is working again the line goes', /indoors is the cool place/.test(fixed.said) && calm.data.indoor === undefined && !/Do not sit this out/.test(calm.said), calm.said);
@@ -819,6 +825,197 @@ console.log('\nWhat is already known, and whose it is');
   const plan = pd.planDay(HOT_DAY, pd.profileOf([], [], {}), { now: new Date(), activity: 'walk the dog' });
   const plan2 = pd.planDay(HOT_DAY, pd.profileOf([], [], {}), { now: new Date(), activity: 'a walk' });
   check('"the best time to walk the dog", and "for a walk"', !/for walk the dog/.test(plan.spoken) && (/to walk the dog/.test(plan.spoken) || !/walk the dog/.test(plan.spoken)) && !/to a walk/.test(plan2.spoken), plan.spoken);
+}
+
+console.log('\nOutside the United States, and India in particular');
+{
+  const brands = await import('./dist/brands.js');
+  check('international names are read as the American ones', brands.usName('Salbutamol') === 'albuterol' && brands.usName('paracetamol') === 'acetaminophen' && brands.usName('frusemide') === 'furosemide');
+  check('Indian brands are read as their ingredients, strength and form ignored', brands.ingredientsOf('Amlong 5 tablet')?.ingredients.join() === 'amlodipine' && brands.ingredientsOf('Asthalin inhaler')?.ingredients.join() === 'albuterol');
+  check('a combination brand is all of its ingredients, and Plus means a different mix', brands.ingredientsOf('Dytor')?.ingredients.join() === 'torsemide' && brands.ingredientsOf('Dytor Plus')?.ingredients.length === 2);
+  check('a generic name is not mistaken for a brand', brands.ingredientsOf('metoprolol') === null || brands.ingredientsOf('metoprolol')?.ingredients.join() === 'metoprolol');
+  const rx = await import('./dist/rxclass.js');
+  rx.configureForTest(async (n) => (n === 'torsemide' ? { generic: 'torsemide', drugClass: 'loop diuretic', mechanisms: ['electrolyte_imbalance', 'faint_risk'], cold: [], atc: 'C03CA', source: 'rxnorm' } : n === 'spironolactone' ? { generic: 'spironolactone', drugClass: 'diuretic', mechanisms: ['electrolyte_imbalance', 'faint_risk'], cold: [], atc: 'C03DA', source: 'rxnorm' } : null));
+  const who = await connect('acct:india');
+  const amlong = await who('medication', { action: 'add', name: 'Amlong 5' });
+  check('"Amlong 5" is added as amlodipine, and it says so', /^Amlong is amlodipine\. Added amlodipine/.test(amlong.said), amlong.said);
+  const dytor = await who('medication', { action: 'add', name: 'Dytor Plus' });
+  check('"Dytor Plus" adds both of its ingredients', /Dytor Plus is spironolactone and torsemide\. Added/.test(dytor.said) && ['spironolactone', 'torsemide'].every((g) => store.get('acct:india').medications.some((m) => m.generic === g)), dytor.said);
+  const salb = await who('medication', { action: 'add', name: 'frusemide' });
+  check('"frusemide" is added as furosemide, and it says so', /^frusemide is furosemide in the United States\. Added furosemide/.test(salb.said), salb.said);
+  rx.configureForTest(null);
+  const w = await import('./dist/warnings.js');
+  const rows = [
+    { centroid: '77.5769,28.8342', area_covered: '7194', disaster_type: 'Moderate Thunderstorms with surface wind', severity: 'ALERT', severity_color: 'orange', effective_end_time: 'Mon Oct 12 04:45:00 IST 2999', alert_source: 'Uttar Pradesh SDMA', identifier: '1', area_description: 'West UP and NCR' },
+    { centroid: '72.88,19.07', area_covered: '600', disaster_type: 'Heavy Rain', severity: 'WARNING', severity_color: 'red', effective_end_time: 'Mon Oct 12 04:45:00 IST 2999', alert_source: 'IMD Mumbai', identifier: '2' },
+    { centroid: '77.5769,28.8342', area_covered: '7194', disaster_type: 'Heatwave', severity: 'WARNING', effective_end_time: 'Mon Oct 12 04:45:00 IST 2000', identifier: '3' },
+  ];
+  const ghaziabad = w.parseSachet(rows, 28.67, 77.45);
+  check('an Indian alert applies within the area it covers, and an expired one does not', ghaziabad.length === 1 && ghaziabad[0].event === 'Moderate Thunderstorms with surface wind alert' && /Uttar Pradesh SDMA/.test(ghaziabad[0].instruction), JSON.stringify(ghaziabad.map((a) => a.event)));
+  check('...a red one is a warning, and it reaches Mumbai and not Delhi', w.parseSachet(rows, 19.08, 72.9)[0]?.event === 'Heavy Rain warning' && w.parseSachet(rows, 19.08, 72.9)[0]?.severity === 'Severe' && !w.parseSachet(rows, 28.67, 77.45).some((a) => /Heavy Rain/.test(a.event)));
+  const world = await import('./dist/world.js');
+  check('India is told 112, and 108 for an ambulance', world.localise('Call 911 now.', 'IN') === 'Call 112, or 108 for an ambulance, now.');
+}
+
+console.log('\nWeather that is a health event in itself');
+{
+  const wh = await import('./dist/weatherhealth.js');
+  const now = new Date();
+  const hours = (fn) => Array.from({ length: 30 }, (_, i) => ({ local: `2026-05-10T${String(i % 24).padStart(2, '0')}:00`, time: new Date(now.getTime() + (i - 1) * 3_600_000).toISOString(), tempF: 75, humidityPct: 50, uvIndex: 3, windMph: 5, isDay: true, solarWm2: 400, wetBulbF: 60, aqi: 30, ...fn(i) }));
+  const snap = (lat, fn) => ({ lat, lon: 0, fetchedAt: now.toISOString(), timezone: 'UTC', utcOffsetSeconds: 0, tempF: 75, humidityPct: 50, uvIndex: 3, windMph: 5, isDay: true, solarWm2: 400, wetBulbF: 60, aqi: 30, hourly: hours(fn), stale: false });
+  const stormy = snap(50, (i) => ({ weatherCode: i === 6 ? 95 : 2, grassPollen: 80 }));
+  check('a storm in pollen season is a warning for somebody with hay fever and no asthma', /A thunderstorm is forecast around/.test(wh.thunderstormAsthma(stormy, { asthma: false, hayFever: true }, now)) && /reliever inhaler/.test(wh.thunderstormAsthma(stormy, { asthma: false, hayFever: true }, now)));
+  check('...and nothing for somebody with neither', wh.thunderstormAsthma(stormy, { asthma: false, hayFever: false }, now) === '');
+  check('...nothing when the pollen count is low', wh.thunderstormAsthma(snap(50, (i) => ({ weatherCode: i === 6 ? 95 : 2, grassPollen: 5 })), { asthma: true, hayFever: false }, now) === '');
+  check('...and nothing with no storm', wh.thunderstormAsthma(snap(50, () => ({ weatherCode: 3, grassPollen: 80 })), { asthma: true, hayFever: true }, now) === '');
+  const falling = snap(50, (i) => ({ pressureHpa: 1015 - i * 0.5 }));
+  check('a sharp pressure fall is said to somebody with migraines, as "can"', /can bring on migraines/.test(wh.migrainePressure(falling, now)) && wh.migrainePressure(snap(50, () => ({ pressureHpa: 1013 })), now) === '');
+  const cond = await import('./dist/conditions.js');
+  const pd = await import('./dist/personal.js');
+  check('hay fever and migraine are understood, and do not move the heat limit', cond.matchCondition?.('hay fever')?.id === 'hay_fever' || cond.conditionById('hay_fever')?.label === 'hay fever');
+  check('...a person with only hay fever is not called heat-sensitive', pd.profileOf([], ['hay_fever', 'migraine'], {}).sensitivity === 'general');
+}
+
+console.log('\nThe days ahead, from the forecasters');
+{
+  const o = await import('./dist/outlook.js');
+  // A HeatRisk identify answer, cut down from a live one for St Louis on 11 October 2026.
+  const day = (d) => Date.parse(`2026-10-${d}T12:00:00Z`);
+  const body = { properties: { Values: ['2', '1', '2', '3'] }, catalogItems: { features: [{ attributes: { idp_validtime: day(13) } }, { attributes: { idp_validtime: day(11) } }, { attributes: { idp_validtime: day(12) } }, { attributes: { idp_validtime: day(14) } }] } };
+  const heat = o.parseHeatRisk(body);
+  check('HeatRisk days are read in date order, each with its own level', heat.map((d) => `${d.date.slice(8)}:${d.level}`).join() === '11:1,12:2,13:2,14:3', JSON.stringify(heat));
+  check('...and a reply of another shape is "could not check"', (() => { try { o.parseHeatRisk({ properties: { Values: ['1'] } }); return false; } catch { return true; } })());
+  const said = o.speak({ heat, storms: [], rivers: [], checkedAt: 0 }, true, '2026-10-11');
+  check('for somebody sensitive, level 2 days ahead are named, and today is left to the rest of the answer', /Monday, Tuesday and Wednesday at level 3 of 4/.test(said[0] ?? ''), said[0]);
+  check('...for anybody else only level 3 and above', /Wednesday at level 3/.test(o.speak({ heat, storms: [], rivers: [], checkedAt: 0 }, false, '2026-10-11')[0] ?? '') && !/Monday/.test(o.speak({ heat, storms: [], rivers: [], checkedAt: 0 }, false, '2026-10-11')[0] ?? ''));
+  const storm = o.speak({ heat: [], storms: [{ name: 'Isaias', kind: 'Hurricane' }], rivers: [{ name: 'Mississippi River at St. Louis', category: 'moderate', peakFt: 36, at: '2026-10-14T12:00:00Z' }], checkedAt: 0 }, false, '2026-10-11');
+  check('a hurricane cone over the house, and a river forecast, are said with what to do and when', /Hurricane Isaias's forecast cone covers where you live/.test(storm[0]) && /Mississippi River at St. Louis is forecast to reach moderate flood stage around Wednesday/.test(storm[1]), storm.join(' | '));
+  check('a river forecast is read against the gauge\'s own flood stages', o.floodCategory(36, { minor: { stage: 30 }, moderate: { stage: 35 }, major: { stage: 40 } }) === 'moderate' && o.floodCategory(20, { minor: { stage: 30 } }) === null && o.floodCategory(50, { major: { stage: -9999 }, minor: { stage: 30 } }) === 'minor');
+  check('outside the US the week comes from the ordinary forecast', /Thursday feeling like 104 degrees/.test(o.speakWorld([{ date: '2026-10-15', feelsMaxF: 104 }, { date: '2026-10-11', feelsMaxF: 110 }], true, '2026-10-11')) && o.speakWorld([{ date: '2026-10-15', feelsMaxF: 97 }], false, '2026-10-11') === '');
+}
+
+console.log('\nHot nights, fasting, and living alone');
+{
+  const wx = await import('./dist/weather.js');
+  const indoor = await import('./dist/indoor.js');
+  const base = wx.current(lat, lon);
+  const now = Date.now();
+  const warmNight = { ...base, tempF: 95, hourly: Array.from({ length: 30 }, (_, i) => ({ ...base.hourly[0], time: new Date(now + (i - 1) * 3_600_000).toISOString(), local: `h${i}`, tempF: i >= 8 && i < 18 ? 84 : 95, isDay: !(i >= 8 && i < 18) })) };
+  const night = indoor.indoorRisk(warmNight, { cooling: 'power_cuts' }, true);
+  check('a night that stays at 84 is said to somebody with power cuts, with what to ready before the power goes', night?.level === 'watch' && /Tonight only falls to 84 degrees/.test(night.line) && /battery fan/.test(night.line), night?.line);
+  check('...and not with cooling that works', indoor.indoorRisk(warmNight, { cooling: 'working' }, true) === null);
+
+  const fa = await import('./dist/firstaid.js');
+  const cond = await import('./dist/conditions.js');
+  const fastProfile = { conditions: [cond.conditionById('fasting')], private: false };
+  check('heat exhaustion while fasting says to break the fast and drink', /break your fast and sip water/.test(fa.triage('I feel dizzy and weak and sweating a lot', fastProfile).spoken));
+  check('fasting is understood from "Ramadan" and "roza"', ['ramadan', 'roza'].every((w) => cond.conditionById('fasting').aliases.includes(w)));
+
+  const alerts = await import('./dist/alerts.js');
+  process.env.SUDOR_RECIPIENT_CONSENT = 'off';
+  wx.seedForTest(HOT_DAY);
+  const who = await connect('acct:alone');
+  await who('register_location', { place: 'Phoenix, Arizona', lat, lon });
+  await who('about_me', { medicines: ['metoprolol'], conditions: ['heart disease'] });
+  await who('contact', { action: 'add', name: 'Sam', email: 'sam9@example.com' });
+  await who('contact', { action: 'confirm', name: 'Sam' });
+  const told = await who('about_me', { livesAlone: true });
+  check('"I live alone" says who will be asked to check, and when', /if I have not heard from you by two in the afternoon, I will ask Sam to check on you/.test(told.said), told.said);
+  sent.length = 0;
+  notify.resetEmailLimitsForTest();
+  // Heard from just now: nothing is sent.
+  const afternoon = new Date(Date.now());
+  const seen = await alerts.checkOnAlone(afternoon);
+  check('somebody who has spoken today is not reported', seen.length === 0);
+  store.update('acct:alone', (p) => { p.lastSeenAt = new Date(Date.now() - 2 * 86_400_000).toISOString(); });
+  // A day that is 3 pm where they are right now, and 108 degrees all afternoon and evening.
+  const nowMs = Date.now();
+  const off = ((15 - new Date(nowMs).getUTCHours() + 24) % 24) * 3600;
+  const hot = { ...HOT_DAY, utcOffsetSeconds: off, tempF: 108, hourly: Array.from({ length: 12 }, (_, i) => { const t = nowMs + (i - 1) * 3_600_000; return { ...HOT_DAY.hourly[0], time: new Date(t).toISOString(), local: new Date(t + off * 1000).toISOString().slice(0, 13) + ':00', tempF: 108, humidityPct: 20, isDay: true }; }) };
+  wx.seedForTest(hot);
+  const twoPm = new Date(nowMs);
+  const missing = await alerts.checkOnAlone(twoPm);
+  await settle();
+  check('somebody who lives alone and has not been heard from by 2 pm on a dangerous day is checked on, once', missing.length === 1 && sent.some((m) => m.subject === 'Please check on them today' && !/metoprolol|heart/i.test(m.text)), JSON.stringify(sent.map((m) => m.subject)));
+  check('...and only once', (await alerts.checkOnAlone(twoPm)).length === 0);
+  wx.seedForTest(HOT_DAY);
+  delete process.env.SUDOR_RECIPIENT_CONSENT;
+}
+
+console.log('\nThe other Alexa+ countries');
+{
+  const w = await import('./dist/warnings.js');
+  // A MeteoAlarm warning for the Veneto (EMMA_ID IT006), shaped as the live Italian feed sends it.
+  const row = (code, level, expires, lang = 'en-GB') => ({ alert: { identifier: `x-${code}-${level}`, info: [
+    { language: 'it-IT', event: 'Avviso temporali', severity: 'Moderate', expires, parameter: [{ valueName: 'awareness_level', value: level }], area: [{ areaDesc: 'Veneto', geocode: [{ valueName: 'EMMA_ID', value: code }] }] },
+    { language: lang, event: 'Yellow Thunderstorm Warning', severity: 'Moderate', expires, instruction: 'Secure loose objects.', parameter: [{ valueName: 'awareness_level', value: level }], area: [{ areaDesc: 'Veneto', geocode: [{ valueName: 'EMMA_ID', value: code }] }] },
+  ] } });
+  const future = '2999-01-01T00:00:00+00:00';
+  const venice = w.parseMeteoAlarm([row('IT006', '2; yellow; Moderate', future)], 45.72, 11.94, null);
+  check('a European warning is found by the area it covers, in English', venice.length === 1 && venice[0].event === 'Yellow Thunderstorm Warning' && venice[0].instruction === 'Secure loose objects.', JSON.stringify(venice));
+  check('...not for a point outside that area', w.parseMeteoAlarm([row('IT006', '2; yellow; Moderate', future)], 41.9, 12.5, null).length === 0);
+  check('...not when it is green, which means no warning, or expired', w.parseMeteoAlarm([row('IT006', '1; green; Minor', future), row('IT006', '2; yellow; Moderate', '2000-01-01T00:00:00+00:00')], 45.72, 11.94, null).length === 0);
+  const uk = { alert: { identifier: 'uk1', info: [{ language: 'en-GB', event: 'Yellow wind warning', severity: 'Moderate', expires: future, parameter: [{ valueName: 'awareness_level', value: '2; yellow; Moderate' }], area: [{ areaDesc: 'London & South East England', geocode: [{ valueName: 'EMMA_ID', value: 'UK999' }] }] }] } };
+  check('an area with no outline, as in the UK, is matched by the town in its name', w.parseMeteoAlarm([uk], 51.5, -0.13, 'London').length === 1 && w.parseMeteoAlarm([uk], 53.48, -2.24, 'Manchester').length === 0);
+
+  const brands = await import('./dist/brands.js');
+  check('brands from Canada, France and Brazil are read from their own regulators', brands.ingredientsOf('Synthroid', 'CA')?.ingredients.join() === 'levothyroxine' && brands.ingredientsOf('Lasilix', 'FR')?.ingredients.join() === 'furosémide' && brands.ingredientsOf('Glifage', 'BR')?.ingredients.join() === 'metformina');
+  check('...the person\'s own country first', brands.ingredientsOf('Coversyl', 'CA')?.country === 'CA' && brands.ingredientsOf('Coversyl', 'FR')?.country === 'FR');
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    const json = (b) => new Response(JSON.stringify(b));
+    if (u.includes('approximateTerm')) return json({ approximateGroup: { candidate: [{ rxcui: /nifedipino|nifedipine/.test(u) ? '7417' : /xyzone/.test(u) ? '19832' : '0' }] } });
+    if (u.includes('/rxcui/7417/')) return json({ properties: { name: 'nifedipine', tty: 'IN' } });
+    if (u.includes('/rxcui/19832/')) return json({ properties: { name: 'budipine', tty: 'IN' } });
+    if (u.includes('cima.aemps.es')) return json({ resultados: [{ nombre: 'ADALAT OROS 30 mg', vtm: { nombre: 'nifedipino' } }] });
+    return real(url);
+  };
+  check('a foreign generic name is read in English', (await brands.englishName('nifedipino')) === 'nifedipine' && (await brands.englishName('nifédipine')) === 'nifedipine');
+  check('...and a match spelled nothing like what was said is refused', (await brands.englishName('xyzone')) === null);
+  check('the international names need no lookup', (await brands.englishName('Paracétamol')) === 'acetaminophen');
+  check('Spain is asked live, and its answer is in Spanish', JSON.stringify(await brands.lookupSpain('Adalat')) === '["nifedipino"]');
+  globalThis.fetch = real;
+
+  const ca = await import('./dist/recallsca.js');
+  const rows = ca.parse([
+    { Category: 'Drugs', Archived: '0', 'Last updated': new Date().toISOString().slice(0, 10), Title: 'Metformin 500 mg: affected lot may contain NDMA.', Product: 'Metformin', 'Recall class': 'Type II', URL: 'u' },
+    { Category: 'Drugs', Archived: '1', 'Last updated': new Date().toISOString().slice(0, 10), Title: 'Metformin old', Product: 'Metformin', 'Recall class': 'Type I', URL: 'u' },
+    { Category: 'Food', Archived: '0', 'Last updated': new Date().toISOString().slice(0, 10), Title: 'Metformin cake', Product: 'Cake', 'Recall class': 'Type I', URL: 'u' },
+    { Category: 'Drugs', Archived: '0', 'Last updated': '2001-01-01', Title: 'Metformin ancient', Product: 'Metformin', 'Recall class': 'Type I', URL: 'u' },
+  ]);
+  ca.seedForTest(rows);
+  check('Health Canada recalls: only current drug recalls, matched by the medicine\'s name', ca.forMedicines(['metformin']).length === 1 && ca.forMedicines(['metoprolol']).length === 0);
+  check('...said with the lot check, and never "stop taking it"', /Check the lot number/.test(ca.speak(rows[0])) && /don't stop taking it without asking your pharmacist/.test(ca.speak(rows[0])));
+  ca.seedForTest(null);
+}
+
+console.log('\nBrazil, the UK and Italy');
+{
+  const w = await import('./dist/warnings.js');
+  const square = JSON.stringify({ type: 'Polygon', coordinates: [[[-47, -24], [-46, -24], [-46, -23], [-47, -23], [-47, -24]]] });
+  const rows = [
+    { poligono: square, descricao: 'Tempestade', severidade: 'Perigo', data_fim: '2999-01-01', hora_fim: '23:59', codigo: 'a' },
+    { poligono: square, descricao: 'Onda de Calor', severidade: 'Grande Perigo', data_fim: '2999-01-01', hora_fim: '23:59', codigo: 'b' },
+    { poligono: square, descricao: 'Geada', severidade: 'Perigo Potencial', data_fim: '2000-01-01', hora_fim: '23:59', codigo: 'c' },
+  ];
+  const sp = w.parseInmet(rows, -23.55, -46.63);
+  check('Brazilian warnings are read inside their outline, in English, at their own level', sp.length === 2 && sp.some((x) => x.event === 'Thunderstorm warning' && x.severity === 'Severe') && sp.some((x) => x.event === 'Heatwave warning' && x.severity === 'Extreme'), JSON.stringify(sp.map((x) => x.event)));
+  check('...and not outside it', w.parseInmet(rows, -30.03, -51.23).length === 0);
+  const uk = await import('./dist/recallsuk.js');
+  const ukRows = uk.parse({ results: [
+    { title: 'Class 2 Medicines Recall: Crescent Pharma Limited, Ramipril 2.5 mg Capsules, EL(26)A/39', description: 'Batches are being recalled.', public_timestamp: new Date().toISOString(), link: '/x' },
+    { title: 'Medical device alert: insulin pumps', description: 'x', public_timestamp: new Date().toISOString(), link: '/y' },
+  ] });
+  uk.seedForTest(ukRows);
+  check('MHRA recalls are matched by the medicine\'s name', uk.forMedicines(['ramipril']).length === 1 && uk.forMedicines(['metoprolol']).length === 0);
+  check('...and said with the batch check and the class, without the reference code', /^The MHRA has a Class 2 recall: Crescent Pharma Limited, Ramipril 2\.5 mg Capsules\. Check the batch number/.test(uk.speak(ukRows[0])), uk.speak(ukRows[0]));
+  uk.seedForTest(null);
+  const brands = await import('./dist/brands.js');
+  const tri = brands.ingredientsOf('Triatec', 'DE');
+  check('a brand that is a different medicine in different countries is asked about, never guessed', tri?.ambiguous?.length === 3 && tri.ingredients.length === 0 && brands.ingredientsOf('Triatec', 'IT')?.ingredients.join() === 'ramipril');
+  check('...while the same medicine spelled per country is one medicine', !brands.ingredientsOf('Lasix', 'DE')?.ambiguous && !brands.ingredientsOf('Augmentin', 'DE')?.ambiguous && !brands.ingredientsOf('Coversyl', 'DE')?.ambiguous);
+  check('Italian brands are read from AIFA\'s list', brands.ingredientsOf('Triatec', 'IT')?.ingredients.join() === 'ramipril' && brands.ingredientsOf('Congescor', 'IT')?.ingredients.join() === 'bisoprololo');
 }
 
 await new Promise((r) => listener.close(r));

@@ -231,7 +231,7 @@ console.log('\nOld data is not "right now"');
   const r = await who.call('weather_check');
   check('a reading five hours old is not spoken as the heat right now', r.data.unavailable === true && /can't reach the weather service/.test(r.text), r.text);
   seed(30.27, -97.74, () => 99);
-  check('a fresh one is', /Heat index/.test((await who.call('weather_check')).text));
+  check('a fresh one is', /feels like/i.test((await who.call('weather_check')).text));
 
   const heat = { id: 'a', event: 'Heat Advisory', kind: 'heat', severity: 'Moderate', urgency: 'Expected', headline: '', instruction: null, areaDesc: 'Travis', onset: null, ends: null };
   warnings.seedForTest(30.27, -97.74, [], Date.now() - 2 * 3_600_000);

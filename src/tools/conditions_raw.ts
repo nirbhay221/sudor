@@ -5,6 +5,10 @@
  * from when it lived there; only the file it lives in is new.
  */
 
+import { MECHANISM_LABEL } from '../meds.js';
+import { GUIDANCE } from '../domain.js';
+import { sentences } from '../brief.js';
+import { thunderstormAsthma, migrainePressure } from '../weatherhealth.js';
 import { indoorRisk, LIMIT_F } from '../indoor.js';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -41,6 +45,21 @@ import {
   snapshotFor,
   officialWarning,
 } from './shared.js';
+
+/** The first half of each medicine's heat advice, for the spoken answer. The rest is in GUIDANCE, for "tell me more". */
+const GUIDANCE_SHORT = {
+  reduced_sweating: 'you may not feel overheating until it is serious',
+  increased_heat_production: 'treat outdoor effort as if it were several degrees hotter',
+  reduced_thirst_or_sedation: 'drink on a schedule, not on thirst',
+  electrolyte_imbalance: 'have an electrolyte drink as well as water',
+  fluid_loss: 'sip steadily through the day',
+  hyponatremia_risk: 'sip through the day rather than drinking a lot at once',
+  increased_sweating: 'drink before you feel thirsty',
+  faint_risk: 'get up slowly and sit down if you feel light-headed',
+  kidney_risk: 'do not let yourself run dry',
+  reduced_vasodilation: 'take shade and rest earlier than you think you need to',
+  heat_damaged: 'keep it out of a hot car and the sun',
+} as const;
 
 export function register(server: McpServer, personOf: () => string): void {
   /* ---------------------------------------------------------------- *
@@ -107,10 +126,17 @@ export function register(server: McpServer, personOf: () => string): void {
           parts.push('Tell me your medications or health conditions and I can answer for you specifically.');
         }
 
+      // Weather that is a health event in itself, for the people it is one for. See weatherhealth.ts.
+      const stormLine = thunderstormAsthma(snap, { asthma: person.conditions.includes('asthma_copd'), hayFever: person.conditions.includes('hay_fever') });
+      const migraineLine = person.conditions.includes('migraine') ? migrainePressure(snap) : '';
+        if (stormLine) parts.push(stormLine);
+        if (migraineLine) parts.push(migraineLine);
         const official = officialWarning(person, snap.timezone);
         if (official) parts.push(official.line);
         return say(parts.join(' '), {
-          ...(official ? { mustSay: [official.line], warning: official.event } : {}),
+          ...(official || stormLine ? { mustSay: [official?.line ?? '', stormLine].filter(Boolean) } : {}),
+          ...(official ? { warning: official.event } : {}),
+          ...(stormLine ? { thunderstormAsthma: true } : {}),
           season: 'cold',
           tempF: snap.tempF,
           windChillF: Math.round(feelsCold),
@@ -130,7 +156,15 @@ export function register(server: McpServer, personOf: () => string): void {
 
       const verdict = assess(snap.tempF, snap.humidityPct, mechanisms);
       const judged = judgeHour(nowHour(snap), profile);
-      const opening = `Heat index ${Math.round(verdict.heatIndexF)}, ${CATEGORY_WORDS[verdict.category]}.`;
+      /*
+       * How it feels, in the words people use: "it feels like 82 out". The heat index is what "feels like" means,
+       * and older listeners understand the phrase without the term (Amazon's one-breath rule, and the review of
+       * heat warnings for older adults, both say plain words). The official band is added only when it is
+       * itself a warning, so "stay in" is never followed by "caution".
+       */
+      const hiNow = Math.round(verdict.heatIndexF);
+      const band = verdict.category === 'danger' || verdict.category === 'extreme_danger' ? `, which the weather service calls ${CATEGORY_WORDS[verdict.category]}` : '';
+      const opening = `It feels like ${hiNow} degrees out${band}.`;
 
       const parts: string[] = [];
       if (person.privacy) {
@@ -139,26 +173,36 @@ export function register(server: McpServer, personOf: () => string): void {
           parts.push('Something in your health profile makes this heat riskier for you.');
         }
       } else {
-        parts.push(person.medications.length ? verdict.reason : opening);
-        if (verdict.binding) parts.push(MEDICATION_CAUTION);
-        const condition = profile.conditions[0];
-        if (condition && verdict.category !== 'none') {
-          // A medication explanation is already a lot to hear, so the condition
-          // gets one short line then, and its full planning sentence otherwise.
-          parts.push(verdict.binding ? `With ${condition.label}, that matters even more.` : condition.plan);
+        parts.push(opening);
+        if (verdict.binding) {
+          // The medicine by its name, and only the first half of what it means: the rest is there to be asked for.
+          const named = person.medications.find((m) => m.mechanisms.includes(verdict.binding!))?.generic ?? 'medication';
+          const consequence = GUIDANCE_SHORT[verdict.binding as keyof typeof GUIDANCE_SHORT] ?? '';
+          parts.push(`Your ${named} ${MECHANISM_LABEL[verdict.binding]}${consequence ? `, so ${consequence}` : ''}.`);
+          parts.push(MEDICATION_CAUTION);
+          // What to do about it, held for "tell me more" by the brevity layer.
+          const howTo = sentences(GUIDANCE[verdict.binding as keyof typeof GUIDANCE] ?? '').slice(1).join(' ');
+          if (howTo) parts.push(howTo);
         }
+        const condition = profile.conditions.find((c) => c.sensitivity !== 'general');
+        if (condition && verdict.category !== 'none') parts.push(condition.plan);
       }
 
       const extra = judged.reasons.filter((r) => !r.startsWith('heat index'));
-      const because = extra.length ? `, because of ${extra.join(' and ').replace('felt unwell at this heat before', 'how you felt at this heat before')}` : '';
+      const plainReason = (r: string) =>
+        r === 'felt unwell at this heat before' ? 'how you felt at this heat before'
+          : /^UV/.test(r) ? 'the strong sun'
+            : /^air quality/.test(r) ? 'the air quality'
+              : r;
+      const because = extra.length ? `, because of ${extra.map(plainReason).join(' and ')}` : '';
       // The answer to the question that was asked comes first. It used to come last, after the heat index,
       // the medicine and the condition, which is the order it was worked out in and not the order to say it.
       parts.unshift(
-        judged.status === 'good'
+        (judged.status === 'good'
           ? 'For you, right now is a fine time to be outside.'
           : judged.status === 'caution'
             ? `For you, take care if you go out now${because}.`
-            : `For you, it is better to stay in right now if you can${because}.`,
+            : `For you, it is better to stay in right now if you can${because}.`),
       );
       if (!person.medications.length && !person.conditions.length) {
         parts.push('Tell me your medications or health conditions and I can answer for you specifically.');
@@ -166,6 +210,19 @@ export function register(server: McpServer, personOf: () => string): void {
       const age = weather.ageMinutes(snap.lat, snap.lon);
       if (snap.stale && age != null && age > 60) parts.push(`My weather data is ${age} minutes old.`);
 
+      // Weather that is a health event in itself, for the people it is one for. See weatherhealth.ts.
+      const stormLine = thunderstormAsthma(snap, { asthma: person.conditions.includes('asthma_copd'), hayFever: person.conditions.includes('hay_fever') });
+      const migraineLine = person.conditions.includes('migraine') ? migrainePressure(snap) : '';
+      if (stormLine) parts.push(stormLine);
+      if (migraineLine) parts.push(migraineLine);
+      // Fasting on top of a water pill, an SGLT2 drug, kidney disease or diabetes is the group the Ramadan
+      // diabetes guidelines (IDF-DAR) advise to check with their doctor before fasting at all, more so in heat.
+      const fastingRisk =
+        person.conditions.includes('fasting') && verdict.category !== 'none' &&
+        (person.conditions.some((c) => c === 'kidney_disease' || c === 'diabetes') ||
+          person.medications.some((m) => m.mechanisms.some((x) => x === 'fluid_loss' || x === 'electrolyte_imbalance')));
+      const fastLine = fastingRisk ? 'Fasting in this heat with your medicines or conditions is the combination doctors most want to hear about first, so ask yours before you keep the fast on hot days.' : '';
+      if (fastLine) parts.push(fastLine);
       // "Stay in" is only good advice when in is cooler than out. See indoor.ts.
       const vulnerable = person.medications.length > 0 || person.conditions.length > 0;
       const inside = indoorRisk(snap, person, vulnerable);
@@ -178,10 +235,10 @@ export function register(server: McpServer, personOf: () => string): void {
 
       // The step that finishes the thought, put as one question.
       // One question at a time: when the cooling is being asked about, that is the question.
-      const offer = askCooling ? 'That only holds if your cooling is working. Is it?' : judged.status === 'good' || officialWarning(person, snap.timezone) ? '' : 'Want me to find the safest time to go out today?';
+      const offer = askCooling ? 'Staying in only helps if your cooling works. Is it working?' : judged.status === 'good' || officialWarning(person, snap.timezone) ? '' : 'Want me to find the safest time to go out today?';
       // The line about not stopping a medicine is said whatever else is held back.
       // So is the line about not stopping a medicine: it is the one sentence here that prevents a harm.
-      const mustSay = [parts.includes(MEDICATION_CAUTION) ? MEDICATION_CAUTION : '', inside ? inside.line : ''].filter(Boolean);
+      const mustSay = [parts.includes(MEDICATION_CAUTION) ? MEDICATION_CAUTION : '', inside ? inside.line : '', stormLine].filter(Boolean);
       // A hurricane, a tornado or a flood outranks the heat index, and is said whatever else is held back.
       const official = officialWarning(person, snap.timezone);
       if (official) {
@@ -193,6 +250,7 @@ export function register(server: McpServer, personOf: () => string): void {
         ...(inside?.level === 'danger' ? { nextAction: { tool: 'somewhere_to_go', arguments: {} } } : askCooling ? { offer } : offer ? { offer, nextAction: { tool: 'plan_my_day', arguments: {} } } : {}),
         ...(inside ? { indoor: { level: inside.level, basis: inside.basis, indoorF: inside.indoorF ?? null, highF: inside.highF ?? null, overnightLowF: inside.overnightLowF ?? null } } : {}),
         ...(askCooling ? { asks: 'cooling' } : {}),
+        ...(stormLine ? { thunderstormAsthma: true } : {}),
         mustSay,
         heatIndexF: verdict.heatIndexF,
         category: verdict.category,

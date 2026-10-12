@@ -5,6 +5,8 @@
  * from when it lived there; only the file it lives in is new.
  */
 
+import * as outlook from '../outlook.js';
+import { inUS } from '../world.js';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { assess, heatIndexF, photoRisk, type HeatCategory } from '../domain.js';
@@ -24,7 +26,7 @@ import * as recalls from '../recalls.js';
 import * as warnings from '../warnings.js';
 import * as spaceweather from '../spaceweather.js';
 import * as shelters from '../shelters.js';
-import { hazardOf, stepsFor, mayHaveToLeave, mayLosePower, SOURCES } from '../hazard.js';
+import { hazardOf, stepsFor, type Needs, mayHaveToLeave, mayLosePower, SOURCES } from '../hazard.js';
 import { OWN, NEEDS_POWER } from '../devices.js';
 
 const andWords = (xs: string[]): string => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
@@ -40,6 +42,21 @@ import {
   profileFor,
   say,
 } from './shared.js';
+
+/** The days ahead for this person: the US forecasters' products, or the week's forecast elsewhere. */
+function outlookLines(person: store.Person): string[] {
+  const sensitive = person.medications.length > 0 || person.conditions.some((c) => c !== 'hay_fever' && c !== 'migraine');
+  const snap = weather.current(person.lat as number, person.lon as number);
+  const today = snap ? new Date(Date.now() + snap.utcOffsetSeconds * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+  if (!inUS(person.country)) {
+    const w = outlook.speakWorld(snap?.daily, sensitive, today);
+    // A hurricane cone reaches Mexico and the Caribbean too; the heat and river products are American only.
+    const o = outlook.current(person.lat as number, person.lon as number);
+    const cones = o ? outlook.speak({ heat: [], rivers: [], storms: o.storms, checkedAt: o.checkedAt }, sensitive, today) : [];
+    return [...cones, ...(w ? [w] : [])];
+  }
+  return outlook.speak(outlook.current(person.lat as number, person.lon as number), sensitive, today);
+}
 
 export function register(server: McpServer, personOf: () => string): void {
   server.registerTool(
@@ -240,20 +257,34 @@ export function register(server: McpServer, personOf: () => string): void {
           medicines: person.medications.length > 0 || person.recallWatch.length > 0,
           older: person.conditions.includes('older_adult'),
         };
-        const todo = stepsFor(hazard, needs, steps);
+        const all = stepsFor(hazard, needs, steps);
+        // A warning or an emergency, or anything the service rates severe, is a real threat; an advisory or a
+        // statement is a heads-up, answered in a sentence or two with the rest there to be asked for.
+        const serious = /warning|emergency/i.test(active.event) || active.severity === 'Severe' || active.severity === 'Extreme' || hazard === 'tornado' || hazard === 'tsunami';
+        // For a heads-up, getting ready for a long power cut (a week of medicines, a cooler, charging) waits
+        // behind what this hazard does to this person now, like smoke on a heart.
+        const general = stepsFor(hazard, {} as Needs);
+        const getReady = (t: string) => !general.includes(t) && /pharmacist|week of|cooler|charge|dialysis unit|power/i.test(t);
+        const todo = serious ? all : [all[0], ...all.slice(1).filter((t) => !getReady(t)), ...all.slice(1).filter(getReady)].filter(Boolean);
+        const sayNow = serious ? todo.slice(0, Math.min(todo.length, 3)) : [todo[0], ...todo.filter((t) => !general.includes(t) && !getReady(t))].filter(Boolean);
         const zone = (person.lat != null && person.lon != null ? weather.current(person.lat, person.lon)?.timezone : null) ?? 'UTC';
         const head = `There is ${/^[aeiou]/i.test(active.event) ? 'an' : 'a'} ${active.event} where you are${warnings.until(active, zone)}.`;
         // Smoke is the one hazard with a number a person can act on, and it is read live for where they are.
         const aqi = hazard === 'smoke' && person.lat != null && person.lon != null ? weather.current(person.lat, person.lon)?.aqi ?? null : null;
         const air = aqi == null ? '' : ` The air quality index is ${Math.round(aqi)} right now, which is ${aqiWord(aqi)}.`;
-        const official = active.instruction ? ` The weather service says: ${warnings.brief(active.instruction, 1, 200)}` : '';
+        const officialRaw = active.instruction ? ` The weather service says: ${warnings.brief(active.instruction, 1, 200)}` : '';
+        const official = serious && !officialRaw.toLowerCase().includes(active.event.toLowerCase()) ? officialRaw : '';
         const family = person.contacts.filter(reachable).map((c) => c.name);
         const leave = mayHaveToLeave(hazard);
-        return say(`${head}${air} ${todo.join(' ')}${official}${solar ? ` ${spaceweather.speak(solar)}` : ''}`, {
+        const ahead = person.lat != null && person.lon != null ? outlookLines(person) : [];
+        return say(`${head}${air} ${todo.join(' ')}${official}${ahead.length ? ` ${ahead.join(' ')}` : ''}${solar ? ` ${spaceweather.speak(solar)}` : ''}`, {
           // With a hazard that can cut the power or empty the house, every line is something to do now, so it
           // is heard whole. For the others the first steps are heard and the rest is there to be asked for.
-          fullAnswer: mayLosePower(hazard) || leave,
-          mustSay: todo.slice(0, Math.min(todo.length, 3)),
+          // Heard whole only for a real warning: a wind advisory does not need the hurricane checklist read out.
+          fullAnswer: serious && (mayLosePower(hazard) || leave),
+          // For a heads-up, the first step and what the hazard does to this person now; the rest waits.
+          mustSay: sayNow,
+          ...(serious ? {} : { sayFirst: 2 }),
           ...(family.length ? { offer: `Want me to tell ${family.join(' and ')} you are safe? Say tell them I'm safe.` } : {}),
           alert: active.event,
           ...(aqi != null ? { aqi: Math.round(aqi), aqiCategory: aqiWord(aqi) } : {}),
@@ -271,8 +302,12 @@ export function register(server: McpServer, personOf: () => string): void {
         ? 'Here is what matters for you.'
         : "I don't know your medicines or conditions yet, so this is the general version. Tell me what you take and I can be specific.";
 
+      // The days ahead: a hurricane cone, a river forecast, a heat week. Said before the checklist, because it is
+      // why the checklist matters now. See outlook.ts.
+      const coming2 = person.lat != null && person.lon != null ? outlookLines(person) : [];
       const tail = solar ? ` ${spaceweather.speak(solar)}` : '';
-      return say(`${lead}${opening} ${steps.join(' ')}${tail}`, {
+      return say(`${lead}${coming2.length ? `${coming2.join(' ')} ` : ''}${opening} ${steps.join(' ')}${tail}`, {
+        ...(coming2.length ? { ahead: coming2 } : {}),
         // A checklist for before the power goes. With a storm on the way every line is a thing to do now, so it
         // is heard whole. With nothing coming it is advice, and is given a few sentences at a time.
         fullAnswer: !!coming || !!solar,

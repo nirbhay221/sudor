@@ -60,6 +60,7 @@ const GENERAL: Record<Hazard, string[]> = {
     'Do not walk or drive through flood water. A foot of moving water can carry a car away.',
     'Move to higher ground or a higher floor if water is rising, and leave if you are told to.',
     'Keep your phone charged and your medicines somewhere high and dry.',
+    'After the water goes down, wear gloves and boots to clean up, throw out food and medicine it touched, and keep anybody with lung disease or a weak immune system out of damp rooms until they are dried out: mould grows within a day or two.',
   ],
   tornado: [
     'Go now to the lowest floor, in a room with no windows, and put as many walls between you and outside as you can.',

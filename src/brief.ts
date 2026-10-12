@@ -97,14 +97,15 @@ export function shorten(result: Result, id: string, opts: { readOnly: boolean })
 
   const parts = sentences(full);
   const pagesItself = sc.nextStep !== undefined || sc.nextFrom !== undefined;
-  const fits = parts.length <= MAX_SENTENCES && words(full) <= MAX_WORDS;
+  const fits = parts.length <= (typeof sc.sayFirst === 'number' ? sc.sayFirst : MAX_SENTENCES) && words(full) <= MAX_WORDS;
   // A checklist that is the whole point of the answer (what to do before the power goes) says so itself.
   if (!opts.readOnly || pagesItself || fits || sc.fullAnswer === true || /\b911\b/.test(full)) {
     if (opts.readOnly) remember(id, []);
     return offer ? out(withOffer(full)) : result;
   }
 
-  let keep = MAX_SENTENCES;
+  // A tool can ask for fewer: a heads-up says its headline and the one step that matters, and stops.
+  let keep = typeof sc.sayFirst === 'number' && sc.sayFirst >= 1 ? Math.min(MAX_SENTENCES, sc.sayFirst) : MAX_SENTENCES;
   while (keep > 1 && words(parts.slice(0, keep).join(' ')) > MAX_WORDS) keep -= 1;
   // Some things cannot wait to be asked for: a storm about to arrive on a job just called clear, or which
   // field was assumed. A tool names those in `mustSay`, and they are spoken whatever else is held back.

@@ -51,7 +51,7 @@ check('...and its guidance warns about too much plain water rather than too litt
  * that read "so and heavy sweating" and "so so drinking" out loud. One rule
  * covers the whole table: a guidance line never opens with a connective.
  */
-const doubled = Object.entries(GUIDANCE).filter(([, line]) => /^(and|so|but|then)/i.test(line));
+const doubled = Object.entries(GUIDANCE).filter(([, line]) => /^(and|so|but|then)\b/i.test(line));
 check('no guidance line doubles the connective it is spliced onto', !doubled.length, doubled.map(([k]) => k).join(', '));
 check('an SSRI carries it too, because that is the other class the reviews name',
   findMedication('sertraline')?.mechanisms.includes('hyponatremia_risk'));

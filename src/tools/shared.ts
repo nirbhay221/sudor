@@ -12,6 +12,10 @@
  * Nothing here changed in the move. It is the same code in a smaller room.
  */
 
+import * as recallsuk from '../recallsuk.js';
+import * as recallsca from '../recallsca.js';
+import * as outlook from '../outlook.js';
+import { inUS } from '../world.js';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { assess, heatIndexF, photoRisk, type HeatCategory } from '../domain.js';
@@ -57,7 +61,8 @@ export const WEATHER_DOWN =
  * Said whenever a medication is named as the risk. Stopping a heart or blood
  * pressure medicine because of a hot day can do more harm than the heat.
  */
-export const MEDICATION_CAUTION = "Don't stop or change a medication because of the heat without asking your doctor or pharmacist.";
+// Short, because it is said in nearly every hot answer, and it is the one line that prevents a harm.
+export const MEDICATION_CAUTION = 'Keep taking it unless your doctor says otherwise.';
 
 export const CATEGORY_WORDS: Record<HeatCategory, string> = {
   none: 'not a heat concern',
@@ -90,7 +95,11 @@ export function resolveLocation(personId: string, place: string): void {
     if (found) {
       weather.watch(found.lat, found.lon, !personId.startsWith('demo:'));
       care.watch(found.lat, found.lon, found.state ? `${found.name}, ${found.state}` : found.name);
-      warnings.watch(found.lat, found.lon, found.country);
+      warnings.watch(found.lat, found.lon, found.country, found.name);
+      // The US forecasts: the hurricane centre's cones also cover Mexico and the Caribbean. See outlook.ts.
+      if (inUS(found.country) || ['MX', 'CU', 'DO', 'JM', 'BS', 'BZ', 'GT', 'HN', 'NI', 'CR', 'PA', 'SV', 'HT'].includes(found.country)) outlook.watch(found.lat, found.lon);
+      if (found.country === 'CA') recallsca.start();
+      if (found.country === 'GB') recallsuk.start();
     }
   });
 }
@@ -237,10 +246,10 @@ export const coldMechanismsOf = (person: store.Person): { mechanism: ColdMechani
 export const coldConditionsOf = (person: store.Person) =>
   CONDITIONS.filter((c) => person.conditions.includes(c.id) && c.cold);
 
-/** "Wind chill 18" when the wind is doing the work, "It is 41 degrees" when it is not. */
+/** "With the wind it feels like 18" when the wind is doing the work, "It is 41 degrees" when it is not. */
 export const coldOpening = (tempF: number, feelsF: number): string =>
   feelsF < tempF - 1
-    ? `Wind chill ${Math.round(feelsF)}, ${COLD_WORDS[coldCategory(feelsF)]}.`
+    ? `With the wind it feels like ${Math.round(feelsF)} degrees, ${COLD_WORDS[coldCategory(feelsF)]}.`
     : `It's ${Math.round(tempF)} degrees, ${COLD_WORDS[coldCategory(feelsF)]}.`;
 
 /** "a***@example.com", for reading an address back when others may be listening. */

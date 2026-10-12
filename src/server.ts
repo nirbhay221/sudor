@@ -7,6 +7,10 @@
  * memory.
  */
 
+import * as recallsuk from './recallsuk.js';
+import * as recallsca from './recallsca.js';
+import * as outlook from './outlook.js';
+import { inUS } from './world.js';
 import { chooseByWords } from './rules.js';
 import * as devices from './devices.js';
 import { speakErrorsPlainly } from './plainly.js';
@@ -16,7 +20,7 @@ import { resolve } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { registerTools, resolveLocation } from './tools.js';
-import { checkHotDayAlerts, checkWarningAlerts } from './alerts.js';
+import { checkHotDayAlerts, checkWarningAlerts, checkOnAlone } from './alerts.js';
 import { MEDICATIONS } from './meds.js';
 import { CONDITIONS } from './conditions.js';
 import * as weather from './weather.js';
@@ -74,6 +78,9 @@ function personFrom(req: express.Request): string {
  * mistake a model made in testing on four sentences out of fifteen. The same idea as "context-aware tools":
  * tell the model what is known for this person, not only what each tool does.
  */
+/** The main language of each Alexa+ country that is not English-speaking. */
+const LANGUAGE: Record<string, string> = { DE: 'German', AT: 'German', FR: 'French', ES: 'Spanish', MX: 'Spanish', IT: 'Italian', BR: 'Portuguese', IN: 'Hindi or English' };
+
 function instructionsFor(personId: string): string {
   const base =
         "This add-on plans a customer's day around the heat for their own body: the medications they take and the " +
@@ -94,9 +101,16 @@ function instructionsFor(personId: string): string {
     p.cooling ? 'their home cooling' : '',
     p.contacts.length ? 'family contacts' : '',
   ].filter(Boolean);
+  // Amazon Translate is not available to this account, and Alexa+ is itself a language model that answers in the
+  // customer's language. So the host is told which language this person most likely speaks, from their country,
+  // and to keep the parts that must not drift exactly as given.
+  const lang = LANGUAGE[(p.country ?? 'US').toUpperCase()];
+  const say = lang
+    ? ` This customer lives where ${lang} is spoken: unless they speak to you in English, give the answer in ${lang}, translating it faithfully, and keep every number, every medicine name and the emergency number exactly as given.`
+    : '';
   return known.length
-    ? `${base} This customer has already saved ${known.join(', ')}. Use them: do not ask for these again.`
-    : `${base} This customer has not saved anything yet; a tool will say what it needs.`;
+    ? `${base}${say} This customer has already saved ${known.join(', ')}. Use what is saved: do not ask for it again.`
+    : `${base}${say} This customer has not saved anything yet; a tool will say what it needs.`;
 }
 
 function build(personId: string): McpServer {
@@ -539,6 +553,8 @@ const warningTimer = setInterval(() => {
   watchWarnings();
   // And tell the family, once, when a warning starts where somebody lives. See alerts.ts.
   checkWarningAlerts().catch((err) => console.error('[alerts]', err));
+  // And somebody who lives alone and has not been heard from on a dangerous day. See alerts.ts.
+  checkOnAlone().catch((err) => console.error('[alerts]', err));
 }, 10 * 60 * 1000);
 warningTimer.unref?.();
 
@@ -553,6 +569,11 @@ const watchRecalls = () => {
   const kinds = new Set<string>();
   for (const [, person] of store.allEntries()) for (const k of person.equipment ?? []) kinds.add(k);
   for (const k of kinds) devices.watch(k);
+  // Health Canada's recall list, once anybody lives in Canada. See recallsca.ts.
+  if (store.allEntries().some(([, p]) => p.country === 'CA')) recallsca.start();
+  if (store.allEntries().some(([, p]) => p.country === 'GB')) recallsuk.start();
+  // The days ahead, for every US place somebody lives. See outlook.ts.
+  for (const [, person] of store.allEntries()) if (person.lat != null && person.lon != null && (inUS(person.country) || person.country === 'MX')) outlook.watch(person.lat, person.lon);
 };
 watchRecalls();
 const recallTimer = setInterval(watchRecalls, 6 * 60 * 60 * 1000);

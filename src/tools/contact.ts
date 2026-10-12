@@ -373,7 +373,7 @@ export function register(server: McpServer, personOf: () => string): void {
       const where = person.locationName ? ` in ${person.locationName}` : '';
       const best = plan.best && plan.best.status !== 'avoid' ? ` The best time for them to be out today is ${plan.best.label}.` : plan.hours.length ? ' There is no good time for them to be out today.' : '';
       const cold = now.feelsF <= 50;
-      return say(`Right now${where} it is ${word}, ${cold ? `feeling like ${Math.round(now.feelsF)}` : `heat index ${Math.round(now.heatIndexF)}`}.${best}`, {
+      return say(`Right now${where} it is ${word}, feeling like ${Math.round(cold ? now.feelsF : now.heatIndexF)}.${best}`, {
         sharing: true,
         status: now.status,
         best: plan.best ? { label: plan.best.label, status: plan.best.status } : null,
@@ -381,7 +381,7 @@ export function register(server: McpServer, personOf: () => string): void {
           kind: 'card',
           title: person.locationName ?? 'Their day',
           status: { label: now.status === 'good' ? 'fine' : now.status === 'caution' ? 'take care' : 'stay in', tone: now.status === 'good' ? 'good' : now.status === 'avoid' ? 'bad' : 'neutral' },
-          lines: [cold ? `Feels like ${Math.round(now.feelsF)}.` : `Heat index ${Math.round(now.heatIndexF)}.`, plan.best && plan.best.status !== 'avoid' ? `Best time out: ${plan.best.label}.` : 'No good time to be out today.'],
+          lines: [cold ? `Feels like ${Math.round(now.feelsF)}.` : `Feels like ${Math.round(now.heatIndexF)}.`, plan.best && plan.best.status !== 'avoid' ? `Best time out: ${plan.best.label}.` : 'No good time to be out today.'],
         },
       });
     },

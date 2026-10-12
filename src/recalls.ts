@@ -141,14 +141,14 @@ export function severityOf(classification: string): { rank: number; say: string;
   if (/class ii\b/i.test(classification)) {
     return {
       rank: 2,
-      say: 'The FDA calls this class two, which means any harm would usually be temporary or treatable',
+      say: 'It is class two, so any harm would usually be temporary',
       short: 'class two',
     };
   }
   if (/class iii\b/i.test(classification)) {
     return {
       rank: 1,
-      say: 'The FDA calls this class three, which means it is unlikely to cause harm',
+      say: 'It is class three, unlikely to cause harm',
       short: 'class three, the mildest',
     };
   }
@@ -186,14 +186,12 @@ export function speak(recall: Recall, brief = false): string {
   const severity = severityOf(recall.classification);
   const name = capitalise(recall.generic);
   if (brief) {
-    return `${name} has one too, from ${monthName(recall.started)}, also ${severity.short}.`;
+    return `Another for ${recall.generic}, from ${monthName(recall.started)}, ${severity.short}.`;
   }
   const urgency = severity.rank === 3 ? 'Ring your pharmacy today.' : 'Ask your pharmacist next time you are there.';
   return (
-    `${name} has an open recall, started ${monthName(recall.started)} by ${tidy(recall.firm)}. ` +
-    `The reason given is ${shorten(tidy(recall.reason), 120)}. ` +
+    `${name} has an open recall, started ${monthName(recall.started)} by ${tidy(recall.firm)}, for ${shorten(tidy(recall.reason), 90).replace(/^./, (c) => c.toLowerCase())}. ` +
     `${severity.say}. ` +
-    'Recalls cover particular batches, so check the lot number on your bottle against the notice. ' +
-    `${urgency} Don't stop taking it on your own.`
+    `It covers particular batches, so check the lot number on your bottle. ${urgency} Don't stop taking it on your own.`
   );
 }

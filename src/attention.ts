@@ -79,6 +79,8 @@ export function reminder(id: string, localDate: string | null, name: string): st
   }
   // Not on the answer that set it, and not on an answer that is itself about the day.
   if (name === 'plan_my_day') return '';
+  // Nor in front of an answer to "I feel dizzy" or "get help": the person asked something urgent, and that comes first.
+  if (name === 'warning_signs' || name === 'get_help' || name === 'somewhere_to_go') return '';
   if (held.said >= MAX_TIMES) return '';
   held.said += 1;
   return held.said === 1

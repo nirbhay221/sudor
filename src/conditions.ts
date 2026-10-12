@@ -20,7 +20,8 @@
  * plan, and nothing tells anyone to change a medication.
  */
 
-export type Sensitivity = 'extreme' | 'sensitive';
+/** general: noted for the advice it changes, without moving the person's heat limit (hay fever, migraine). */
+export type Sensitivity = 'extreme' | 'sensitive' | 'general';
 export type Source = { name: string; url: string };
 
 export type Condition = {
@@ -51,6 +52,11 @@ export type Condition = {
 };
 
 const SRC = {
+  ramadanDiabetes: { name: 'IDF-DAR, Diabetes and Ramadan: Practical guidelines', url: 'https://www.diabetesresearchclinicalpractice.com/article/S0168-8227(17)30338-8/fulltext' },
+  ramadanKidney: { name: 'Fasting Ramadan in chronic kidney disease, kidney transplant and dialysis patients (review)', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9218841/' },
+  vicThunderstormAsthma: { name: 'Victoria Department of Health, Epidemic thunderstorm asthma', url: 'https://www.health.vic.gov.au/environmental-health/epidemic-thunderstorm-asthma-risk-forecast' },
+  migraineWeather: { name: 'Headache (American Headache Society), weather and headache occurrence, 2023', url: 'https://headachejournal.onlinelibrary.wiley.com/' },
+  coldHeart: { name: 'Cold weather and cardiovascular deaths in the United States, 2000 to 2020 (reported March 2026)', url: 'https://www.sciencedaily.com/releases/2026/03/260325005910.htm' },
   hypothermia: { name: 'StatPearls, Hypothermia', url: 'https://www.ncbi.nlm.nih.gov/books/NBK545239/' },
   cdcOlder: {
     name: 'CDC, Older adults and cold weather, Winter Weather',
@@ -171,12 +177,12 @@ export const CONDITIONS: Condition[] = [
     plan: 'Hot days also worsen air quality, which raises the risk of heart attacks and arrhythmias, so avoid the hottest part of the day.',
     goingOut: ['Take it slow, skip anything strenuous, and keep your medicines with you.'],
     cold: {
-      plan: 'Cold raises blood pressure and makes the heart work harder, and shovelling snow is the specific danger: ten minutes of it can push a heart to almost its maximum rate.',
+      plan: 'Cold is harder on a heart than heat is: it raises blood pressure and makes the heart work harder, and a US study links cold to about 40,000 extra heart deaths a year. Shovelling snow is the specific danger: ten minutes of it can push a heart to almost its maximum rate.',
       goingOut: [
         'Do not shovel snow. If it has to be done, ask someone else, or push rather than lift and stop the moment you feel anything in your chest, arm or jaw.',
         'Cover your mouth with a scarf so you are not breathing cold air in hard.',
       ],
-      sources: [SRC.ahaShovel],
+      sources: [SRC.ahaShovel, SRC.coldHeart],
     },
     sources: [SRC.cdcHeart, SRC.cdcChronic],
   },
@@ -200,6 +206,35 @@ export const CONDITIONS: Condition[] = [
       sources: [SRC.coldAirways],
     },
     sources: [SRC.airnowOzone, SRC.cdcChronic],
+  },
+  {
+    id: 'hay_fever',
+    label: 'hay fever',
+    aliases: ['hay fever', 'hayfever', 'allergic rhinitis', 'pollen allergy', 'grass allergy', 'seasonal allergies', 'allergies'],
+    sensitivity: 'general',
+    plan: 'Pollen counts are usually highest in the morning and on dry, windy days, so those are the times to keep short.',
+    goingOut: ['Wraparound sunglasses help, and change your clothes when you come back in.'],
+    sources: [SRC.vicThunderstormAsthma],
+  },
+  {
+    id: 'migraine',
+    label: 'migraine',
+    aliases: ['migraine', 'migraines', 'chronic migraine'],
+    sensitivity: 'general',
+    plan: 'Heat and dehydration are common migraine triggers, so drink steadily and keep out of the strongest sun.',
+    goingOut: ['Sunglasses and water with you, and a break in the shade before it builds.'],
+    sources: [SRC.migraineWeather],
+  },
+  {
+    id: 'fasting',
+    label: 'fasting',
+    aliases: ['fasting', 'ramadan', 'roza', 'keeping roza', 'keeping the fast', 'observing ramadan', 'navratri fast', 'upvas', 'vrat'],
+    sensitivity: 'sensitive',
+    plan: 'While you are fasting you cannot drink in the day, so plan time outside for the early morning or after sunset, drink steadily between sunset and dawn, and keep the hottest hours indoors.',
+    goingOut: [
+      'If you feel dizzy, confused or stop sweating, break your fast and drink: most religious authorities allow it when your health is at risk.',
+    ],
+    sources: [SRC.ramadanDiabetes, SRC.ramadanKidney],
   },
   {
     id: 'kidney_disease',

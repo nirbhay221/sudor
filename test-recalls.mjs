@@ -67,7 +67,7 @@ await recalls.refresh('furosemide', true);
 const serious = await tools.medicine_recalls({});
 check('the most serious recall is read first', /Furosemide has an open recall/.test(text(serious)), text(serious));
 check('...and it says to ring the pharmacy today', /Ring your pharmacy today/.test(text(serious)));
-check('the milder one is mentioned briefly rather than read out in full', /Lisinopril has one too/.test(text(serious)), text(serious));
+check('the milder one is mentioned briefly rather than read out in full', /Another for lisinopril/.test(text(serious)), text(serious));
 check('two affected medicines are counted as two, not as notices', /^2 of your medicines have open recalls/.test(text(serious)), text(serious));
 
 console.log('\nA medicine the heat table does not know is still watched');

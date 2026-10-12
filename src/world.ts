@@ -45,7 +45,8 @@ export function localise(text: string, country: string | null | undefined): stri
   if (inUS(country)) return text;
   text = celsius(text);
   if (emergencyNumber(country) === '911') return text;
-  const n = known(country) ? emergencyNumber(country) : '112, or your local emergency number,';
+  // India: 112 is the single emergency number everywhere, and 108 is the ambulance most people know.
+  const n = (country ?? '').toUpperCase() === 'IN' ? '112, or 108 for an ambulance,' : known(country) ? emergencyNumber(country) : '112, or your local emergency number,';
   return text.replace(/\b911\b/g, n).replace(/, or your local emergency number,([.!?])/g, ', or your local emergency number$1');
 }
 

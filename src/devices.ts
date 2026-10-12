@@ -261,8 +261,7 @@ export function speak(recall: DeviceRecall, brief = false): string {
 
   const reason = recall.reason ? ` The reason given is: ${trim(recall.reason, 180)}` : '';
   return (
-    `${head}${reason} That does not mean yours is affected. Check the model against the notice, ` +
-    'or ask your supplier, before changing anything about how you use it.'
+    `${head}${reason} Yours may not be affected: check the model, or ask your supplier, before changing how you use it.`
   );
 }
 

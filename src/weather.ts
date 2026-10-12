@@ -42,7 +42,16 @@ export type Hour = {
   solarWm2: number;
   /** Psychrometric wet bulb, Fahrenheit, as Open-Meteo reports it. */
   wetBulbF: number;
+  /** WMO weather code: 95 to 99 are thunderstorms. */
+  weatherCode?: number;
+  /** Surface pressure, hPa. */
+  pressureHpa?: number;
+  /** Grass pollen, grains per cubic metre. Europe only; null elsewhere. */
+  grassPollen?: number | null;
 };
+
+/** One day of the week ahead, in the location's own calendar. */
+export type Day = { date: string; maxF: number; feelsMaxF: number; minF: number; weatherCode: number };
 
 export type LocationSnapshot = {
   lat: number;
@@ -63,6 +72,8 @@ export type LocationSnapshot = {
   wetBulbF: number;
   /** Today and tomorrow, hourly, in the location's own timezone. */
   hourly: Hour[];
+  /** Seven days ahead, one line each. Empty when the forecast did not carry them. */
+  daily?: Day[];
   stale: boolean;
   error?: string;
 };
@@ -80,7 +91,11 @@ export function localToUtc(local: string, utcOffsetSeconds: number): string {
 export function parseForecast(lat: number, lon: number, weather: any, air: any, fetchedAt = new Date()): LocationSnapshot {
   const offset = Number(weather?.utc_offset_seconds ?? 0);
   const aqiAt = new Map<string, number | null>();
-  (air?.hourly?.time ?? []).forEach((t: string, i: number) => aqiAt.set(t, air.hourly.us_aqi?.[i] ?? null));
+  const pollenAt = new Map<string, number | null>();
+  (air?.hourly?.time ?? []).forEach((t: string, i: number) => {
+    aqiAt.set(t, air.hourly.us_aqi?.[i] ?? null);
+    pollenAt.set(t, air.hourly.grass_pollen?.[i] ?? null);
+  });
   const h = weather?.hourly ?? {};
   // An hour with no temperature or humidity is left out rather than carried as NaN into a heat index.
   const usable = (i: number) => Number.isFinite(h.temperature_2m?.[i]) && Number.isFinite(h.relative_humidity_2m?.[i]);
@@ -95,7 +110,18 @@ export function parseForecast(lat: number, lon: number, weather: any, air: any, 
     solarWm2: h.shortwave_radiation?.[i] ?? 0,
     wetBulbF: h.wet_bulb_temperature_2m?.[i] ?? h.temperature_2m[i],
     aqi: aqiAt.get(local) ?? null,
+    weatherCode: Number.isFinite(h.weather_code?.[i]) ? h.weather_code[i] : undefined,
+    pressureHpa: Number.isFinite(h.surface_pressure?.[i]) ? h.surface_pressure[i] : undefined,
+    grassPollen: pollenAt.get(local) ?? null,
   }));
+  const d = weather?.daily ?? {};
+  const daily: Day[] = (d.time ?? []).map((date: string, i: number) => ({
+    date,
+    maxF: d.temperature_2m_max?.[i],
+    feelsMaxF: d.apparent_temperature_max?.[i] ?? d.temperature_2m_max?.[i],
+    minF: d.temperature_2m_min?.[i],
+    weatherCode: d.weather_code?.[i] ?? 0,
+  })).filter((x: Day) => Number.isFinite(x.maxF) && Number.isFinite(x.minF));
   return {
     lat,
     lon,
@@ -111,6 +137,7 @@ export function parseForecast(lat: number, lon: number, weather: any, air: any, 
     wetBulbF: weather.current.wet_bulb_temperature_2m ?? weather.current.temperature_2m,
     aqi: air?.current?.us_aqi ?? null,
     hourly,
+    daily,
     stale: false,
   };
 }
@@ -136,10 +163,12 @@ async function refreshOne(lat: number, lon: number): Promise<void> {
         '&current=temperature_2m,relative_humidity_2m,uv_index,is_day,wind_speed_10m,shortwave_radiation,wet_bulb_temperature_2m' +
         // shortwave_radiation and wet_bulb_temperature_2m are what turn a heat
         // index, which assumes shade, into a WBGT, which does not. Same call.
-        '&hourly=temperature_2m,relative_humidity_2m,uv_index,is_day,wind_speed_10m,shortwave_radiation,wet_bulb_temperature_2m' +
-        '&forecast_days=2&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto',
+        '&hourly=temperature_2m,relative_humidity_2m,uv_index,is_day,wind_speed_10m,shortwave_radiation,wet_bulb_temperature_2m,weather_code,surface_pressure' +
+        // Hours for today and tomorrow; whole days for the week, for the outlook in weekahead.ts.
+        '&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,weather_code' +
+        '&forecast_days=7&forecast_hours=48&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto',
     ),
-    fetchJson(`${AIR}?latitude=${lat}&longitude=${lon}&current=us_aqi&hourly=us_aqi&forecast_days=2&timezone=auto`),
+    fetchJson(`${AIR}?latitude=${lat}&longitude=${lon}&current=us_aqi&hourly=us_aqi,grass_pollen&forecast_days=2&timezone=auto`),
   ]);
 
   let failure = weather.status === 'rejected' ? String(weather.reason) : '';

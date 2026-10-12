@@ -19,7 +19,7 @@
 type Result = { content?: { type: string; text?: string }[]; structuredContent?: Record<string, unknown>; isError?: boolean };
 type Next = { tool: string; arguments: Record<string, unknown> } | null;
 
-const INTERNAL = ['full', 'mustSay', 'fullAnswer', 'offer'];
+const INTERNAL = ['full', 'mustSay', 'fullAnswer', 'offer', 'sayFirst'];
 
 /** What naturally follows each answer, or null. Only where there is one obvious step. */
 export function nextFor(name: string, args: Record<string, unknown>, sc: Record<string, unknown>): Next {

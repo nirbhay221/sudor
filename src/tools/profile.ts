@@ -5,6 +5,8 @@
  * from when it lived there; only the file it lives in is new.
  */
 
+import * as outlook from '../outlook.js';
+import { usName, ingredientsOf, englishName, lookupSpain, plain } from '../brands.js';
 import { OWN } from '../devices.js';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -41,6 +43,9 @@ import {
   say,
   checkLabel,
 } from './shared.js';
+
+/** "telma am" to "Telma AM": each word capitalised, short all-letter suffixes upper case. */
+const spokenBrand = (b: string): string => b.split(' ').map((w, i) => (i > 0 && w.length <= 3 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(' ');
 
 export function register(server: McpServer, personOf: () => string): void {
   /* ---------------------------------------------------------------- *
@@ -103,6 +108,7 @@ export function register(server: McpServer, personOf: () => string): void {
         });
         weather.watch(lat, lon, !id.startsWith('demo:'));
         warnings.watch(lat, lon);
+        outlook.watch(lat, lon);
         care.watch(lat, lon, place);
         if (was.lat !== lat || was.lon !== lon) releasePlace(was.lat, was.lon);
         return say(`Got it, I'll check the weather for ${place}.`, { place, lat, lon, status: 'ready' });
@@ -187,6 +193,87 @@ export function register(server: McpServer, personOf: () => string): void {
         );
       }
 
+      // A name from outside the United States: an international spelling, or an Indian brand. See brands.ts.
+      // What it was read as is always said, so a wrong reading is heard rather than silently kept.
+      let readAs = '';
+      // The drug database is asked once per name, whichever step asks first.
+      let asked: { name: string; found: Awaited<ReturnType<typeof rxclass.classify>> } | null = null;
+      if (!classifyMedication(name)) {
+        const country = store.get(id).country ?? null;
+        const intl = usName(name);
+        let brand = intl === name.toLowerCase().trim() ? ingredientsOf(name, country) : null;
+        // Spain has no brand download; its regulator's search is asked live. See brands.ts.
+        if (!brand && intl === name.toLowerCase().trim() && country === 'ES') {
+          const es = await lookupSpain(name);
+          if (es) brand = { brand: name.toLowerCase().trim(), ingredients: es, country: 'ES' };
+        }
+        // The same brand name is a different medicine in different countries. Asked, never guessed.
+        if (brand?.ambiguous?.length) {
+          const COUNTRY: Record<string, string> = { IN: 'India', CA: 'Canada', FR: 'France', BR: 'Brazil', IT: 'Italy', ES: 'Spain' };
+          // Countries that mean the same thing by it are said together: "ramipril in France and Italy".
+          const groups = new Map<string, string[]>();
+          for (const a of brand.ambiguous) {
+            const k = andList(a.ingredients);
+            groups.set(k, [...(groups.get(k) ?? []), COUNTRY[a.country] ?? a.country]);
+          }
+          const options = [...groups].map(([what, where]) => `${what} in ${andList(where)}`);
+          return say(
+            `${spokenBrand(brand.brand)} is a different medicine in different countries: ${options.join('; ')}. ` +
+              'Tell me the medicine name printed under the brand on your pack, and I will add that.',
+            { recognized: false, ambiguous: brand.ambiguous, needs: 'generic_name' },
+          );
+        }
+        // Each ingredient in the drug database's own English name: "furosémide", "nifedipino".
+        if (brand) {
+          const named: string[] = [];
+          for (const ing of brand.ingredients) named.push(classifyMedication(ing) ? ing : (await englishName(ing)) ?? ing);
+          brand = { ...brand, ingredients: [...new Set(named)] };
+        }
+        // A generic name said in another language, with no brand behind it: "furosemida".
+        if (!brand && intl === name.toLowerCase().trim()) asked = { name, found: await rxclass.classify(name) };
+        if (!brand && asked && !asked.found) {
+          const en = await englishName(name);
+          if (en && en !== plain(name)) {
+            readAs = `${name} is ${en} in English. `;
+            name = en;
+          }
+        }
+        if (intl !== name.toLowerCase().trim()) {
+          readAs = `${name} is ${intl} in the United States. `;
+          name = intl;
+        } else if (brand && brand.ingredients.length === 1) {
+          readAs = `${spokenBrand(brand.brand)} is ${brand.ingredients[0]}. `;
+          name = brand.ingredients[0];
+        } else if (brand) {
+          // A combination: each ingredient is looked up and kept on its own, because each acts on its own.
+          const added: string[] = [];
+          const unknown: string[] = [];
+          for (const ing of brand.ingredients) {
+            const tabled = classifyMedication(ing);
+            const found = tabled ? null : await rxclass.classify(ing);
+            const med = tabled
+              ? { spoken: name, generic: tabled.generic, drugClass: tabled.drugClass, mechanisms: tabled.mechanisms }
+              : found
+                ? { spoken: name, generic: found.generic, drugClass: found.drugClass, mechanisms: found.mechanisms }
+                : null;
+            if (!med) { unknown.push(ing); continue; }
+            store.update(id, (p) => {
+              if (!p.medications.some((m) => m.generic === med.generic)) p.medications.push(med);
+            });
+            recalls.watch(med.generic);
+            added.push(med.generic);
+          }
+          const what = `${spokenBrand(brand.brand)} is ${andList(brand.ingredients)}.`;
+          return say(
+            added.length
+              ? `${what} Added ${andList(added)}, and I'll factor ${added.length === 1 ? 'it' : 'them'} into your heat check.` +
+                  (unknown.length ? ` ${andList(unknown)} I can't judge for heat, so ask your pharmacist about ${unknown.length === 1 ? 'it' : 'them'}.` : '')
+              : `${what} None of those is one I know a heat effect for. That doesn't mean they're safe, only that I don't know.`,
+            { recognized: added.length > 0, brand: brand.brand, ingredients: brand.ingredients, added, source: 'india-brands' },
+          );
+        }
+      }
+
       let known = classifyMedication(name);
 
       // Not an exact match, but close to something in the table. Drug names are
@@ -212,7 +299,7 @@ export function register(server: McpServer, personOf: () => string): void {
       // Not one of the medicines the table names. Ask the National Library of Medicine what it is and which
       // class it belongs to, and read that class against the same guidance. See rxclass.ts.
       if (!known) {
-        const found = await rxclass.classify(name);
+        const found = asked && asked.name === name ? asked.found : await rxclass.classify(name);
         if (found) {
           // The lookup may hand back a generic the table does know: a brand name it had no alias for.
           const tabled = classifyMedication(found.generic);
@@ -229,7 +316,7 @@ export function register(server: McpServer, personOf: () => string): void {
             checkLabel(id, found.generic, name);
             const called = found.generic === name.toLowerCase() ? found.generic : `${found.generic}, which is what ${name} is`;
             return say(
-              `Added ${called}. As ${articleFor(found.drugClass)} ${found.drugClass} I'll factor it into your heat check. ` +
+              `${readAs}Added ${called}. As ${articleFor(found.drugClass)} ${found.drugClass} I'll factor it into your heat check. ` +
                 'That is from its drug class, so ask your pharmacist if you want it confirmed.',
               { recognized: true, generic: found.generic, drugClass: found.drugClass, mechanisms: found.mechanisms, source: 'rxnorm', atc: found.atc },
             );
@@ -267,7 +354,7 @@ export function register(server: McpServer, personOf: () => string): void {
       recalls.watch(known.generic);
       checkLabel(id, known.generic, name);
       return say(
-        `Added ${known.generic}, ${articleFor(known.drugClass)} ${known.drugClass}. ${
+        `${readAs}Added ${known.generic}, ${articleFor(known.drugClass)} ${known.drugClass}. ${
           known.mechanisms.length ? "I'll factor that into your heat check." : 'That one has no known heat interaction.'
         }`,
         { recognized: true, generic: known.generic, drugClass: known.drugClass, mechanisms: known.mechanisms },
@@ -368,8 +455,9 @@ export function register(server: McpServer, personOf: () => string): void {
         // Named but not recognised, so there is no heat advice for them, but they are still on record here.
         p.recallWatch.length ? `Watching the recall list only for: ${p.recallWatch.join(', ')}.` : '',
         profile.conditions.length ? `Conditions: ${profile.conditions.map((c) => c.label).join(', ')}.` : 'No conditions.',
-        p.cooling ? `Cooling at home: ${p.cooling === 'working' ? 'working' : p.cooling === 'fan' ? 'a fan only' : p.cooling === 'broken' ? 'not working' : 'none'}.` : '',
+        p.cooling ? `Cooling at home: ${p.cooling === 'working' ? 'working' : p.cooling === 'fan' ? 'a fan only' : p.cooling === 'broken' ? 'not working' : p.cooling === 'power_cuts' ? 'working, with power cuts' : 'none'}.` : '',
         p.topFloor ? 'You sleep on the top floor.' : '',
+        p.livesAlone ? (p.contacts.length ? 'You live alone, so on a dangerous day your contacts are asked to check on you if I have not heard from you by 2 pm.' : 'You live alone. Add somebody who can check on you on dangerous days.') : '',
         (p.equipment ?? []).length ? `Equipment: ${(p.equipment ?? []).map((k) => OWN[k] ?? k).join(', ')}.` : '',
         p.contacts.length
           ? `Contacts: ${p.contacts.map((c) => `${c.name}${!c.confirmedAt ? ', not confirmed yet' : awaiting(c) ? ', waiting for them to agree' : ''}`).join('; ')}.`

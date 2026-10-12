@@ -28,7 +28,14 @@
  *                interval 1.50 to 10.90; Vandentorren and others, European Journal of Public Health, 2006).
  *                It is said as what that study found, with the one thing to do about it: sleep lower down.
  *
+ *   Hot nights  Nights that stay warm stop the body recovering from the day, and in India they are warming
+ *                fastest in the cities, where power cuts take out the fan and the air conditioner just when they
+ *                are needed. A night that does not fall below 82F (28C) is said to anybody the heat is hard on
+ *                whose cooling is not reliable, with what to do before the power goes.
+ *
  * Sources:
+ *   https://india.mongabay.com/2026/06/science-confirms-what-indians-experience-nights-are-now-warmer/
+ *   https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11367509/ (hot nights and hospital admissions, Hong Kong)
  *   https://academic.oup.com/eurpub/article/16/6/583/587693
  *   https://www.canada.ca/en/health-canada/services/publications/healthy-living/guidance-upper-indoor-temperature-limits-protecting-older-adults.html
  *   https://www.maricopa.gov/ArchiveCenter/ViewFile/Item/6510
@@ -37,11 +44,13 @@
 
 import type { LocationSnapshot } from './weather.js';
 
-export type Cooling = 'working' | 'broken' | 'none' | 'fan';
+export type Cooling = 'working' | 'broken' | 'none' | 'fan' | 'power_cuts';
 
 export const LIMIT_F = 79;
 export const AVOID_F = 88;
 export const FAN_F = 90;
+/** A night that does not fall below this gives the body no recovery. 28C. */
+export const HOT_NIGHT_F = 82;
 /** How long a temperature somebody read out is believed for. */
 const READING_MS = 3 * 60 * 60 * 1000;
 
@@ -123,15 +132,29 @@ function judge(
   const high = Math.round(Math.max(snap.tempF, ...ahead.map((h) => h.tempF)));
   const nights = ahead.filter((h) => !h.isDay);
   const low = Math.round(Math.min(...(nights.length ? nights : ahead).map((h) => h.tempF)));
-  const without = home.cooling === 'fan' ? 'With only a fan' : home.cooling === 'broken' ? 'With your cooling not working' : 'With no cooling';
+  const without = home.cooling === 'fan' ? 'With only a fan' : home.cooling === 'broken' ? 'With your cooling not working' : home.cooling === 'power_cuts' ? 'When the power cuts out' : 'With no cooling';
 
-  if (high >= AVOID_F && low >= LIMIT_F) {
+  // With power cuts the cooling comes and goes, so "no way to cool down" would overstate it: the night is the risk.
+  if (high >= AVOID_F && low >= LIMIT_F && home.cooling !== 'power_cuts') {
     return {
       level: 'danger',
       basis: 'forecast',
       highF: high,
       overnightLowF: low,
       line: `${without}, your home has no way to cool down: it reaches ${high} outside and only falls to ${low} overnight. Do not sit this out indoors. Go somewhere with working cooling.${fanLine(home.cooling, high)}`,
+    };
+  }
+  // A night that stays hot, for somebody whose cooling cannot be relied on through it.
+  if (low >= HOT_NIGHT_F && vulnerable) {
+    return {
+      level: 'watch',
+      basis: 'forecast',
+      highF: high,
+      overnightLowF: low,
+      line:
+        `Tonight only falls to ${low} degrees, so your body gets no chance to recover overnight. Sleep in the coolest room, ` +
+        `with water and a damp cloth by the bed${home.cooling === 'power_cuts' ? ', and charge a battery fan or keep a wet sheet ready for when the power goes' : ''}. ` +
+        'If you wake up confused or very weak, that is a reason to get help, not to wait for morning.',
     };
   }
   if (high >= AVOID_F && vulnerable) {
