@@ -89,9 +89,17 @@ export function register(server: McpServer, personOf: () => string): void {
       const plan = planDay(snap, profile, { now: new Date(), day, minutes, activity });
       // A stay-inside day with nobody set to hear about it: offer the one thing that would help.
       const told = person.contacts.some((c) => reachable(c) && c.notifyOn.includes('hot_day'));
-      const offer = plan.best?.status === 'avoid' && !told ? 'Want a family member told before days like this? Tell me who.' : '';
+      // No good hour to be out, and a home known to have no working cooling: staying in is not the answer either,
+      // so the next step is somewhere cool to go. Otherwise, somebody to be told before days like this.
+      const noCooling = plan.best?.status === 'avoid' && !!person.cooling && person.cooling !== 'working';
+      const offer = noCooling
+        ? 'Want me to find somewhere cool you can go?'
+        : plan.best?.status === 'avoid' && !told
+          ? 'Want a family member told before days like this? Tell me who.'
+          : '';
       return say(plan.spoken, {
         ...(offer ? { offer } : {}),
+        ...(noCooling ? { nextAction: { tool: 'somewhere_to_go', arguments: {} } } : {}),
         ...plan,
         sensitivity: profile.sensitivity,
         because: profile.because,

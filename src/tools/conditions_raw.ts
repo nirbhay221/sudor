@@ -6,6 +6,7 @@
  */
 
 import { MECHANISM_LABEL } from '../meds.js';
+import * as streak from '../streak.js';
 import { GUIDANCE } from '../domain.js';
 import { sentences } from '../brief.js';
 import { thunderstormAsthma, migrainePressure } from '../weatherhealth.js';
@@ -204,6 +205,11 @@ export function register(server: McpServer, personOf: () => string): void {
             ? `For you, take care if you go out now${because}.`
             : `For you, it is better to stay in right now if you can${because}.`),
       );
+      // Hot days in a row, named in advance for the people the risk was found in. See streak.ts.
+      const localToday = new Date(Date.now() + (Number(snap.utcOffsetSeconds) || 0) * 1000).toISOString().slice(0, 10);
+      const run = person.privacy ? null : streak.hotRun(snap, localToday);
+      const runLine = streak.line(run, localToday, { older: person.conditions.includes('older_adult'), sensitive: profile.sensitivity !== 'general' });
+      if (runLine) parts.push(runLine);
       if (!person.medications.length && !person.conditions.length) {
         parts.push('Tell me your medications or health conditions and I can answer for you specifically.');
       }
@@ -238,7 +244,10 @@ export function register(server: McpServer, personOf: () => string): void {
       const offer = askCooling ? 'Staying in only helps if your cooling works. Is it working?' : judged.status === 'good' || officialWarning(person, snap.timezone) ? '' : 'Want me to find the safest time to go out today?';
       // The line about not stopping a medicine is said whatever else is held back.
       // So is the line about not stopping a medicine: it is the one sentence here that prevents a harm.
-      const mustSay = [parts.includes(MEDICATION_CAUTION) ? MEDICATION_CAUTION : '', inside ? inside.line : '', stormLine].filter(Boolean);
+      // A run that starts today is already covered by today's answer; one that starts tomorrow or the day after is
+      // the warning nobody else gives yet, so it is said.
+      const runAhead = run && run.start > localToday ? runLine : '';
+      const mustSay = [parts.includes(MEDICATION_CAUTION) ? MEDICATION_CAUTION : '', inside ? inside.line : '', stormLine, runAhead].filter(Boolean);
       // A hurricane, a tornado or a flood outranks the heat index, and is said whatever else is held back.
       const official = officialWarning(person, snap.timezone);
       if (official) {
@@ -251,6 +260,7 @@ export function register(server: McpServer, personOf: () => string): void {
         ...(inside ? { indoor: { level: inside.level, basis: inside.basis, indoorF: inside.indoorF ?? null, highF: inside.highF ?? null, overnightLowF: inside.overnightLowF ?? null } } : {}),
         ...(askCooling ? { asks: 'cooling' } : {}),
         ...(stormLine ? { thunderstormAsthma: true } : {}),
+        ...(runLine && run ? { hotRun: run } : {}),
         mustSay,
         heatIndexF: verdict.heatIndexF,
         category: verdict.category,

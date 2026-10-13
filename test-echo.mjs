@@ -62,7 +62,10 @@ notify.configureForTest({ from: 'sudor@example.org', transport: async (email) =>
 rx.configureForTest(async (name) => (name === 'coreg' ? { generic: 'carvedilol', drugClass: 'beta blocker', mechanisms: ['electrolyte_imbalance', 'reduced_sweating'], cold: ['reduced_heat_production'], atc: 'C07AG', source: 'rxnorm' } : name === 'lasix' ? { generic: 'furosemide', drugClass: 'loop diuretic', mechanisms: ['electrolyte_imbalance'], cold: [], atc: 'C03CA', source: 'rxnorm' } : null));
 labels.configureForTest(async () => null);
 
-const lat = 33.45, lon = -112.07, off = -7 * 3600;
+// The test's hot day is set to be around midday wherever the clock is, so a run late at night still has a day
+// to plan: with Phoenix's own offset, a run after sunset there found the day's daytime hours already over.
+const middayShift = (() => { let h = 12 - new Date().getUTCHours(); if (h > 14) h -= 24; if (h < -11) h += 24; return h; })();
+const lat = 33.45, lon = -112.07, off = middayShift * 3600;
 const local = (ms) => new Date(ms + off * 1000).toISOString();
 const hourly = [];
 for (const date of [local(Date.now()).slice(0, 10), local(Date.now() + 86_400_000).slice(0, 10)]) {

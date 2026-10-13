@@ -111,7 +111,9 @@ export function shorten(result: Result, id: string, opts: { readOnly: boolean })
   // field was assumed. A tool names those in `mustSay`, and they are spoken whatever else is held back.
   const must = (Array.isArray(sc.mustSay) ? (sc.mustSay as unknown[]) : []).filter((x): x is string => typeof x === 'string' && x.length > 0);
   const head = parts.slice(0, keep);
-  const extra = must.filter((m) => !head.some((s) => s.includes(m) || m.includes(s)));
+  // Sentence by sentence: a two-sentence warning whose first half is already in the head still needs its second
+  // half ("Ask me what to do before it arrives"), which matching the whole line against the head used to drop.
+  const extra = [...new Set(must.flatMap((m) => sentences(m)))].filter((m) => !head.some((s) => s.includes(m)));
   const said = [...head, ...extra].join(' ');
   const rest = parts.slice(keep).filter((s) => !extra.some((m) => m.includes(s) || s.includes(m)));
   remember(id, rest);

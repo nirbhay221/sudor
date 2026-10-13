@@ -25,6 +25,8 @@ import * as recalls from '../recalls.js';
 import * as warnings from '../warnings.js';
 import * as spaceweather from '../spaceweather.js';
 import * as shelters from '../shelters.js';
+import * as cooling from '../cooling.js';
+import * as outages from '../outages.js';
 import * as care from '../care.js';
 import { reachable } from '../consent.js';
 import {
@@ -67,8 +69,16 @@ export function register(server: McpServer, personOf: () => string): void {
       const powered = person.conditions.includes('asthma_copd') || person.conditions.includes('kidney_disease');
 
       const parts: string[] = [];
+      // Cooling centres the city or county publishes, for the places that publish them. A centre kept for older
+      // adults is offered only to someone who is one; one kept for men or women only is left out, because the
+      // profile does not say which this person is.
+      const centres = cooling.near(person.lat, person.lon, 10);
+      const centresHere = (centres ?? []).filter((c) => !c.openTo || (/older|senior|60/i.test(c.openTo) && older));
 
       // The CDC's own first answer, and it is a better one than any list.
+      // Whether the power is out at their address already, where the state publishes it. See outages.ts.
+      const out = outages.at(person.lat, person.lon);
+      if (out) parts.push(outages.sentence(out, snap?.timezone ?? 'America/Los_Angeles'));
       parts.push(`If you can get to a relative or a friend who has power, do that first.`);
 
       if (!world.inUS(person.country)) {
@@ -80,6 +90,15 @@ export function register(server: McpServer, personOf: () => string): void {
             `In danger, ring ${world.known(person.country) ? world.emergencyNumber(person.country) : '112, or your local emergency number'}.` +
             (hospital ? ` ${hospital}` : ''),
         );
+      } else if (!cold && centresHere.length) {
+        // A named cooling centre, open today where the list says so, ahead of the federal shelter list, which on
+        // a hot day without a disaster is nearly empty. See cooling.ts.
+        const first = centresHere[0];
+        parts.push(cooling.sentence(first));
+        if (first.openTo) parts.push(`It is for ${first.openTo}.`);
+        if (older && first.accessible) parts.push('It is step-free.');
+        if (centresHere.length > 1) parts.push(`There ${centresHere.length === 2 ? 'is' : 'are'} ${centresHere.length - 1} more within 10 miles.`);
+        parts.push('Ring before you set off if you can, and take water for the journey.');
       } else if (found === null) {
         parts.push(
           "I could not reach the federal shelter list just now, so I can't tell you what is open. " +
@@ -135,12 +154,13 @@ export function register(server: McpServer, personOf: () => string): void {
 
       // Leaving the house is the moment somebody else should know. Offered, never done unasked.
       const family = person.contacts.filter(reachable).map((c) => c.name);
-      const offer = family.length ? `Want me to tell ${andList(family)} you need help? Say get help.` : '';
+      const offer = family.length ? `Want me to tell ${andList(family)} you need help? Say get help.` : person.contacts.length ? '' : 'Tell me who to tell, and next time I can let them know where you are going.';
 
       return say(parts.join(' '), {
         // Where to go, and how not to die of carbon monoxide on the way to deciding. Heard whole.
         fullAnswer: true,
-        ...(offer ? { offer, nextAction: { tool: 'get_help', arguments: { what: 'looking for somewhere to go' } } } : {}),
+        ...(offer ? { offer } : {}),
+        ...(family.length ? { nextAction: { tool: 'get_help', arguments: { what: 'looking for somewhere to go' } } } : {}),
         nearestEmergency: care.named(person.lat, person.lon),
         cold,
         ...(cold ? { whileAtHome: 'Close off the rooms you are not using and wear a hat indoors.' } : {}),
@@ -155,9 +175,25 @@ export function register(server: McpServer, personOf: () => string): void {
                 accessible: s.accessible,
                 pets: s.pets,
               })),
+        coolingCentres:
+          centres === undefined
+            ? undefined
+            : centres === null
+              ? null
+              : centresHere.slice(0, 3).map((c) => ({
+                  name: c.name,
+                  address: c.address,
+                  milesAway: Math.round((c.milesAway ?? 0) * 10) / 10,
+                  today: c.today ?? null,
+                  hours: c.hours,
+                  phone: c.phone,
+                  openTo: c.openTo,
+                  source: c.source,
+                })),
         referral: { call: '211', text: '898-211' },
         sources: [
           'https://gis.fema.gov/arcgis/rest/services/NSS/FEMA_NSS/MapServer',
+          ...(centresHere.length ? [`${centresHere[0].source} (open data)`] : []),
           'https://www.cdc.gov/winter-weather/prevention/index.html',
           'https://www.nia.nih.gov/health/safety/cold-weather-safety-older-adults',
           'https://www.cdc.gov/carbon-monoxide/about/index.html',

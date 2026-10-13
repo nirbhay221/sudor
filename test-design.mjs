@@ -112,7 +112,8 @@ console.log('\nAnswers are short, and the rest is kept for when it is asked for'
   check('control: the same answer without it is cut', brief.shorten(long('One. Two. Three. Four. Five. Six.'), 'x', { readOnly: true }).content[0].text !== 'One. Two. Three. Four. Five. Six.');
   check('a checklist marked to be heard whole is never cut', brief.shorten(long('One. Two. Three. Four. Five. Six.', { fullAnswer: true }), 'x', { readOnly: true }).content[0].text === 'One. Two. Three. Four. Five. Six.');
 
-  const plan = await mum.call('plan_my_day');
+  // Tomorrow, which is a whole seeded hot day at any hour: asked about today, a run after sunset in Phoenix hears that the day is over.
+  const plan = await mum.call('plan_my_day', { day: 'tomorrow' });
   check('a stay-inside day with nobody set to hear about it offers to tell somebody', /Want a family member told before days like this\?/.test(plan.said), plan.said);
 }
 

@@ -100,6 +100,11 @@ const GENERAL: Record<Hazard, string[]> = {
   other: ['Follow what local officials say, and keep your phone charged.'],
 };
 
+/** Said to somebody whose equipment needs power, in fire weather. PG&E, SCE and SDG&E all keep such a list. */
+const SHUTOFF =
+  'In fire weather the power company may switch the power off on purpose to prevent fires, sometimes for a day or more. ' +
+  'If you are not on its medical or life-support list, ring and ask to be added: they warn those customers first.';
+
 /** Whether this hazard commonly takes the power out or forces people to leave home. */
 const CUTS_POWER: Hazard[] = ['hurricane', 'winter', 'wind', 'tornado', 'flood', 'fire'];
 const MAY_HAVE_TO_LEAVE: Hazard[] = ['hurricane', 'flood', 'fire', 'tsunami'];
@@ -123,6 +128,9 @@ export function stepsFor(hazard: Hazard, needs: Needs, detailed: string[] = []):
   const full = (power || leave) && detailed.length > 0;
   if (full) {
     if (leave && needs.poweredEquipment) personal.push(`If you leave, take your ${needs.poweredNames ?? 'medical equipment'}, its charger and any spare battery, and go somewhere that has power.`);
+    // In fire weather the power company may switch the power off on purpose, a Public Safety Power Shutoff, often for a
+    // day or more, and a Red Flag Warning is the first thing it weighs. Customers on its medical list are warned first.
+    if (hazard === 'fire' && needs.poweredEquipment) personal.push(SHUTOFF);
     if (leave && needs.coldMedicine) personal.push('If you leave, carry your insulin or injection pen in a small cooler with an ice pack, not touching the ice.');
     if (leave && needs.medicines) personal.push('Take your medicines and the written list with you.');
     if (hazard === 'winter' && needs.heart) personal.push('Do not shovel snow. It can push a heart to its limit within minutes, so ask somebody else.');
@@ -136,6 +144,9 @@ export function stepsFor(hazard: Hazard, needs: Needs, detailed: string[] = []):
   if (needs.poweredEquipment && power) {
     personal.push(`Your ${needs.poweredNames ?? 'medical equipment'} needs power, so do not wait for the lights to go out: charge every battery now, and plan where you would go that has a generator.`);
   }
+  // In fire weather the power company may switch the power off on purpose, a Public Safety Power Shutoff, often for a
+  // day or more, and a Red Flag Warning is the first thing it weighs. Customers on its medical list are warned first.
+  if (hazard === 'fire' && needs.poweredEquipment) personal.push(SHUTOFF);
   if (needs.dialysis && (power || leave)) {
     personal.push('Ring your dialysis unit today and ask where to go if they close or you cannot get there.');
   }

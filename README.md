@@ -41,8 +41,10 @@ Nothing here is mocked for the demo. Where something stands in for a thing we co
 
 | Part | Status |
 |---|---|
-| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,025 automated checks, run on every push |
+| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,072 automated checks, run on every push |
 | Weather, UV, air quality | **Real, live**: Open-Meteo, worldwide |
+| Cooling centres | **Real, live**: seven open lists published by Maricopa County, New York City, New York State, Washington DC, Harris County, Riverside County and the City of Los Angeles. Everywhere else the answer is still the 211 line |
+| Power already out at the address | **Real, live, California only**: the Office of Emergency Services' statewide outage areas, which come from PG&E |
 | Official warnings | **Real, live**: the National Weather Service in the US, MeteoAlarm in Europe, INMET in Brazil, SACHET in India, and the WMO Severe Weather Information Centre elsewhere. In the US also the Weather Service's 7-day HeatRisk, the hurricane centre's cones and river flood forecasts |
 | Medicines | **Real sources**: the CDC's clinical guidance on heat and medications, and the National Library of Medicine's RxClass for every other name, by drug class. Brand names from the regulators of India, Canada, France, Brazil, Italy and Spain. Measured against the 286 most prescribed ingredients in the US (ClinCalc, 2024): 119 recognised; the rest are mostly drugs the CDC lists no heat effect for. `node evals/coverage.mjs` re-runs it |
 | Medicine and equipment recalls | **Real, live**: openFDA drug and device enforcement reports |
@@ -72,7 +74,7 @@ This file is long because the reasoning is the work. If you are evaluating the p
 | Where it is wrong, or cannot know | [Honest limitations](#honest-limitations) |
 
 Free sources, no API keys for the data. Every tool call is answered from memory; nothing external is called
-inside a turn. `npm test` runs 2,025 checks.
+inside a turn. `npm test` runs 2,072 checks.
 
 ## The problem
 
@@ -693,7 +695,7 @@ Or without installing Node at all:
 docker build -t sudor . && docker run -p 8789:8789 sudor
 ```
 
-`npm test` runs everything, 2,025 checks. It is also what CI runs on every push, on Node 20 and 22,
+`npm test` runs everything, 2,072 checks. It is also what CI runs on every push, on Node 20 and 22,
 with the live suite in its own job so an outage at a weather service is never mistaken for a
 regression here.
 
@@ -804,6 +806,45 @@ Three things were added for the day the weather is most dangerous, which is the 
 What is not there: a text message or a phone call. Both need a registered sending number, and neither has been set
 up or tested, so neither is claimed. The role the server runs under needs `geo-places:SearchNearby`.
 
+## A named place, the days ahead, and the power
+
+Five things added from the 2026 research and the heat plans cities published this year.
+
+* **A cooling centre by name.** "Call 211" is true and is not a place. Cities and counties that run cooling
+  centres publish them as open map layers, and seven of those are read whole on a timer (`src/cooling.ts`), so
+  nobody's address goes anywhere: "The nearest cooling centre open today is Burton Barr Library, at 1221 N Central
+  Ave, about 1 mile away, from 9 am to 8 pm." Left out: water-only hydration stations, anything closed today or out
+  of season, and outdoor spray pads, which are cooling and are also in the sun. A centre kept for older adults is
+  offered only to somebody who has said they are one. "Open today" is said only when the list gives today's hours;
+  otherwise its hours are read out. A list that could not be read is "I could not check".
+* **Hot days in a row.** A study of older adults in New York City (JAMA Network Open, March 2026) found the risk
+  of heat stroke and death rising sharply once the heat index reached 90 for two days running, five degrees below
+  where the city declares a heat emergency. So a run of two or more such days is said the day before it starts, to
+  older adults and to anyone whose medicines or conditions make heat riskier: "Tomorrow starts 3 days in a row
+  that feel like 90 or more, up to 101. For people over 65 the risk climbs on the second hot day, below the level
+  cities warn at" (`src/streak.ts`).
+* **The power, in California.** When the state's outage map shows the power out at the person's address, the storm
+  and somewhere-to-go answers open with it: the utility, whether it is planned or a safety shutoff, and when it
+  is expected back (`src/outages.ts`). The map is read whole and matched here.
+* **Fire weather and a powered medical device.** On a Red Flag day, somebody with an oxygen concentrator hears that
+  the power company may switch the power off on purpose, and to ask to be put on its medical list, whose customers
+  are warned first (`src/hazard.ts`).
+* **An Alexa routine.** Many Echo devices have a temperature sensor, and a routine can start when a room passes a
+  temperature. Somebody who says their cooling is a fan, broken or missing is told to ask Alexa for one at 79
+  degrees, Health Canada's upper indoor limit for older adults. It is a suggestion: an add-on cannot create a
+  routine.
+
+| Data | Source | Terms |
+|---|---|---|
+| Phoenix area cooling and respite centres | Maricopa Association of Governments, Heat Relief Network | Public open data |
+| New York City cooling centres | NYC Emergency Management | NYC open data |
+| New York State cooling centres | New York State Department of Health | Public open data |
+| Washington DC cooling centres | DC Homeland Security and Emergency Management Agency | Public open data |
+| Houston area cooling centres | Harris County Office of Homeland Security and Emergency Management | Public open data |
+| Riverside County Cool Centers | Riverside County | Public open data |
+| Los Angeles activated centres | City of Los Angeles | Public open data |
+| California power outages | California Governor's Office of Emergency Services | Public open data |
+
 ## Who agrees to be emailed
 
 A contact used to be confirmed by the account holder alone. Now the account holder's yes sends one invitation, and
@@ -868,6 +909,20 @@ or a reason, and the link dies the moment they stop sharing. Orbita then says it
 * **Answers hand back a handle.** Adding a contact returns its id and the exact next call (`nextAction`), and the
   next call accepts the id, so a follow-up does not depend on a name being heard the same way twice.
 * **An answer ends on the next step.** A risky hour ends with "Want me to find the safest time to go out today?".
+* **One request, several steps.** A bad day is not one question. Every answer carries the chain it is on
+  (`flow` in the structured result, `src/flow.ts`): what has just been done, the step that follows, and the ones
+  after. A host can run them from one request or offer them one at a time.
+
+  | It starts with | and runs on to |
+  |---|---|
+  | "Is it safe to go out?" on a dangerous day | the safest hour, then how to go out anyway, then the warning signs |
+  | the same day in a home with no working cooling | "Want me to find somewhere cool you can go?", then the named cooling centre, then telling the family |
+  | "The power is out", in California | the outage at the address, what it means for medicines and equipment, somewhere with power, then telling the family |
+  | "Get help", with nowhere looked for yet | somewhere to go |
+  | adding a medicine | what it changes about today |
+
+  A fine day names no next step and starts no chain. Nothing is called on the person's behalf: the chain says what
+  comes next, and each tool still decides from their own state whether its step applies.
 * **A card that fits the task.** The day strip (`ui/window.html`) is for the weather. The profile, a contact being
   confirmed, a sharing code and the "Call 911 now" card use `ui/card.html`. The profile card shows counts, not names.
 * **A second person.** The person asks for a one-time code (`share_my_day`); a family member joins with it from their

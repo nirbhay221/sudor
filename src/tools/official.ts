@@ -24,6 +24,7 @@ import * as weather from '../weather.js';
 import * as store from '../store.js';
 import * as recalls from '../recalls.js';
 import * as warnings from '../warnings.js';
+import * as outages from '../outages.js';
 import * as spaceweather from '../spaceweather.js';
 import * as shelters from '../shelters.js';
 import { hazardOf, stepsFor, type Needs, mayHaveToLeave, mayLosePower, SOURCES } from '../hazard.js';
@@ -190,6 +191,10 @@ export function register(server: McpServer, personOf: () => string): void {
       // with it would put the rarest risk in front of the insulin.
       const solar = spaceweather.outlook();
       const lead = coming ? `${coming.event} is up for your area. ` : '';
+      // In California, whether the power is already out at their address, and when it should be back. See outages.ts.
+      const out = person.lat != null && person.lon != null ? outages.at(person.lat, person.lon) : undefined;
+      const outLine = out ? outages.sentence(out, (person.lat != null && person.lon != null ? weather.current(person.lat, person.lon)?.timezone : null) ?? 'America/Los_Angeles') : '';
+      const outLead = outLine ? `${outLine} ` : '';
 
       const steps: string[] = [];
       const cold = fridgeMedicines(person);
@@ -277,19 +282,20 @@ export function register(server: McpServer, personOf: () => string): void {
         const family = person.contacts.filter(reachable).map((c) => c.name);
         const leave = mayHaveToLeave(hazard);
         const ahead = person.lat != null && person.lon != null ? outlookLines(person) : [];
-        return say(`${head}${air} ${todo.join(' ')}${official}${ahead.length ? ` ${ahead.join(' ')}` : ''}${solar ? ` ${spaceweather.speak(solar)}` : ''}`, {
+        return say(`${outLead}${head}${air} ${todo.join(' ')}${official}${ahead.length ? ` ${ahead.join(' ')}` : ''}${solar ? ` ${spaceweather.speak(solar)}` : ''}`, {
           // With a hazard that can cut the power or empty the house, every line is something to do now, so it
           // is heard whole. For the others the first steps are heard and the rest is there to be asked for.
           // Heard whole only for a real warning: a wind advisory does not need the hurricane checklist read out.
           fullAnswer: serious && (mayLosePower(hazard) || leave),
           // For a heads-up, the first step and what the hazard does to this person now; the rest waits.
-          mustSay: sayNow,
+          mustSay: [outLine, ...sayNow].filter(Boolean),
           ...(serious ? {} : { sayFirst: 2 }),
           ...(family.length ? { offer: `Want me to tell ${family.join(' and ')} you are safe? Say tell them I'm safe.` } : {}),
           alert: active.event,
           ...(aqi != null ? { aqi: Math.round(aqi), aqiCategory: aqiWord(aqi) } : {}),
           ...(powered.length ? { equipment: powered } : {}),
           hazard,
+          ...(out ? { powerOut: out } : {}),
           steps: todo.length,
           // Leaving home is the next question for a hazard that makes people leave; otherwise telling somebody.
           nextAction: leave || mayLosePower(hazard) ? { tool: 'somewhere_to_go', arguments: {} } : family.length ? { tool: 'get_help', arguments: { status: 'safe' } } : null,
@@ -306,7 +312,8 @@ export function register(server: McpServer, personOf: () => string): void {
       // why the checklist matters now. See outlook.ts.
       const coming2 = person.lat != null && person.lon != null ? outlookLines(person) : [];
       const tail = solar ? ` ${spaceweather.speak(solar)}` : '';
-      return say(`${lead}${coming2.length ? `${coming2.join(' ')} ` : ''}${opening} ${steps.join(' ')}${tail}`, {
+      return say(`${outLead}${lead}${coming2.length ? `${coming2.join(' ')} ` : ''}${opening} ${steps.join(' ')}${tail}`, {
+        ...(out ? { powerOut: out, offer: 'Want me to find somewhere with power you can go?', nextAction: { tool: 'somewhere_to_go', arguments: {} } } : {}),
         ...(coming2.length ? { ahead: coming2 } : {}),
         // A checklist for before the power goes. With a storm on the way every line is a thing to do now, so it
         // is heard whole. With nothing coming it is advice, and is given a few sentences at a time.

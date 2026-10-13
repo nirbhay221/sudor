@@ -32,6 +32,8 @@ import * as care from './care.js';
 import { mountConsent } from './consent.js';
 import { demoPhone } from './notify.js';
 import * as shelters from './shelters.js';
+import * as cooling from './cooling.js';
+import * as outages from './outages.js';
 import { AUTH_ON, demoIdOf, mountAuth, requireAuth, subjectOf } from './auth.js';
 import { requireOrigin, requireOriginSecret, originSecretConfigured } from './origin.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -198,6 +200,8 @@ app.get('/health', (_req, res) => {
     spec: '2025-11-25',
     auth: AUTH_ON ? 'oauth2.1+pkce' : 'off (local dev)',
     sheltersOpenNationally: shelters.openNationally(),
+    coolingCentres: cooling.counts(),
+    californiaOutageAreas: outages.areasHeld(),
     hospitals: care.status(),
     medicationsKnown: MEDICATIONS.length,
     conditionsKnown: CONDITIONS.length,
@@ -548,6 +552,8 @@ const watchWarnings = () => {
 };
 void spaceweather.start();
 void shelters.start();
+void cooling.start();
+void outages.start();
 
 const warningTimer = setInterval(() => {
   watchWarnings();

@@ -25,6 +25,7 @@ import { shorten, more, inScope, sentences } from './brief.js';
 import { say, CARD as CARD_URI } from './tools/shared.js';
 import { takeReplies } from './consent.js';
 import * as attention from './attention.js';
+import * as flow from './flow.js';
 import { finish } from './finish.js';
 import * as store from './store.js';
 import * as weather from './weather.js';
@@ -134,6 +135,19 @@ export function registerTools(server: McpServer, personOf: () => string): void {
 
       // Say nothing twice, and name the next step. See finish.ts.
       result = finish(name, args[0], result) as R;
+      // The chain this answer is on: what was just done, the next step, and the ones after. See flow.ts.
+      {
+        const sc0 = result?.structuredContent;
+        if (sc0 && !result.isError) {
+          let next = (sc0.nextAction ?? null) as { tool: string; arguments: Record<string, unknown> } | null;
+          // Help was asked for and nowhere to go has been looked for yet: that is the next question.
+          if (!next && name === 'get_help' && sc0.status !== 'safe' && !flow.trail(id).includes('somewhere_to_go')) next = { tool: 'somewhere_to_go', arguments: {} };
+          const chain = flow.describe(id, name, next);
+          if (chain || (next && !sc0.nextAction)) {
+            result = { ...result, structuredContent: { ...sc0, ...(next && !sc0.nextAction ? { nextAction: next } : {}), ...(chain ? { flow: chain } : {}) } } as R;
+          }
+        }
+      }
       const first = result?.content?.[0];
       if (!first || typeof first.text !== 'string' || result.isError) return result;
       // What is said first, before the answer: a family member's reply to a call for help, then the reminder.
@@ -254,6 +268,13 @@ export function registerTools(server: McpServer, personOf: () => string): void {
           said.push(had ? `Removed your ${devices.OWN[key!]}.` : `I did not have that down as something you use.`);
           did.push({ tool: 'equipment', removed: had });
         }
+        /*
+         * Many Echo devices carry a temperature sensor, and an Alexa routine can start when the room passes a
+         * temperature. That is the one thing that watches the house while nobody is asking, so it is suggested
+         * to somebody without working cooling. 79 is Health Canada's upper indoor limit for older adults (26 C),
+         * the same line indoor.ts uses. The routine is theirs to set up: this add-on cannot create one.
+         */
+        const ROUTINE = ' If your Echo has a temperature sensor, ask Alexa for a routine that tells you when this room passes 79 degrees and turns on your fan if it is on a smart plug.';
         // The cooling at home, and what the thermometer indoors reads. Both are only ever what they said.
         let goSomewhere = false;
         if (a.cooling || typeof a.indoorTempF === 'number' || typeof a.topFloor === 'boolean') {
@@ -274,7 +295,7 @@ export function registerTools(server: McpServer, personOf: () => string): void {
               : a.cooling === 'working'
                 ? 'Good. I will take it that indoors is the cool place for you.'
                 : a.cooling
-                  ? 'Noted. On a hot day I will not tell you to stay in without saying where else to go.'
+                  ? 'Noted. On a hot day I will not tell you to stay in without saying where else to go.' + ROUTINE
                   : typeof a.topFloor === 'boolean'
                     ? (a.topFloor ? 'Noted. The top floor is the hottest part of a building, so on a hot day without cooling I will say so.' : 'Noted.')
                   : `Noted, ${Math.round(a.indoorTempF!)} degrees indoors. That is all right for now.`,
