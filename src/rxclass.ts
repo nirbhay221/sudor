@@ -1,9 +1,9 @@
 /**
- * Any medicine with a name, not only the fifty-seven in the table.
+ * Any medicine with a name, not only the seventy-one in the table.
  *
  * meds.ts holds the drugs the CDC's clinical guidance on heat and medicines names one by one. A person does
  * not take "a beta blocker", though. They take bisoprolol, or Coreg, or whatever the pharmacy handed over,
- * and a table of fifty-seven names answers "I don't have that" to most of a real medicine cabinet.
+ * and a table of seventy-one names answers "I don't have that" to most of a real medicine cabinet.
  *
  * So a name the table does not know is looked up in RxNorm, the National Library of Medicine's drug
  * vocabulary, through its public RxClass service: free, no key, and it answers a brand name or a generic

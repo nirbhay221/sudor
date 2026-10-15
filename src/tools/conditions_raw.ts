@@ -5,7 +5,7 @@
  * from when it lived there; only the file it lives in is new.
  */
 
-import { MECHANISM_LABEL } from '../meds.js';
+import { MECHANISM_LABEL, evidenceFor, EVIDENCE_SAY, type Evidence } from '../meds.js';
 import * as streak from '../streak.js';
 import { GUIDANCE } from '../domain.js';
 import { sentences } from '../brief.js';
@@ -168,6 +168,7 @@ export function register(server: McpServer, personOf: () => string): void {
       const opening = `It feels like ${hiNow} degrees out${band}.`;
 
       const parts: string[] = [];
+      let evidence: Evidence | null = null;
       if (person.privacy) {
         parts.push(opening);
         if (profile.sensitivity !== 'general' && verdict.category !== 'none') {
@@ -177,10 +178,14 @@ export function register(server: McpServer, personOf: () => string): void {
         parts.push(opening);
         if (verdict.binding) {
           // The medicine by its name, and only the first half of what it means: the rest is there to be asked for.
-          const named = person.medications.find((m) => m.mechanisms.includes(verdict.binding!))?.generic ?? 'medication';
+          const med = person.medications.find((m) => m.mechanisms.includes(verdict.binding!));
+          const named = med?.generic ?? 'medication';
           const consequence = GUIDANCE_SHORT[verdict.binding as keyof typeof GUIDANCE_SHORT] ?? '';
           parts.push(`Your ${named} ${MECHANISM_LABEL[verdict.binding]}${consequence ? `, so ${consequence}` : ''}.`);
           parts.push(MEDICATION_CAUTION);
+          // A warning that rests on how a drug works, not on studies in the heat, says so. See evidenceFor.
+          evidence = med ? evidenceFor(med.drugClass) : null;
+          if (evidence && EVIDENCE_SAY[evidence]) parts.push(EVIDENCE_SAY[evidence]);
           // What to do about it, held for "tell me more" by the brevity layer.
           const howTo = sentences(GUIDANCE[verdict.binding as keyof typeof GUIDANCE] ?? '').slice(1).join(' ');
           if (howTo) parts.push(howTo);
@@ -256,8 +261,11 @@ export function register(server: McpServer, personOf: () => string): void {
       }
       return say(parts.join(' '), {
         ...(official ? { warning: official.event } : {}),
+        ...(evidence ? { evidence } : {}),
         ...(inside?.level === 'danger' ? { nextAction: { tool: 'somewhere_to_go', arguments: {} } } : askCooling ? { offer } : offer ? { offer, nextAction: { tool: 'plan_my_day', arguments: {} } } : {}),
         ...(inside ? { indoor: { level: inside.level, basis: inside.basis, indoorF: inside.indoorF ?? null, highF: inside.highF ?? null, overnightLowF: inside.overnightLowF ?? null } } : {}),
+        // What to switch on, for a host that controls devices and can offer to do it. See indoor.ts.
+        ...(inside?.control ? { homeControl: inside.control } : {}),
         ...(askCooling ? { asks: 'cooling' } : {}),
         ...(stormLine ? { thunderstormAsthma: true } : {}),
         ...(runLine && run ? { hotRun: run } : {}),

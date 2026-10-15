@@ -47,11 +47,13 @@ import Anthropic from '@anthropic-ai/sdk';
 const KEY = process.env.SUDOR_ANTHROPIC_KEY ?? process.env.ANTHROPIC_API_KEY ?? '';
 
 /**
- * Haiku 4.5 by default: it picks one tool out of about a dozen well, answers inside the half second
- * Alexa+ allows more often than a larger model, and costs a fraction as much on a public page. Set
- * SUDOR_AGENT_MODEL to test the descriptions against a larger model.
+ * Sonnet 5.5 by default. Haiku 4.5 was the default for its speed and price, until whole conversations in the
+ * patterns real people were recorded using (conversations.mjs) showed it answering one turn in five with a question
+ * ("which field?") instead of calling the tool, which is what a visitor to the demo page would meet. Sonnet got all
+ * but one turn right, for about twice Haiku's cost, and the demo's daily cap keeps that to cents. Set
+ * SUDOR_AGENT_MODEL to test another.
  */
-const MODEL = process.env.SUDOR_AGENT_MODEL ?? 'claude-haiku-4-5-20251001';
+const MODEL = process.env.SUDOR_AGENT_MODEL ?? 'claude-sonnet-5-5';
 
 /**
  * Optional workspace id.
@@ -72,7 +74,7 @@ const WORKSPACE = process.env.SUDOR_ANTHROPIC_WORKSPACE ?? '';
 
 const SYSTEM = [
   'You are standing in for Alexa+ talking to a self-hosted MCP add-on called Sudor.',
-  'Orbita answers whether GPS-guided fieldwork will hold the accuracy a job needs, from NOAA space weather.',
+  "Sudor checks heat, cold and storms against the customer's own medicines, conditions and home, and says what to do.",
   '',
   'Given what the customer said, call the single most appropriate tool with arguments drawn from their words.',
   'Read the tool descriptions and the parameter descriptions carefully; they name the synonyms customers use.',
@@ -80,6 +82,8 @@ const SYSTEM = [
   'than declining, because a wrong tool produces a confident answer to a question nobody asked.',
   'Do not invent names or places the customer did not say. When they did not say one, call the tool without it:',
   'the add-on remembers what the customer saved and answers itself when something is missing.',
+  'Never ask the customer a question before calling a tool, and never list options for them to choose from. If',
+  'a tool fits, call it with what they said; its answer asks for anything it still needs, in their own terms.',
 ].join('\n');
 
 export type ToolDef = { name: string; description?: string; inputSchema?: Record<string, unknown> };
@@ -116,7 +120,10 @@ export function configureForTest(fn: typeof ask): void {
  * The request exactly as it is sent, in one place so the golden eval can ask the API to count
  * its tokens (free) before spending anything on it.
  */
-export function buildRequest(utterance: string, tools: ToolDef[], instructions = ''): Anthropic.MessageCreateParamsNonStreaming {
+/** Earlier turns of the same conversation, as a host keeps them: what the customer said, and what the add-on answered. */
+export type Turn = { role: 'user' | 'assistant'; text: string };
+
+export function buildRequest(utterance: string, tools: ToolDef[], instructions = '', history: Turn[] = []): Anthropic.MessageCreateParamsNonStreaming {
   const strict = canBeStrict(tools);
   return {
     model: MODEL,
@@ -148,7 +155,8 @@ ${instructions}` : SYSTEM, cache_control: { type: 'ephemeral' } }],
         ...(strict ? { strict: true } : {}),
       };
     }),
-    messages: [{ role: 'user', content: utterance }],
+    // A conversation, not one sentence: "and tomorrow?" only means something after the answer before it.
+    messages: [...history.filter((h) => h.text.trim()).map((h) => ({ role: h.role, content: h.text })), { role: 'user', content: utterance }],
   } as Anthropic.MessageCreateParamsNonStreaming;
 }
 
@@ -162,12 +170,12 @@ ${instructions}` : SYSTEM, cache_control: { type: 'ephemeral' } }],
  * help the model along. If a description is ambiguous, this demo shows it as
  * ambiguous.
  */
-export async function choose(utterance: string, tools: ToolDef[], instructions = ''): Promise<Chosen> {
+export async function choose(utterance: string, tools: ToolDef[], instructions = '', history: Turn[] = []): Promise<Chosen> {
   if (ask) return ask(utterance, tools);
   if (!configured()) throw new Error('not configured');
 
   const started = Date.now();
-  const response = await anthropic().messages.create(buildRequest(utterance, tools, instructions));
+  const response = await anthropic().messages.create(buildRequest(utterance, tools, instructions, history));
 
   const ms = Date.now() - started;
   const said = response.content

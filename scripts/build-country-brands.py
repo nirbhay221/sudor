@@ -5,6 +5,7 @@ Build assets/brands-<CC>.json: a country's medicine brand names -> active ingred
     python scripts/build-country-brands.py FR <dir with CIS_bdpm.txt and CIS_COMPO_bdpm.txt>
     python scripts/build-country-brands.py BR <path to DADOS_ABERTOS_MEDICAMENTOS.csv>
     python scripts/build-country-brands.py IT <path to Classe_A_per_nome_commerciale_<date>.csv>
+    python scripts/build-country-brands.py GB <path to bnf_code_current_<yyyymm>_version_<n>.csv>
 
 Sources and terms:
   CA  Health Canada, Drug Product Database data extract, Open Government Licence - Canada.
@@ -13,6 +14,10 @@ Sources and terms:
       source and date are given: base-donnees-publique.medicaments.gouv.fr
   BR  ANVISA, Dados abertos de medicamentos registrados. https://dados.anvisa.gov.br/dados/
   IT  AIFA, lists of Class A medicines by trade name, open data. https://www.aifa.gov.it/en/liste-farmaci-a-h
+  GB  NHS Business Services Authority, BNF code information (current year), Open Government Licence 3.0.
+      Each BNF product is a brand or the generic, under its chemical substance; only chapters 1 to 15, the
+      medicines, are read, and a product whose code ends AA is the generic and is left out.
+      https://opendata.nhsbsa.net/dataset/bnf-code-information-current-year
 
 Ingredients are kept in the country's own language ("nifedipino", "furosemide"). Sudor turns them into the
 names its drug database uses when one is looked up (rxclass.ts). As for India, a brand is kept only when
@@ -108,15 +113,34 @@ def italy(path):
             out.append((brand, [i for i in ings if i]))
     return keep(out)
 
+def uk(path):
+    out = []
+    with open(path, encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            code = row.get("BNF_PRODUCT_CODE") or ""
+            if len(code) < 11 or not code[:2].isdigit() or int(code[:2]) > 15 or code[9:11] == "AA":
+                continue
+            product = (row.get("BNF_PRODUCT") or "").strip()
+            if not product or re.match(r"(?i)proprietary|generic|other ", product):
+                continue
+            substance = row.get("BNF_CHEMICAL_SUBSTANCE") or ""
+            # "Co-amoxiclav (Amoxicillin/clavulanic acid)": the parts are in the brackets.
+            inner = re.search(r"\(([^)]+/[^)]+)\)", substance)
+            parts = re.split(r"\s*/\s*", inner.group(1)) if inner else [substance]
+            ings = [ingredient(x) for x in parts if x.strip()]
+            out.append((brand_of(product), [i for i in ings if i]))
+    return keep(out)
+
 SOURCES = {
     "IT": "AIFA, Liste dei farmaci di classe A per nome commerciale (open data), aifa.gov.it",
     "CA": "Health Canada Drug Product Database data extract (Open Government Licence - Canada)",
     "FR": "ANSM, Base de donnees publique des medicaments, base-donnees-publique.medicaments.gouv.fr",
     "BR": "ANVISA, Dados abertos de medicamentos registrados, dados.anvisa.gov.br",
+    "GB": "NHS Business Services Authority, BNF code information (Open Government Licence 3.0), opendata.nhsbsa.net",
 }
 
 cc, src = sys.argv[1].upper(), sys.argv[2]
-brands = {"CA": canada, "FR": france, "BR": brazil, "IT": italy}[cc](src)
+brands = {"CA": canada, "FR": france, "BR": brazil, "IT": italy, "GB": uk}[cc](src)
 json.dump({"source": SOURCES[cc], "built": datetime.date.today().isoformat(), "brands": brands},
           open(f"assets/brands-{cc}.json", "w", encoding="utf8"), ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 print(cc, len(brands), "brands")

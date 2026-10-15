@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import * as impact from '../impact.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { assess, heatIndexF, photoRisk, type HeatCategory } from '../domain.js';
 import { findMedication as classifyMedication, nearMatches, MEDICATIONS, articleFor, COLD_MECHANISM_SAY, type ColdMechanism } from '../meds.js';
@@ -53,6 +54,8 @@ export function register(server: McpServer, personOf: () => string): void {
     },
     async ({ felt, minutes, note }) => {
       const id = personOf();
+      // How outings went, as two daily counts and nothing else. See impact.ts.
+      impact.count(felt === 'unwell' ? 'outingUnwell' : 'outingFine', id);
       const person = store.get(id);
       const snap = person.lat != null && person.lon != null ? weather.current(person.lat, person.lon) : null;
       const hi = snap && !Number.isNaN(snap.tempF) ? Math.round(heatIndexF(snap.tempF, snap.humidityPct)) : null;

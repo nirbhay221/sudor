@@ -13,7 +13,7 @@
 MCP endpoint `https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/mcp` (account linking) ·
 [health](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/health)
 
-Water pills, beta blockers, some antidepressants and a dozen conditions change what heat and cold do to a
+Water pills, beta blockers, some antidepressants and fifteen conditions change what heat and cold do to a
 body. A weather app tells everybody the same thing. Sudor is an Alexa+ add-on that remembers one person's
 medicines, conditions, home and town, and answers for that person:
 
@@ -35,23 +35,50 @@ Streamable HTTP, 13 tools by default, with an MCP Apps panel for the Echo Show. 
 [Orbita](https://github.com/nirbhay221/orbita) does the same for GPS-guided field work, and the two talk to
 each other.
 
+## One afternoon
+
+Dolores is 74, lives alone in Phoenix and takes metoprolol for her heart. It is 110 degrees out, and at two in the
+afternoon her air conditioner stops. Her daughter Priya lives across town and agreed to hear from Sudor on bad days.
+
+| Dolores says | Sudor |
+|---|---|
+| "Alexa, is it safe for me to go out today?" | Not for her: what it feels like outside, that her metoprolol blocks sweating so she may not feel overheating until it is serious, and to keep taking it |
+| "My air conditioner just stopped working." | Indoors is no longer the safe place: the home will not cool down tonight. It points her somewhere cool, and Priya is emailed once that the home is too hot to stay in, with nothing about her health in it |
+| "Where can I go then?" | The nearest cooling centre open today, by name and hours, from the county's own list |
+| Half an hour later, about something else | It asks first: "Earlier I said your home was too hot to stay in. If you are still there, want me to find somewhere cool now?" |
+| "Ummm, actually I feel a bit dizzy." | First aid at once, and the signs that mean calling 911 |
+| Priya, from her own phone: "How is Mum doing today?" | What to do this afternoon: the home is too hot, call or go round, check the room, make sure she drinks. Never her medicine |
+
+**The model talks; code decides.** The assistant's job is to understand Dolores. Every answer, every number and
+every safety line is written by code from live public data and published guidance, so no model can soften "call
+911" or turn "stay in" into "probably fine". Three rules hold everywhere: it never says it is safe when it could not
+check, it never tells anyone to stop a medicine, and nothing is sent to anyone who has not agreed.
+
+**Tested the way people talk.** Older adults recorded using voice assistants at home repeated themselves, said
+"never mind", asked "what about tomorrow though?" and "why?" (arXiv 2403.02421, 2510.06690). Fourteen conversations
+in those patterns, played turn by turn against the real tools with the model seeing every earlier answer, got 33 of
+34 turns right on Opus, and the one it read differently was a fair reading (`conversations.mjs`,
+`evals/conversations-last-run.json`).
+
 ## What is real, and what is not
 
 Nothing here is mocked for the demo. Where something stands in for a thing we could not reach, it is named.
 
 | Part | Status |
 |---|---|
-| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,072 automated checks, run on every push |
+| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,224 automated checks, run on every push |
+| Agent Skill | **Real**: `skills/sudor-heat-safety`, to the open Agent Skills format, passing the format's own validator. Installable as a folder, and readable from the server as `skill://` resources |
+| Strands agent | **Real**: `strands/agent.mjs`, on AWS's Strands Agents SDK. It reads the skill from the server and follows each next step. The chain, the yes before a write and the step cap are checked with a scripted model at no cost; the path through Claude needs a key and is not in the automated checks |
 | Weather, UV, air quality | **Real, live**: Open-Meteo, worldwide |
-| Cooling centres | **Real, live**: seven open lists published by Maricopa County, New York City, New York State, Washington DC, Harris County, Riverside County and the City of Los Angeles. Everywhere else the answer is still the 211 line |
-| Power already out at the address | **Real, live, California only**: the Office of Emergency Services' statewide outage areas, which come from PG&E |
+| Cooling centres | **Real, live**: twenty-three open lists published by Maricopa County, New York City, New York State, Washington DC, Harris County, Riverside County, the City of Los Angeles, Philadelphia, San Diego County, Maryland, San Antonio, Columbus, Cuyahoga County, Rhode Island, Toronto, British Columbia, Milwaukee, Chester and York Counties in Pennsylvania, Johnson County in Kansas, Lake County in Illinois, Ramsey County in Minnesota and Lincoln. Everywhere else the answer gives open shelters and the 211 line |
+| Power already out at the address | **Real, live, where a list is published**: California's Office of Emergency Services, Duke Energy (the Carolinas, Florida, Indiana, Ohio and Kentucky) and BC Hydro. Where only county counts are published (Maryland, Pennsylvania, Ohio, and Alliant Energy in Iowa and Wisconsin) a large outage in the county is said as the county, never as the street |
 | Official warnings | **Real, live**: the National Weather Service in the US, MeteoAlarm in Europe, INMET in Brazil, SACHET in India, and the WMO Severe Weather Information Centre elsewhere. In the US also the Weather Service's 7-day HeatRisk, the hurricane centre's cones and river flood forecasts |
-| Medicines | **Real sources**: the CDC's clinical guidance on heat and medications, and the National Library of Medicine's RxClass for every other name, by drug class. Brand names from the regulators of India, Canada, France, Brazil, Italy and Spain. Measured against the 286 most prescribed ingredients in the US (ClinCalc, 2024): 119 recognised; the rest are mostly drugs the CDC lists no heat effect for. `node evals/coverage.mjs` re-runs it |
+| Medicines | **Real sources**: the CDC's clinical guidance on heat and medications, and the National Library of Medicine's RxClass for every other name, by drug class. Brand names from the regulators of India, Canada, France, Brazil, Italy, Spain and the United Kingdom. Measured against the 286 most prescribed ingredients in the US (ClinCalc, 2024): 119 recognised; the rest are mostly drugs the CDC lists no heat effect for. `node evals/coverage.mjs` re-runs it |
 | Medicine and equipment recalls | **Real, live**: openFDA drug and device enforcement reports |
 | Nearest emergency department | **Real**: Amazon Location Service, confirmed against Medicare's hospital list in the US |
 | Emails to family | **Real**, through Amazon SES, only after the recipient agrees. The account is in the SES sandbox (production access requested), so today it reaches verified addresses only. The public demo never sends email; it shows the message on a phone panel instead |
 | Text messages to family | **Real code**, through Amazon SNS, for urgent messages only, to a number the family member typed in themselves. Switched on; while the account's SMS is in its sandbox only verified numbers receive them |
-| The talking demo | **Real model**: Claude Haiku 4.5 reads the server's real tool list and picks a tool, as Alexa+ would. When no model is available, plain word rules pick instead, and the screen says which. Speech in and out is the browser's own |
+| The talking demo | **Real model**: Claude Sonnet 5.5 reads the server's real tool list and picks a tool, as Alexa+ would. When no model is available, plain word rules pick instead, and the screen says which. Speech in and out is the browser's own |
 | Alexa+ itself | **Not available to us.** MCP add-on access is in preview. Routing measured on the demo is that model's, not Alexa+'s |
 | Phone calls | **Not built.** It cannot ring anyone, and says so |
 
@@ -74,7 +101,7 @@ This file is long because the reasoning is the work. If you are evaluating the p
 | Where it is wrong, or cannot know | [Honest limitations](#honest-limitations) |
 
 Free sources, no API keys for the data. Every tool call is answered from memory; nothing external is called
-inside a turn. `npm test` runs 2,072 checks.
+inside a turn. `npm test` runs 2,224 checks.
 
 ## The problem
 
@@ -407,9 +434,9 @@ Mississippi), and anywhere else when a country is said ("Lyon, France").
 | Brazil | ANVISA, 6,672 brands | INMET | 192 | FDA, said as the US list |
 | Italy | AIFA, 2,625 brands | MeteoAlarm | 112 | FDA, said as the US list |
 | Spain | AEMPS, asked live | MeteoAlarm | 112 | FDA, said as the US list |
-| United Kingdom | generic names | MeteoAlarm, matched by town | 999 | MHRA |
-| Germany, Austria | generic names | MeteoAlarm | 112 | FDA, said as the US list |
-| Mexico | generic names | hurricane cones only | 911 | FDA, said as the US list |
+| United Kingdom | NHS BSA BNF list, 5,604 brands | MeteoAlarm, matched by town | 999 | MHRA |
+| Germany, Austria | generic names (no free bulk register: BfArM sells its detail, the Austrian dictionary is licensed) | MeteoAlarm | 112 | FDA, said as the US list |
+| Mexico | generic names (COFEPRIS publishes a search page, not a download) | hurricane cones only | 911 | FDA, said as the US list |
 | Australia | generic names | WMO centre | 000 | FDA, said as the US list |
 
 * **Names from other countries.** A generic name is the same nearly everywhere, and the dozen that differ
@@ -439,6 +466,7 @@ Mississippi), and anywhere else when a country is said ("Lyon, France").
 | Brazilian brand names | ANVISA, Dados abertos de medicamentos registrados | Brazilian open data, source cited |
 | Italian brand names | AIFA, Class A medicines by trade name, 30 June 2025 | AIFA open data, source cited |
 | Spanish medicines | AEMPS, CIMA search service, asked live | Public service, source cited |
+| UK brand names | NHS Business Services Authority, BNF code information, September 2026 | Open Government Licence v3.0 |
 | UK recalls | MHRA drug and device alerts, via the GOV.UK search API | Open Government Licence v3.0 |
 | European warnings | MeteoAlarm feeds | CC BY 4.0 |
 | European warning areas | EMMA_ID outlines from the MIT-licensed `meteoalarm` package (github.com/NiklasJordan/meteoalarm); NUTS3 outlines from Eurostat GISCO, © EuroGeographics for the administrative boundaries | MIT; Eurostat GISCO terms |
@@ -532,7 +560,7 @@ in trouble right now, confusion, fainting, hot dry skin, reach for the tool that
 rather than the one that plans a day.
 
 It is not Alexa, and that disclaimer travels in the response payload rather than living here. The model is
-Claude Haiku 4.5, with a daily cap of 25 calls; the server's own instructions, which tell a host what this
+Claude Sonnet 5.5, with a daily cap of 25 calls (Haiku 4.5 answered one turn in five with a question instead of a tool in the conversation tests, so it was replaced); the server's own instructions, which tell a host what this
 person has already saved (as counts, never names), are passed to it exactly as a host receives them. With no
 key, or once the cap is reached, plain word rules choose the tool instead (`src/rules.ts`), as another entry in
 this hackathon, Recall Check, does, and the screen says which chose. The demo page takes typed or spoken words;
@@ -648,6 +676,66 @@ tool results. It shows the heat index for this person, and an hourly strip where
 a word (ok, care, stay in) and a fill pattern as well as a colour. Until data arrives it shows a
 labelled example day. `test-panel.mjs` runs it against a simulated host.
 
+## The Agent Skill
+
+The tools say what each one does. They do not say how to carry somebody through a bad day: which tool answers
+which sentence, when to follow the next step without asking and when to wait for a yes, and how to say an answer
+that leads with 911. That is written down once, as an [Agent Skill](https://agentskills.io), in
+`skills/sudor-heat-safety`.
+
+| File | What it holds |
+|---|---|
+| `SKILL.md` | When to use Sudor, the sentence-to-tool table, how to follow a chain, how to say the answer, what to do when someone is unwell, privacy, and what it does not cover |
+| `references/tools.md` | Every tool with its arguments, written from the server's own tool list by `scripts/skill-tools.mjs` |
+| `references/chains.md` | Each next step an answer can name, and the condition the server applies before naming it |
+| `scripts/connect.mjs` | Connects to a Sudor server and lists its tools. It reads only, and needs nothing but Node |
+
+There are two ways to get it. Copy the folder into an assistant's skills location, as with any Agent Skill. Or
+read it from the server: every file is also an MCP resource at `skill://sudor-heat-safety/...`, listed with the
+skill's description and a SHA-256 of its text, so an assistant that has only connected to the server can load
+the skill from the same connection it calls the tools on. The addresses follow the Skills over MCP draft
+(SEP-2640). Only resources are used, which every host already reads; the draft's own methods are not final and
+are not implemented.
+
+```bash
+node skills/sudor-heat-safety/scripts/connect.mjs                         # a server on this machine
+node skills/sudor-heat-safety/scripts/connect.mjs https://host/mcp --demo  # the public demo
+```
+
+A skill that drifts from its server is worse than none, so `test-skill.mjs` holds the two together: every tool
+the skill names exists, every tool the server offers is in the skill, the tool reference matches the live tool
+list exactly, each chain in it is one the code really names, and the example of `flow` is what the server
+returns. The format is checked against the specification and by its reference validator, `skills-ref`.
+
+## A Strands agent that follows the chain
+
+Every answer names the step that follows. `strands/agent.mjs` is the agent that follows them, built on the
+[Strands Agents SDK](https://strandsagents.com), AWS's open agent framework. It lives in its own folder with
+its own dependencies, so the server's are untouched.
+
+| What it does | How |
+|---|---|
+| Connects to Sudor | Strands' MCP client, over Streamable HTTP |
+| Learns how to use it | Reads the Agent Skill from the same connection (`skill://sudor-heat-safety/SKILL.md`) and uses it, with the server's instructions, as its system prompt. Nothing is copied into the agent |
+| Sees the chain | Each tool is wrapped as a Strands tool that returns `say`, `nextAction` and `flow`. A plain MCP adapter passes on only the text, and the next step is in the structured half |
+| Asks before it saves or sends | A tool the server does not mark read-only is refused unless the person has said yes (`--yes`). The rule is in code, not in the prompt |
+| Has a ceiling | At most six tool calls a run and 700 tokens a reply, on the smallest current Claude model by default |
+
+```bash
+cd strands && npm install
+
+node agent.mjs --plan --url https://host/mcp --demo     # no model, no key, no cost
+ANTHROPIC_API_KEY=... node agent.mjs "Is it safe for me to go out?" --url https://host/mcp --demo
+```
+
+`--plan` swaps Claude for a scripted model that starts at one tool and calls whatever `nextAction` each answer
+names. It runs through the same Strands agent loop, the same wrapped tools and the same guard, which is how the
+chain is tested for nothing: `node strands/test.mjs` runs the real tools in process on a seeded 110 degree day and checks
+that one request runs from the weather, to the safest hour, to going out anyway and the rest of the precautions, that nothing is saved without a yes, and that the cap holds. 28 checks, no key, no network.
+
+The path through Claude uses Strands' Anthropic provider and needs a key. It costs a few cents a run, so it is
+not part of the automated checks.
+
 ## On a screen, with the family's phone beside it
 
 `/echo.html` is a stand-in for an Echo Show. Down the page are the lines somebody might say; each is a real tool
@@ -695,18 +783,23 @@ Or without installing Node at all:
 docker build -t sudor . && docker run -p 8789:8789 sudor
 ```
 
-`npm test` runs everything, 2,072 checks. It is also what CI runs on every push, on Node 20 and 22,
+`npm test` runs everything, 2,224 checks. It is also what CI runs on every push, on Node 20 and 22,
 with the live suite in its own job so an outage at a weather service is never mistaken for a
 regression here.
 
 ```bash
-npm run test:unit           # 1,727 checks, no live data
+npm run test:unit           # 1,926 checks, no live data
 npm run test:live           # 298 checks, against a running server and the real forecast
 
 node test.mjs               # heat index formula, categories, medications, how the lines read aloud
 node test-personal.mjs      # conditions, an age said aloud, sensitivity, planning, precautions, first aid
 node test-actions.mjs       # removing, privacy, learned limits, contacts, emails, repeats, forgetting, retention
 node test-panel.mjs         # the MCP Apps handshake against a simulated host
+node test-skill.mjs         # the Agent Skill: its format, every tool and chain it names, and reading it over MCP
+node test-gaps.mjs          # a home too hot, asking afterwards, carers, how sure, more cities, more outages, the counts
+node test-conversations.mjs # whole conversations in the patterns real users were recorded in, with a scripted host
+node test-readme.mjs        # every count, file, setting and result this README states, against the code
+node strands/test.mjs       # the Strands agent, with a scripted model: needs `npm install` in strands/ first
 node test-auth.mjs          # OAuth 2.1 with PKCE against a running server
 node test-static-client.mjs # the account linking shape Alexa+ actually uses
 node test-cold.mjs          # wind chill against the NWS chart, frostbite times, hypothermia first aid
@@ -811,7 +904,7 @@ up or tested, so neither is claimed. The role the server runs under needs `geo-p
 Five things added from the 2026 research and the heat plans cities published this year.
 
 * **A cooling centre by name.** "Call 211" is true and is not a place. Cities and counties that run cooling
-  centres publish them as open map layers, and seven of those are read whole on a timer (`src/cooling.ts`), so
+  centres publish them as open map layers, and twenty-three of those are read whole on a timer (`src/cooling.ts`), so
   nobody's address goes anywhere: "The nearest cooling centre open today is Burton Barr Library, at 1221 N Central
   Ave, about 1 mile away, from 9 am to 8 pm." Left out: water-only hydration stations, anything closed today or out
   of season, and outdoor spray pads, which are cooling and are also in the sun. A centre kept for older adults is
@@ -844,6 +937,40 @@ Five things added from the 2026 research and the heat plans cities published thi
 | Riverside County Cool Centers | Riverside County | Public open data |
 | Los Angeles activated centres | City of Los Angeles | Public open data |
 | California power outages | California Governor's Office of Emergency Services | Public open data |
+| Philadelphia cooling sites | City of Philadelphia | Public open data |
+| San Diego County Cool Zones | County of San Diego Health and Human Services Agency | Public open data |
+| Maryland cooling centres | Maryland Department of Health | Public open data |
+| San Antonio places to stay cool | City of San Antonio | Public open data |
+| Columbus cooling centres | City of Columbus | Public open data |
+| Cleveland area cooling centres | Cuyahoga County Office of Emergency Management | Public open data |
+| Rhode Island cooling centres | State of Rhode Island | Public open data |
+| Toronto cooling centres | Toronto Public Health | Public open data |
+| British Columbia public cooling spaces | Province of British Columbia, Emergency Management and Climate Readiness | Public open data |
+| Duke Energy power outages | Duke Energy, published outage areas | Public open data |
+| BC Hydro power outages | BC Hydro, published outage areas | Public open data |
+
+## What the 2026 research said was still missing
+
+A sweep of this year's heat deaths, trials and city plans found six gaps. Each is closed here, and each is tested
+in `test-gaps.mjs`.
+
+| Gap | What the evidence says | What Sudor does now |
+|---|---|---|
+| **The home is where people die** | Maryland's 2026 season: 61 heat deaths, 29 indoors. Louisiana 2026: about six in ten of the dead were found at home. Japan's environment ministry spent the summer testing an alert that tells the family when an older person's home gets too hot | When what the person has said adds up to a home too hot to stay in (a reading of 88 or more, or no working cooling on a day that reaches 88 with a night that stays above 79), the contacts who agreed to hear about bad days are emailed once that day, with nothing about health in it. A reading said aloud does it at once, and the answer says who is being told (`checkHotHome` in `src/alerts.ts`). Japan's pilot also switches the air conditioner on; an add-on cannot, so when a home whose cooling works reads 79 or more, the answer says to turn it on and set it below 79, gives the words that make Alexa do it ("Alexa, turn on the air conditioner"), and carries the same request as `homeControl` for a host that can offer to do it. It is never done on the person's behalf |
+| **Being told is not acting** | In the Australian trial of a home warning system for older adults, preparedness rose and the use of cooling did not | When an answer has sent somebody out of a home that is too hot, the next thing they ask at least half an hour later begins, once, with "If you are still there, want me to find somewhere cool now?", and names somewhere to go as the next step (`src/attention.ts`) |
+| **Carers do not link heat to caring** | Austrian research with family carers and live-in care workers found exactly that | A family member checking on somebody on a risky day hears what to do, not only a status: the home first if it is too hot, ring or call round, check the room is under 79, make sure they drink, and when to call 911. Never a medicine or a condition, and a private profile keeps even the home out of it |
+| **Not every warning is equally sure** | Anticholinergics raise core temperature in randomised trials. Diuretics, antipsychotics and beta blockers rest on studies of admissions and deaths. GLP-1 and SGLT2 drugs rest on how they work | Every medicine class carries how strong its evidence is (`evidenceFor` in `src/meds.ts`), and a warning that rests on how a drug works says so: "take it as a precaution" |
+| **Seven cities is not many** | Cities and counties publish cooling centres as open map layers, and many more do than were read | Twenty-three lists now, from Philadelphia to British Columbia, outage areas from Duke Energy and BC Hydro as well as California, and county outage counts for Maryland, Pennsylvania, Ohio and Alliant Energy's Iowa and Wisconsin |
+| **Nobody measures whether warnings work** | Reviews of heat warning systems find few that measure anything past sending the warning. Quebec's public health institute sets out the chain: knowledge, intention, behaviour, health | Sudor counts, per day, the links it can see: warned, sent away, asked afterwards, went looking for somewhere, family told, carer given steps, outings fine and unwell. Counts only, with demo visitors kept apart. `GET /impact` returns the totals and the share of people sent away who then looked for somewhere to go (`src/impact.ts`) |
+
+Sources: [Maryland 2026 season](https://marylandmatters.org/?p=101456),
+[Louisiana 2026](https://content.wbrz.com/news/louisiana-heat-has-killed-8-people-in-2026-ldh-says-see-how-to-protect-yourself-and-neighbors),
+[Japan's 2026 pilot](https://english.adnkronos.com/2026/08/13/japan-testing-new-tech-to-prevent-heatstroke-among-elderly/),
+[the Australian home warning trial](https://pmc.ncbi.nlm.nih.gov/articles/PMC11840092/),
+[IMC Krems on family carers](https://www.imc.ac.at/en/about-us/media-press/news/detail/heatwaves-in-family-care-rising-temperatures-rising-challenges/),
+[the medications meta-analysis](https://pmc.ncbi.nlm.nih.gov/articles/PMC11541675/),
+[INSPQ evaluation guide](https://www.inspq.qc.ca/en/publications/1794),
+[review of heat health warning systems](https://www.preventionweb.net/quick/99463).
 
 ## Who agrees to be emailed
 
@@ -942,7 +1069,7 @@ differ, from heat alone. It does not show that anybody was harmed or protected. 
 The golden set and the saved baseline were run with the full tool set (`SCOPE=all`) and before the sharing,
 "tell me more", `get_help` and shift-planning additions. The new sentences for those are checked against the tool
 list and have not been run against a model, so the routing figures below do not cover them. The model in that run
-was Claude Opus 5.5 standing in for Alexa+ (the live demo now uses Haiku 4.5): it shows the descriptions work for that model, and nothing about the
+was Claude Opus 5.5 standing in for Alexa+ (the live demo now uses Sonnet 5.5): it shows the descriptions work for that model, and nothing about the
 one Alexa+ uses.
 
 `npm test` shows the server gives the right answer once a tool is chosen. It cannot show that a host would
@@ -966,8 +1093,12 @@ time in a single pass. A sentence that was stable at the saved baseline and is n
 It costs one model call per sentence per trial, so it is not part of `npm test`. `npm run eval -- --preflight` asks the API to count the tokens of the real request, which is free, proves the request is accepted, and prints what a full run would cost; the tool list is cached across calls, which cuts the input bill by about nine tenths, and `--budget <dollars>` stops a run that reaches its limit rather than finishing it. What needs no model is: the
 golden file is checked against the live tool list (a renamed tool, an argument that no longer exists or an
 enum value nobody can pass fails the build), and the scorer and the runner are tested against a fake host
-that is deliberately flaky, over-eager or sends bad arguments. Last live run (Opus 5.5, 3 trials, all sentences stable, routing, declining and arguments all 100%, every chosen
-read-only call answered, $0.95). Read that with care: the first live runs missed several sentences, and the
+that is deliberately flaky, over-eager or sends bad arguments. Live runs on Opus 5.5: on 1 October, 3 trials, all sentences stable, routing, declining and arguments all 100%,
+every chosen read-only call answered ($0.95). On 14 October, after ten sentences for the new features, 1 trial: tool
+choice 96.8% of 95, arguments 100% ($0.49). Of the three misses, "call an ambulance" chose `get_help` (which says it
+cannot phone and to call 911) and "I think I overdid it out there" chose the warning signs, both now accepted with the
+reason written in the golden file; "is the power out around here" chose nothing, and the storm tool's description now
+says it answers that, after which it chose `storm_prep` three times in three. Read that with care: the first live runs missed several sentences, and the
 fixes were tool descriptions plus a few golden sentences that were not fair single-turn tests (a required value only
 the customer knows, so asking back is correct), so 100% is a regression baseline and not a blind score. A golden set is also fixed, so it cannot notice a failure it does not contain, and cases should be
 added from real misses.
@@ -977,7 +1108,7 @@ added from real misses.
 Alexa+ allows roughly 500 ms for a full round trip. Measured against live data on 12 September
 2026: every tool answered in 3 to 8 ms, and the slowest request in the whole probe, setting a
 location by voice, took about 50 ms including starting its background lookup. On 13 September, with
-all seventeen tools, the contact, privacy and outing tools answered in 4 to 7 ms. Emails are sent
+all seventeen tools it had then, the contact, privacy and outing tools answered in 4 to 7 ms. Emails are sent
 after the answer, never inside it.
 
 ## Prior art
@@ -1060,8 +1191,11 @@ pair is 33 before anything else is connected. On a host with a ceiling, connect 
   psychiatric hospital; psychiatric, children's and veterans' hospitals are now left out.
 * Email is real but the SES account is in its sandbox until Amazon approves production access, so only verified
   addresses receive it. A contact has to agree before they are sent anything but the invitation.
-* Twelve conditions, and medicines from two sources: 119 of the 286 most prescribed ingredients are recognised. Fifty-seven are named one by one in the CDC's clinical guidance
-  on heat and medicines. Any other name is looked up in RxNorm, the National Library of Medicine's drug vocabulary,
+* Fifteen conditions, and medicines from two sources: 133 of the 286 most prescribed ingredients are recognised
+  (`node evals/coverage.mjs`, 14 October 2026). Seventy-one are in Sudor's own table: the fifty-seven drawn from the
+  CDC's clinical guidance on heat and medicines, and fourteen added in October from the CDC's classes and FDA labels
+  (first-generation antihistamines, two antispasmodics, cyclobenzaprine, the alpha blockers, clonidine, hydralazine
+  and amiodarone), each marked with how strong its evidence is. Any other name is looked up in RxNorm, the National Library of Medicine's drug vocabulary,
   which gives the ingredient and its ATC class; the class is then read against the same CDC guidance, and the answer
   says it rests on the class (`src/rxclass.ts`). Classes that mix drugs with different effects are left
   unclassified on purpose, and a combination product such as Adderall is not classified. Not a clinical database.
@@ -1086,7 +1220,7 @@ pair is 33 before anything else is connected. On a host with a ceiling, connect 
   receive them.
 * A learned limit comes from what the person reports, not a measurement, and it only tightens.
 * Thirteen tools by default. On fifteen varied sentences through the live talking demo, Claude Haiku 4.5 chose an
-  expected tool for 13; the same sentence can come out differently from run to run, and tool choice on real Alexa+
+  expected tool for 13, which is why the demo now runs Sonnet 5.5, which got 33 of 34 conversation turns right; the same sentence can come out differently from run to run, and tool choice on real Alexa+
   still has to be tested.
 * The WBGT is estimated from weather variables, not measured with three thermometers. Globe
   temperature follows Hunter and Minyard (1999) and natural wet bulb follows Malchaire (1976); the

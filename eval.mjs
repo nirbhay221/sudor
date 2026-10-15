@@ -1,4 +1,7 @@
 // Every tool, including the ones outside the default scope, so they stay tested. See src/brief.ts.
+// The model this measures, set before the stand-in loads. The stand-in's own default is Haiku, for the public demo
+// page; this golden set and its baseline are Opus, and a run that reported Opus while asking Haiku scored the wrong host.
+process.env.SUDOR_AGENT_MODEL ??= 'claude-opus-5-5';
 process.env.SUDOR_SCOPE ??= 'all';
 /**
  * A golden evaluation of tool selection.

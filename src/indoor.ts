@@ -63,6 +63,24 @@ export type Indoor = {
   highF?: number;
   overnightLowF?: number;
   underRoof?: boolean;
+  /** What to switch on, for a host that controls the home's devices. See COOLING_ON. */
+  control?: HomeControl;
+};
+
+/**
+ * Switching the cooling on.
+ *
+ * Japan's 2026 pilot for people over 65 turns the air conditioner on by itself when the home gets too hot. An
+ * add-on cannot switch anything: Alexa controls the devices, and only when the customer asks it to. So when a
+ * home whose cooling works reads 79 or more inside, the answer says to turn it on and set it below 79, gives the
+ * exact words that make Alexa do it, and carries the same request as data, `control`, for a host that can offer
+ * to do it there and then. It is never done on the person's behalf.
+ *   https://english.adnkronos.com/2026/08/13/japan-testing-new-tech-to-prevent-heatstroke-among-elderly/
+ */
+export type HomeControl = { device: 'air conditioner' | 'fan'; action: 'turn_on'; setBelowF?: number; say: string };
+const COOLING_ON: Record<'air conditioner' | 'fan', HomeControl> = {
+  'air conditioner': { device: 'air conditioner', action: 'turn_on', setBelowF: LIMIT_F, say: 'Alexa, turn on the air conditioner' },
+  fan: { device: 'fan', action: 'turn_on', say: 'Alexa, turn on the fan' },
 };
 
 export const SOURCES = [
@@ -103,6 +121,23 @@ function judge(
 
   if (reading != null) {
     const f = Math.round(reading);
+    // Cooling that works, and a hot room: it is off or set too high. Switch it on first. See COOLING_ON.
+    const switchable = home.cooling === 'working' ? 'air conditioner' : home.cooling === 'fan' && f < FAN_F ? 'fan' : null;
+    if (switchable && f >= LIMIT_F && (vulnerable || f >= AVOID_F)) {
+      const control = COOLING_ON[switchable];
+      return {
+        level: f >= AVOID_F ? 'danger' : 'watch',
+        basis: 'reported',
+        indoorF: f,
+        control,
+        line:
+          switchable === 'air conditioner'
+            ? `It is ${f} degrees inside even though your air conditioning works, so it may be off or set too high. Turn it on now and set it below 79, the indoor limit Health Canada gives for older adults. If it is connected to Alexa, say: ${control.say}.` +
+              (f >= AVOID_F ? ' If the room is not cooler within the hour, go somewhere with working cooling.' : '')
+            : `It is ${f} degrees inside. Turn your fan on now, and sit in the coolest room. If it is on a smart plug, say: ${control.say}.` +
+              (f >= AVOID_F ? ' At this heat a fan may not be enough, so if you do not feel cooler soon, go somewhere with working cooling.' : ''),
+      };
+    }
     if (f >= AVOID_F) {
       return {
         level: 'danger',

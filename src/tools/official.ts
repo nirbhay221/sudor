@@ -168,7 +168,7 @@ export function register(server: McpServer, personOf: () => string): void {
         'any other official warning where they live, fitted to their medicines and conditions: what to do first, ' +
         'medicines that need a fridge, equipment that needs power, dialysis, and whether to leave. Also a forecast ' +
         'geomagnetic storm. Call this when someone asks what to do about a ' +
-        'warning or a disaster, how to prepare, or mentions losing power. It needs no arguments: it reads the warnings ' +
+        'warning or a disaster, how to prepare, mentions losing power, or asks whether the power is out where they live. It needs no arguments: it reads the warnings ' +
         'in force where they live itself, so do not ask which warning. It is advice on what to do, not somewhere ' +
         'to go once the power is already out (use somewhere_to_go).',
       inputSchema: {},
@@ -193,7 +193,12 @@ export function register(server: McpServer, personOf: () => string): void {
       const lead = coming ? `${coming.event} is up for your area. ` : '';
       // In California, whether the power is already out at their address, and when it should be back. See outages.ts.
       const out = person.lat != null && person.lon != null ? outages.at(person.lat, person.lon) : undefined;
-      const outLine = out ? outages.sentence(out, (person.lat != null && person.lon != null ? weather.current(person.lat, person.lon)?.timezone : null) ?? 'America/Los_Angeles') : '';
+      const inCounty = !out && person.lat != null && person.lon != null ? outages.countyAt(person.lat, person.lon) : null;
+      const outLine = out
+        ? outages.sentence(out, (person.lat != null && person.lon != null ? weather.current(person.lat, person.lon)?.timezone : null) ?? 'America/Los_Angeles')
+        : inCounty
+          ? outages.countySentence(inCounty)
+          : '';
       const outLead = outLine ? `${outLine} ` : '';
 
       const steps: string[] = [];

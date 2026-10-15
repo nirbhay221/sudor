@@ -25,6 +25,9 @@ import { shorten, more, inScope, sentences } from './brief.js';
 import { say, CARD as CARD_URI } from './tools/shared.js';
 import { takeReplies } from './consent.js';
 import * as attention from './attention.js';
+import { checkHotHome } from './alerts.js';
+import * as impact from './impact.js';
+import { canEmailFor } from './notify.js';
 import * as flow from './flow.js';
 import { finish } from './finish.js';
 import * as store from './store.js';
@@ -131,7 +134,19 @@ export function registerTools(server: McpServer, personOf: () => string): void {
       let sc = result?.structuredContent ?? {};
       // A day planned as a stay-inside day is remembered, to be mentioned until they say they have heard it.
       const best = sc.best as { status?: string } | null | undefined;
-      if (name === 'plan_my_day' && sc.day === 'today' && best?.status === 'avoid' && typeof sc.date === 'string') attention.remember(id, sc.date);
+      if (name === 'plan_my_day' && sc.day === 'today' && best?.status === 'avoid' && typeof sc.date === 'string') {
+        attention.remember(id, sc.date);
+        impact.count('warned', id);
+      }
+      // Told to leave a home that is too hot: asked later whether they went. Looking for somewhere ends it.
+      const toldToLeave = (sc.nextAction as { tool?: string } | undefined)?.tool === 'somewhere_to_go' && name !== 'somewhere_to_go' && name !== 'storm_prep';
+      const today = localDateOf(id);
+      if (toldToLeave && today && !result.isError) {
+        attention.sentAway(id, today);
+        impact.count('sentAway', id);
+      }
+      // Counted as acting on it only when they had been sent away. See impact.ts.
+      if (name === 'somewhere_to_go' && attention.wentLooking(id)) impact.count('wentLooking', id);
 
       // Say nothing twice, and name the next step. See finish.ts.
       result = finish(name, args[0], result) as R;
@@ -155,13 +170,22 @@ export function registerTools(server: McpServer, personOf: () => string): void {
       const news = takeReplies(id);
       const emergency = /\b911\b/.test(first.text);
       const nudge = emergency || sc.heard === true ? '' : attention.reminder(id, localDateOf(id), name);
-      const lead = [news, nudge].filter(Boolean).join(' ');
+      const asked = emergency ? '' : attention.followUp(id, localDateOf(id), name);
+      if (asked) impact.count('followedUp', id);
+      const lead = [news, asked, nudge].filter(Boolean).join(' ');
       if (!lead) return result;
       const spoken = `${lead} ${first.text}`;
       return {
         ...result,
         content: [{ ...first, text: spoken }, ...(result.content ?? []).slice(1)],
-        structuredContent: { ...sc, spoken, ...(news ? { familyAnswered: news } : {}), ...(nudge ? { reminded: true } : {}) },
+        structuredContent: {
+          ...sc,
+          spoken,
+          ...(news ? { familyAnswered: news } : {}),
+          ...(nudge ? { reminded: true } : {}),
+          // The question asked first has its own answer: somewhere to go, unless this answer already names a step.
+          ...(asked ? { followedUp: true, ...(sc.nextAction ? {} : { nextAction: { tool: 'somewhere_to_go', arguments: {} } }) } : {}),
+        },
       };
     };
     // Last of all: the emergency number that works where this person is, in place of 911. See world.ts.
@@ -289,9 +313,13 @@ export function registerTools(server: McpServer, personOf: () => string): void {
           const vulnerable = p.medications.length > 0 || p.conditions.length > 0;
           const risk = snap ? indoor.indoorRisk(snap, p, vulnerable) : null;
           goSomewhere = risk?.level === 'danger';
+          // A home too hot to stay in is the moment the family should hear, once a day. See checkHotHome.
+          const family = goSomewhere ? p.contacts.filter((c) => reachable(c) && c.notifyOn.includes('hot_day')).map((c) => c.name) : [];
+          if (family.length && canEmailFor(me)) void checkHotHome(new Date(), me).catch((err) => console.error('[alerts]', err));
+          const telling = family.length && canEmailFor(me) ? ` I am letting ${family.length === 1 ? family[0] : `${family.slice(0, -1).join(', ')} and ${family.at(-1)}`} know your home is too hot today.` : '';
           said.push(
             risk
-              ? risk.line
+              ? risk.line + telling
               : a.cooling === 'working'
                 ? 'Good. I will take it that indoors is the cool place for you.'
                 : a.cooling
@@ -300,7 +328,7 @@ export function registerTools(server: McpServer, personOf: () => string): void {
                     ? (a.topFloor ? 'Noted. The top floor is the hottest part of a building, so on a hot day without cooling I will say so.' : 'Noted.')
                   : `Noted, ${Math.round(a.indoorTempF!)} degrees indoors. That is all right for now.`,
           );
-          did.push({ tool: 'home', cooling: p.cooling ?? null, ...(risk ? { indoor: risk.level, basis: risk.basis } : {}) });
+          did.push({ tool: 'home', cooling: p.cooling ?? null, ...(risk ? { indoor: risk.level, basis: risk.basis } : {}), ...(risk?.control ? { homeControl: risk.control } : {}) });
         }
         if (typeof a.livesAlone === 'boolean') {
           store.update(personOf(), (p) => void (p.livesAlone = a.livesAlone));

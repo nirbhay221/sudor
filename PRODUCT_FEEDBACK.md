@@ -53,7 +53,9 @@ supported pattern for work that outlasts a turn.
 | S3 | Holds the application bundle the instance pulls |
 | IAM | An instance role limited to the bundle, the two parameter prefixes, SES and Polly |
 | SES (v2) | Emails a confirmed family contact when signs of heat stroke are described, or the evening before a day that stays too hot |
+| Strands Agents SDK | The agent in `strands/`: Strands' MCP client connects to this server, the Agent Skill it serves becomes the system prompt, each tool is wrapped so the agent sees the next step, and writes wait for a yes. Its model is Claude through Strands' Anthropic provider |
 | Polly | Speaks the same sentence the tool returns, on the demo page, with per-caller and daily caps |
 
-Not used: Bedrock and CloudFront. The stand-in model calls Anthropic's API directly, and the public address is an
+Not used: Bedrock and CloudFront. Bedrock is not available to this account, so the Strands agent reaches Claude
+through Strands' Anthropic provider instead; moving it to Bedrock is a change of one model class. The stand-in model calls Anthropic's API directly, and the public address is an
 API Gateway HTTP API (see `deploy/README.md`).

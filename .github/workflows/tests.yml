@@ -30,6 +30,8 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run build
       - run: npm run test:unit
+      # The Strands agent has its own dependencies. Its test uses a scripted model: no key, no cost.
+      - run: npm run test:strands
 
   live-data:
     # The suite that starts the real server and reads the forecast, the air

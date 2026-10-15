@@ -21,6 +21,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY web ./web
 COPY ui ./ui
+COPY skills ./skills
 COPY assets ./assets
 # Profiles live here, and they are health details. Mount a volume over it only
 # if you mean to keep them, and keep that volume private.

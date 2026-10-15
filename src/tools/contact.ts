@@ -22,6 +22,8 @@ import * as care from '../care.js';
 import { emailConfigured, sendEmail, canEmailFor, toDemoPhone, DEMO_PHONE } from '../notify.js';
 import { consentRequired, reachable, awaiting, newInvite, invitation, alwaysAsk, newEntry } from '../consent.js';
 import * as weather from '../weather.js';
+import { indoorRisk } from '../indoor.js';
+import * as impact from '../impact.js';
 import { perCaller } from '../budget.js';
 import * as store from '../store.js';
 import * as recalls from '../recalls.js';
@@ -373,9 +375,33 @@ export function register(server: McpServer, personOf: () => string): void {
       const where = person.locationName ? ` in ${person.locationName}` : '';
       const best = plan.best && plan.best.status !== 'avoid' ? ` The best time for them to be out today is ${plan.best.label}.` : plan.hours.length ? ' There is no good time for them to be out today.' : '';
       const cold = now.feelsF <= 50;
-      return say(`Right now${where} it is ${word}, feeling like ${Math.round(cold ? now.feelsF : now.heatIndexF)}.${best}`, {
+      /*
+       * What the person looking after them can do today. Austrian research with family carers and live-in care
+       * workers found they rarely linked the heat to their own caring that day, so a risky day is said to them
+       * as things to do, not only as a status. Nothing here names a medicine or a condition: the home and the
+       * day are about where they live, not their health, and a private profile keeps even the home out of it.
+       *   https://www.imc.ac.at/en/about-us/media-press/news/detail/heatwaves-in-family-care-rising-temperatures-rising-challenges/
+       */
+      const risky = now.status !== 'good' || plan.best?.status === 'avoid';
+      const vulnerable = person.medications.length > 0 || person.conditions.length > 0;
+      const home = !person.privacy ? indoorRisk(snap, person, vulnerable) : null;
+      const morning = new Date(Date.now() + snap.utcOffsetSeconds * 1000);
+      morning.setUTCHours(6, 0, 0, 0);
+      const quiet = person.livesAlone && (!person.lastSeenAt || Date.parse(person.lastSeenAt) < morning.getTime() - snap.utcOffsetSeconds * 1000);
+      const carer = risky && !cold
+        ? [
+            home?.level === 'danger' ? 'Their home is too hot to stay in today: help them get somewhere with working cooling.' : '',
+            quiet ? 'They have not spoken to me since this morning, so ring them or call round.' : 'Ring them or call round this afternoon, in the hottest part of the day.',
+            'Check the room they spend the day in: above 79 degrees is past the indoor limit Health Canada gives for older adults.',
+            'Make sure they drink regularly, even if they are not thirsty.',
+            'If they are confused, slur their words or faint, that can be heat stroke: call 911.',
+          ].filter(Boolean)
+        : [];
+      if (carer.length) impact.count('carerSteps', personOf());
+      return say(`Right now${where} it is ${word}, feeling like ${Math.round(cold ? now.feelsF : now.heatIndexF)}.${best}${carer.length ? ` ${carer.join(' ')}` : ''}`, {
         sharing: true,
         status: now.status,
+        ...(carer.length ? { forCarer: carer, ...(home?.level === 'danger' ? { homeTooHot: true } : {}) } : {}),
         best: plan.best ? { label: plan.best.label, status: plan.best.status } : null,
         card: {
           kind: 'card',

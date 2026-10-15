@@ -47,6 +47,13 @@ for (let i = 0; i < 60 && !up; i++) {
   try { up = (await fetch(`${BASE}/health`)).ok; } catch { await wait(500); }
 }
 if (!up) { console.log('  FAIL  the server never came up'); stop(); process.exit(1); }
+// The budget is for answers in steady running. The cooling-centre and outage lists are read once at start and then
+// every half hour, so the measuring starts once that first read is done, or after half a minute whatever happens.
+for (let i = 0; i < 60; i++) {
+  const health = await (await fetch(`${BASE}/health`)).json().catch(() => ({}));
+  if (Object.keys(health.coolingCentres ?? {}).length >= 16) break;
+  await wait(500);
+}
 
 let rpcId = 0;
 async function call(name, args = {}) {

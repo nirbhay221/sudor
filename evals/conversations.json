@@ -1,0 +1,128 @@
+{
+  "_comment": "Conversations, not sentences. Each is several turns from one person, and each turn is scored with every earlier turn and every earlier answer in front of the model, the way a host keeps them. They are written in the patterns older adults were recorded using with voice assistants at home, not in the phrasing a tool description suggests: a month of recorded Alexa use where a quarter of turns failed and repeating, rephrasing, 'never mind', 'thank you' and 'I got it' were how people repaired or ended (Mahmood, Wang and Huang, arXiv 2403.02421); and 844 recorded medication check-ins whose breakdowns were mostly about earlier turns ('What about yesterday though?'), asking why ('why are you asking me now?') and stepping off the script ('let me go check with my wife') (Mathur and others, arXiv 2510.06690). The heat details follow what firefighters and health officers describe: older people in hot homes whose cooling is not working (KFF Health News). tool null means the right answer calls nothing. anyOf lists the tools that are each a reasonable reading.",
+  "sources": [
+    "https://arxiv.org/html/2403.02421v3",
+    "https://arxiv.org/html/2510.06690v1",
+    "https://kffhealthnews.org/aging/montana-west-heat-waves-rural-seniors-air-conditioning-911/"
+  ],
+  "conversations": [
+    {
+      "name": "a dangerous day, carried through",
+      "pattern": "one request leading to the next",
+      "turns": [
+        { "say": "Alexa, is it safe for me to go out today", "tool": "weather_check" },
+        { "say": "ok when then", "tool": "plan_my_day" },
+        { "say": "I have to get to the pharmacy anyway", "tool": "going_out_now" },
+        { "say": "thank you, that's all", "tool": null }
+      ]
+    },
+    {
+      "name": "the same thing twice, then never mind",
+      "pattern": "repeating was the commonest repair, and 'never mind' ended many",
+      "turns": [
+        { "say": "is it too hot for my pills today", "tool": "weather_check" },
+        { "say": "is it too hot for my pills today", "tool": "weather_check" },
+        { "say": "never mind", "tool": null }
+      ]
+    },
+    {
+      "name": "what about tomorrow though",
+      "pattern": "'What about yesterday though?': a follow-up that only means something after the answer before it",
+      "turns": [
+        { "say": "when's a good time to water the garden", "tool": "plan_my_day" },
+        { "say": "what about tomorrow though", "tool": "plan_my_day", "args": { "day": "tomorrow" } }
+      ]
+    },
+    {
+      "name": "asking why",
+      "pattern": "'why are you asking me now?': explanations were a third of breakdowns",
+      "turns": [
+        { "say": "can I sit out on the porch", "anyOf": ["weather_check", "plan_my_day"] },
+        { "say": "why, I feel fine", "anyOf": ["tell_me_more", "weather_check"] }
+      ]
+    },
+    {
+      "name": "feeling unwell partway through",
+      "pattern": "a symptom said in passing, then asking for family",
+      "turns": [
+        { "say": "I'm going to walk to the mailbox, is that ok", "anyOf": ["weather_check", "plan_my_day", "going_out_now"] },
+        { "say": "ummm actually I feel a bit dizzy", "tool": "warning_signs" },
+        { "say": "tell my daughter", "tool": "get_help" }
+      ]
+    },
+    {
+      "name": "the air conditioner gives out",
+      "pattern": "older homes whose cooling is not working",
+      "turns": [
+        { "say": "my air conditioner just stopped working", "tool": "about_me", "args": { "cooling": "broken" } },
+        { "say": "it's eighty six in here", "tool": "about_me" },
+        { "say": "where can I go then", "tool": "somewhere_to_go" },
+        { "say": "let my son know I'm going to the library", "tool": "get_help" }
+      ]
+    },
+    {
+      "name": "a storm, then the power",
+      "pattern": "a worry, then the thing happening",
+      "turns": [
+        { "say": "there's a storm warning, what do I do about my insulin", "tool": "storm_prep" },
+        { "say": "the power just went out, where can I go", "tool": "somewhere_to_go" }
+      ]
+    },
+    {
+      "name": "a new medicine",
+      "pattern": "telling it in passing, then asking what it changes",
+      "turns": [
+        { "say": "the doctor started me on Lasix", "tool": "about_me" },
+        { "say": "does that change anything about today", "tool": "weather_check" }
+      ]
+    },
+    {
+      "name": "the wrong wake word and a pause",
+      "pattern": "'Alexis' for Alexa, and fillers",
+      "turns": [
+        { "say": "Alexis, um, how bad is the heat for me", "tool": "weather_check" },
+        { "say": "and later on", "anyOf": ["plan_my_day", "weather_check"] }
+      ]
+    },
+    {
+      "name": "a correction",
+      "pattern": "rephrasing after being misunderstood",
+      "turns": [
+        { "say": "I want to do some gardening for an hour, when", "tool": "plan_my_day", "args": { "minutes": 60 } },
+        { "say": "no, two hours", "tool": "plan_my_day", "args": { "minutes": 120 } }
+      ]
+    },
+    {
+      "name": "off the script, then back",
+      "pattern": "'Is the extreme heat natural to weather?', then a question it can answer",
+      "turns": [
+        { "say": "is all this heat natural", "tool": null },
+        { "say": "ok, when can I walk the dog", "tool": "plan_my_day" }
+      ]
+    },
+    {
+      "name": "back from an outing",
+      "pattern": "reporting how it went",
+      "turns": [
+        { "say": "I just got back from the shops, I felt fine", "tool": "log_outing", "args": { "felt": "fine" } },
+        { "say": "actually I was a bit lightheaded on the way back", "anyOf": ["log_outing", "warning_signs"] }
+      ]
+    },
+    {
+      "name": "a daughter checks in",
+      "pattern": "a caregiver asking about somebody else",
+      "turns": [
+        { "say": "how is Mum doing today", "tool": "share_my_day", "args": { "action": "check" } },
+        { "say": "should I go round this afternoon", "anyOf": ["share_my_day", "tell_me_more"] }
+      ]
+    },
+    {
+      "name": "the cold, and getting home",
+      "pattern": "a symptom, then the end of it",
+      "turns": [
+        { "say": "my hands are numb and I'm shivering", "tool": "warning_signs" },
+        { "say": "I'm inside now, I got it, thanks", "anyOf": [null, "log_outing"], "_why": "Ending the conversation is right, and so is recording the outing that left their hands numb." }
+      ]
+    }
+  ]
+}

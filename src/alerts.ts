@@ -20,6 +20,8 @@ import { reachable, stopFooter, newReplyLink } from './consent.js';
 import * as warnings from './warnings.js';
 import { hazardOf, forFamily } from './hazard.js';
 import * as shelters from './shelters.js';
+import { indoorRisk } from './indoor.js';
+import * as impact from './impact.js';
 
 const recipients = (p: store.Person, reason: store.NotifyReason) =>
   p.contacts.filter((c) => reachable(c) && c.notifyOn.includes(reason));
@@ -223,6 +225,72 @@ export async function checkOnAlone(now = new Date()): Promise<Delivery[]> {
           text:
             `Today's heat is in the dangerous range for the person you look after${p.locationName ? `, near ${p.locationName}` : ''}, ` +
             'they live alone, and they have not spoken to Sudor since this morning. Please ring them or call round.\n\n' +
+            'You are getting this because you were added as a contact for dangerous days and agreed to it.' +
+            stopFooter(c),
+        }),
+      );
+    }
+  }
+  return attempted;
+}
+
+/**
+ * A home too hot to stay in, today.
+ *
+ * Most people who die in a heat wave die at home. Maryland's 2026 season ended with 61 heat deaths, 29 of them
+ * indoors; in Louisiana about six in ten of 2026's dead were found in a residence, and Maricopa County found
+ * the air conditioner present but not working in most homes where somebody died inside. Japan's environment
+ * ministry spent the 2026 summer testing exactly this with people over 65: a family member is notified when
+ * the temperature in the home gets too high.
+ *
+ * Sudor cannot read a thermometer. It knows what the person has told it: a reading from the house in the last
+ * three hours, or that the cooling is broken, a fan, or nothing, against the forecast high and overnight low.
+ * When that adds up to the danger level in indoor.ts (a reading of 88 or more, or a home with no way to cool
+ * down today and tonight), the contacts who agreed to hear about bad days are emailed once that day: the home
+ * is too hot to stay in, please help them get somewhere cool. Whether or not they live alone, and with nothing
+ * about their health in it.
+ *
+ * Sources:
+ *   https://marylandmatters.org/?p=101456
+ *   https://content.wbrz.com/news/louisiana-heat-has-killed-8-people-in-2026-ldh-says-see-how-to-protect-yourself-and-neighbors
+ *   https://english.adnkronos.com/2026/08/13/japan-testing-new-tech-to-prevent-heatstroke-among-elderly/
+ */
+const MORNING_HOUR = 8;
+export async function checkHotHome(now = new Date(), only?: string): Promise<Delivery[]> {
+  const attempted: Delivery[] = [];
+  for (const [id, p] of store.allEntries()) {
+    if (only && id !== only) continue;
+    if (!canEmailFor(id) || p.lat == null || p.lon == null) continue;
+    const to = recipients(p, 'hot_day');
+    if (!to.length) continue;
+    const snap = weather.current(p.lat, p.lon);
+    if (!snap || !snap.hourly.length || Number.isNaN(snap.tempF)) continue;
+    const local = new Date(now.getTime() + snap.utcOffsetSeconds * 1000);
+    const reported = p.indoor && now.getTime() - Date.parse(p.indoor.at) < 3 * 3_600_000;
+    // A forecast is judged from the morning on; a reading they gave is acted on whenever it comes.
+    if (!reported && local.getUTCHours() < MORNING_HOUR) continue;
+    const vulnerable = p.medications.length > 0 || p.conditions.length > 0;
+    const risk = indoorRisk(snap, p, vulnerable, now);
+    if (risk?.level !== 'danger') continue;
+    const date = local.toISOString().slice(0, 10);
+    const key = `hot_home:${date}`;
+    if (p.alertsSent.includes(key)) continue;
+    store.update(id, (x) => void (x.alertsSent = [...x.alertsSent.slice(-29), key]));
+    impact.count('familyTold', id);
+    const why =
+      risk.basis === 'reported'
+        ? `They told Sudor it is ${risk.indoorF} degrees inside, which is past the 88 that Health Canada says anybody the heat is hard on should not stay in.`
+        : `${p.cooling === 'fan' ? 'They have only a fan' : p.cooling === 'none' ? 'They have no cooling' : 'Their cooling is not working'}, and it reaches ${risk.highF} outside today and only falls to ${risk.overnightLowF} tonight, so the home has no way to cool down.`;
+    for (const c of to) {
+      attempted.push(
+        await sendEmail({
+          to: c.email,
+          sender: id,
+          reason: 'hot_day',
+          subject: 'Their home is too hot to stay in today',
+          text:
+            `The home of the person you look after${p.locationName ? `, near ${p.locationName}` : ''} is too hot to stay in today. ${why}\n\n` +
+            'Please help them get somewhere with working cooling, or call round. For a cooling centre near them, call 211.\n\n' +
             'You are getting this because you were added as a contact for dangerous days and agreed to it.' +
             stopFooter(c),
         }),

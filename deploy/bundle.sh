@@ -18,7 +18,7 @@ npm run build
 # Written inside the repository rather than /tmp, because the AWS CLI on Windows
 # is a native program and cannot open a Unix style temp path.
 mkdir -p .deploy
-tar -czf .deploy/app.tar.gz dist web ui assets package.json package-lock.json deploy/sudor.service deploy/sudor-secrets.sh deploy/sudor-hardening.conf
+tar -czf .deploy/app.tar.gz dist web ui assets skills package.json package-lock.json deploy/sudor.service deploy/sudor-secrets.sh deploy/sudor-hardening.conf
 
 "$AWS" s3 cp .deploy/app.tar.gz "s3://${BUCKET}/${KEY}"
 echo "uploaded s3://${BUCKET}/${KEY}"

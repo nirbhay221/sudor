@@ -70,11 +70,16 @@ export function usName(spoken: string): string {
 
 /*
  * Brand lists, one per country, each from that country's own regulator (scripts/build-country-brands.py and
- * scripts/build-india-brands.py): India, Canada, France, Brazil and Italy. The person's own country is looked in
- * first, because the same name can be a different medicine elsewhere; then the others. Spain has no download,
- * so its regulator's search service is asked live (lookupSpain).
+ * scripts/build-india-brands.py): India, Canada, France, Brazil, Italy and the United Kingdom (the NHS Business
+ * Services Authority's BNF code list, Open Government Licence). The person's own country is looked in first,
+ * because the same name can be a different medicine elsewhere; then the others. Spain's regulator is asked live
+ * (lookupSpain), which answers the same register its nomenclator download holds.
+ *
+ * Not here, and why: Germany and Austria publish no free bulk register (BfArM's AMIce sells its detail, and the
+ * Austrian dictionary is licensed), and Mexico's COFEPRIS register is a search page with no download. China,
+ * Russia and Korea are left out because Alexa is not sold there.
  */
-const COUNTRIES = ['IN', 'CA', 'FR', 'BR', 'IT'];
+const COUNTRIES = ['IN', 'CA', 'FR', 'BR', 'IT', 'GB'];
 const lists = new Map<string, Record<string, string[]>>();
 function listFor(cc: string): Record<string, string[]> {
   const held = lists.get(cc);

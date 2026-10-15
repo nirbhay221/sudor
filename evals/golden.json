@@ -367,7 +367,11 @@
     },
     {
       "say": "call an ambulance",
-      "tool": null
+      "tool": null,
+      "alsoOk": [
+        "get_help"
+      ],
+      "why": "Sudor cannot phone anyone, and get_help says so first and tells them to call 911, then emails family; that is a fair answer to an emergency."
     },
     {
       "say": "what is the stock price of Pfizer",
@@ -443,7 +447,11 @@
       "args": {
         "felt": "unwell"
       },
-      "kind": "incomplete"
+      "kind": "incomplete",
+      "alsoOk": [
+        "warning_signs"
+      ],
+      "why": "Said like a symptom; the warning signs are the safer reading."
     },
     {
       "say": "I don't feel quite right",
@@ -530,6 +538,40 @@
       "args": {
         "status": "safe"
       }
+    },
+    {
+      "say": "is there a cooling centre near me",
+      "tool": "somewhere_to_go"
+    },
+    {
+      "say": "is the power out around here",
+      "tool": "storm_prep",
+      "alsoOk": [
+        "somewhere_to_go"
+      ]
+    },
+    {
+      "say": "I just started Ozempic",
+      "tool": "medication"
+    },
+    {
+      "say": "is Mum's house too hot today",
+      "tool": "check_on"
+    },
+    {
+      "say": "my mother has no AC, should I go round",
+      "tool": "check_on",
+      "alsoOk": [
+        "weather_check"
+      ]
+    },
+    {
+      "say": "set the thermostat to seventy two",
+      "tool": null
+    },
+    {
+      "say": "I came in from the heat and I feel faint",
+      "tool": "warning_signs"
     }
   ]
 }

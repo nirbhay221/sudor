@@ -79,6 +79,9 @@ export function register(server: McpServer, personOf: () => string): void {
       // Whether the power is out at their address already, where the state publishes it. See outages.ts.
       const out = outages.at(person.lat, person.lon);
       if (out) parts.push(outages.sentence(out, snap?.timezone ?? 'America/Los_Angeles'));
+      // Where no list gives the streets, how many are out in the county, said as the county. See outages.ts.
+      const inCounty = out ? null : outages.countyAt(person.lat, person.lon);
+      if (inCounty) parts.push(outages.countySentence(inCounty));
       parts.push(`If you can get to a relative or a friend who has power, do that first.`);
 
       if (!world.inUS(person.country)) {

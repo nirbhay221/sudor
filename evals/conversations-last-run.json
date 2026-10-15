@@ -1,0 +1,573 @@
+{
+  "at": "2026-10-15T01:08:18.434Z",
+  "model": "claude-opus-5-5",
+  "summary": {
+    "conversations": 14,
+    "conversationsAllRight": 13,
+    "turns": 34,
+    "turnsRight": 33,
+    "laterTurns": 33,
+    "costUsd": 0.18
+  },
+  "results": [
+    {
+      "name": "a dangerous day, carried through",
+      "pattern": "one request leading to the next",
+      "turns": [
+        {
+          "say": "Alexa, is it safe for me to go out today",
+          "want": [
+            "weather_check"
+          ],
+          "got": "weather_check",
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "ok when then",
+          "want": [
+            "plan_my_day"
+          ],
+          "got": "plan_my_day",
+          "args": {
+            "day": "today"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "I have to get to the pharmacy anyway",
+          "want": [
+            "going_out_now"
+          ],
+          "got": "going_out_now",
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "thank you, that's all",
+          "want": [
+            null
+          ],
+          "got": null,
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": "You're welcome. Take care getting to the pharmacy: keep the trip short, stay in the shade and bring a cold drink. If you feel unwell while you're out, just tell me."
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "the same thing twice, then never mind",
+      "pattern": "repeating was the commonest repair, and 'never mind' ended many",
+      "turns": [
+        {
+          "say": "is it too hot for my pills today",
+          "want": [
+            "weather_check"
+          ],
+          "got": "weather_check",
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "is it too hot for my pills today",
+          "want": [
+            "weather_check"
+          ],
+          "got": "weather_check",
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "never mind",
+          "want": [
+            null
+          ],
+          "got": null,
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": "Okay. Stay cool, and keep sipping water through the day."
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "what about tomorrow though",
+      "pattern": "'What about yesterday though?': a follow-up that only means something after the answer before it",
+      "turns": [
+        {
+          "say": "when's a good time to water the garden",
+          "want": [
+            "plan_my_day"
+          ],
+          "got": "plan_my_day",
+          "args": {
+            "activity": "watering the garden"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "what about tomorrow though",
+          "want": [
+            "plan_my_day"
+          ],
+          "got": "plan_my_day",
+          "args": {
+            "activity": "watering the garden",
+            "day": "tomorrow"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "asking why",
+      "pattern": "'why are you asking me now?': explanations were a third of breakdowns",
+      "turns": [
+        {
+          "say": "can I sit out on the porch",
+          "want": [
+            "weather_check",
+            "plan_my_day"
+          ],
+          "got": "weather_check",
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "why, I feel fine",
+          "want": [
+            "tell_me_more",
+            "weather_check"
+          ],
+          "got": "tell_me_more",
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "feeling unwell partway through",
+      "pattern": "a symptom said in passing, then asking for family",
+      "turns": [
+        {
+          "say": "I'm going to walk to the mailbox, is that ok",
+          "want": [
+            "weather_check",
+            "plan_my_day",
+            "going_out_now"
+          ],
+          "got": "weather_check",
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "ummm actually I feel a bit dizzy",
+          "want": [
+            "warning_signs"
+          ],
+          "got": "warning_signs",
+          "args": {
+            "symptoms": "I feel a bit dizzy"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "tell my daughter",
+          "want": [
+            "get_help"
+          ],
+          "got": "get_help",
+          "args": {
+            "what": "I feel a bit dizzy in the heat"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "the air conditioner gives out",
+      "pattern": "older homes whose cooling is not working",
+      "turns": [
+        {
+          "say": "my air conditioner just stopped working",
+          "want": [
+            "about_me"
+          ],
+          "got": "about_me",
+          "args": {
+            "cooling": "broken"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "it's eighty six in here",
+          "want": [
+            "about_me"
+          ],
+          "got": "about_me",
+          "args": {
+            "indoorTempF": 86
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "where can I go then",
+          "want": [
+            "somewhere_to_go"
+          ],
+          "got": "somewhere_to_go",
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "let my son know I'm going to the library",
+          "want": [
+            "get_help"
+          ],
+          "got": "get_help",
+          "args": {
+            "what": "my air conditioner stopped working, it is 86 degrees inside, and I am going to the library to cool down"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "a storm, then the power",
+      "pattern": "a worry, then the thing happening",
+      "turns": [
+        {
+          "say": "there's a storm warning, what do I do about my insulin",
+          "want": [
+            "storm_prep"
+          ],
+          "got": "storm_prep",
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "the power just went out, where can I go",
+          "want": [
+            "somewhere_to_go"
+          ],
+          "got": "somewhere_to_go",
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "a new medicine",
+      "pattern": "telling it in passing, then asking what it changes",
+      "turns": [
+        {
+          "say": "the doctor started me on Lasix",
+          "want": [
+            "about_me"
+          ],
+          "got": "about_me",
+          "args": {
+            "medicines": [
+              "Lasix"
+            ]
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "does that change anything about today",
+          "want": [
+            "weather_check"
+          ],
+          "got": "weather_check",
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "the wrong wake word and a pause",
+      "pattern": "'Alexis' for Alexa, and fillers",
+      "turns": [
+        {
+          "say": "Alexis, um, how bad is the heat for me",
+          "want": [
+            "weather_check"
+          ],
+          "got": "weather_check",
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "and later on",
+          "want": [
+            "plan_my_day",
+            "weather_check"
+          ],
+          "got": "plan_my_day",
+          "args": {
+            "day": "today"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "a correction",
+      "pattern": "rephrasing after being misunderstood",
+      "turns": [
+        {
+          "say": "I want to do some gardening for an hour, when",
+          "want": [
+            "plan_my_day"
+          ],
+          "got": "plan_my_day",
+          "args": {
+            "activity": "gardening",
+            "minutes": 60
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "no, two hours",
+          "want": [
+            "plan_my_day"
+          ],
+          "got": "plan_my_day",
+          "args": {
+            "activity": "gardening",
+            "minutes": 120
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "off the script, then back",
+      "pattern": "'Is the extreme heat natural to weather?', then a question it can answer",
+      "turns": [
+        {
+          "say": "is all this heat natural",
+          "want": [
+            null
+          ],
+          "got": null,
+          "args": {},
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": "I can't answer whether this heat is natural. Sudor doesn't cover the causes of heat waves or climate change. What it can do is tell you whether today's heat is risky for you, based on your medicines a"
+        },
+        {
+          "say": "ok, when can I walk the dog",
+          "want": [
+            "plan_my_day"
+          ],
+          "got": "plan_my_day",
+          "args": {
+            "activity": "walk the dog"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "back from an outing",
+      "pattern": "reporting how it went",
+      "turns": [
+        {
+          "say": "I just got back from the shops, I felt fine",
+          "want": [
+            "log_outing"
+          ],
+          "got": "log_outing",
+          "args": {
+            "felt": "fine",
+            "note": "went to the shops"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "actually I was a bit lightheaded on the way back",
+          "want": [
+            "log_outing",
+            "warning_signs"
+          ],
+          "got": "log_outing",
+          "args": {
+            "felt": "unwell",
+            "note": "Went to the shops; felt a bit lightheaded on the way back"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "a daughter checks in",
+      "pattern": "a caregiver asking about somebody else",
+      "turns": [
+        {
+          "say": "how is Mum doing today",
+          "want": [
+            "share_my_day"
+          ],
+          "got": "share_my_day",
+          "args": {
+            "action": "check"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "should I go round this afternoon",
+          "want": [
+            "share_my_day",
+            "tell_me_more"
+          ],
+          "got": "share_my_day",
+          "args": {
+            "action": "check"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        }
+      ],
+      "allRight": true
+    },
+    {
+      "name": "the cold, and getting home",
+      "pattern": "a symptom, then the end of it",
+      "turns": [
+        {
+          "say": "my hands are numb and I'm shivering",
+          "want": [
+            "warning_signs"
+          ],
+          "got": "warning_signs",
+          "args": {
+            "symptoms": "my hands are numb and I'm shivering"
+          },
+          "ok": true,
+          "toolOk": true,
+          "argsOk": true,
+          "said": ""
+        },
+        {
+          "say": "I'm inside now, I got it, thanks",
+          "want": [
+            null
+          ],
+          "got": "log_outing",
+          "args": {
+            "felt": "unwell",
+            "note": "hands numb and shivering while out, now back inside"
+          },
+          "ok": false,
+          "toolOk": false,
+          "argsOk": true,
+          "said": ""
+        }
+      ],
+      "allRight": false
+    }
+  ]
+}

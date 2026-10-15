@@ -717,7 +717,8 @@ console.log('\nThe heat inside the house');
   const calm = await who('weather_check');
   check('once it is working again the line goes', /indoors is the cool place/.test(fixed.said) && calm.data.indoor === undefined && !/Do not sit this out/.test(calm.said), calm.said);
   const reading = await who('about_me', { indoorTempF: 93 });
-  check('"it is 93 in here" is taken as it is', /At 93 degrees indoors you are past the 88/.test(reading.said) && store.get('acct:hothouse').indoor.f === 93, reading.said);
+  // Said straight after "it is working again", so the cooling is on the record as working: switch it on first. See indoor.ts.
+  check('"it is 93 in here" is taken as it is', /It is 93 degrees inside even though your air conditioning works/.test(reading.said) && /go somewhere with working cooling/.test(reading.said) && store.get('acct:hothouse').indoor.f === 93, reading.said);
   const back = await who('about_me', {});
   check('the cooling is read back with the rest', /Cooling at home: working/.test(back.said), back.said);
   wx.seedForTest(base);

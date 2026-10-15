@@ -88,7 +88,53 @@ export function reminder(id: string, localDate: string | null, name: string): st
     : 'Today is still a stay-inside day for you.';
 }
 
+/*
+ * Asking afterwards whether they went.
+ *
+ * Being told is not the same as acting. In the Australian trial of a home heat warning system for older adults,
+ * preparedness rose but the use of cooling did not (npj Digital Medicine, 2025), and Austrian work with family
+ * carers found that heat was rarely linked to what they actually did that day. So when an answer has told
+ * somebody that their home is too hot to stay in and pointed them somewhere cool, and they have not looked for
+ * somewhere, the next thing they ask at least half an hour later begins with the question once: are you still
+ * there, and shall I find somewhere now. Once a day, never in front of an urgent answer, and dropped as soon as
+ * they look for somewhere to go.
+ *
+ *   https://pmc.ncbi.nlm.nih.gov/articles/PMC11840092/
+ *   https://www.imc.ac.at/en/about-us/media-press/news/detail/heatwaves-in-family-care-rising-temperatures-rising-challenges/
+ */
+const FOLLOW_AFTER_MS = 30 * 60 * 1000;
+const away = new Map<string, { date: string; at: number; asked: boolean }>();
+
+/** An answer just told them to leave a home that is too hot. Remembered for today, once. */
+export function sentAway(id: string, localDate: string, now = Date.now()): void {
+  const held = away.get(id);
+  if (held?.date === localDate) return;
+  away.delete(id);
+  away.set(id, { date: localDate, at: now, asked: false });
+  if (away.size > MAX_HELD) away.delete(away.keys().next().value as string);
+}
+
+/** They looked for somewhere to go. Nothing more is asked about today. */
+export function wentLooking(id: string): boolean {
+  return away.delete(id);
+}
+
+/** The question to put in front of this answer, or an empty string. Asks itself once. */
+export function followUp(id: string, localDate: string | null, name: string, now = Date.now()): string {
+  const held = away.get(id);
+  if (!held) return '';
+  if (!localDate || held.date !== localDate) {
+    if (localDate) away.delete(id);
+    return '';
+  }
+  if (held.asked || now - held.at < FOLLOW_AFTER_MS) return '';
+  if (name === 'warning_signs' || name === 'get_help' || name === 'somewhere_to_go') return '';
+  held.asked = true;
+  return 'Earlier I said your home was too hot to stay in. If you are still there, want me to find somewhere cool now?';
+}
+
 export function resetForTest(): void {
   last.clear();
   reminders.clear();
+  away.clear();
 }

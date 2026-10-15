@@ -121,7 +121,40 @@ export type Medication = {
 const AN_CLASSES = new Set([
   'ACE inhibitor', 'ARB', 'anticholinergic antihistamine', 'antihistamine',
   'atypical antipsychotic', 'anticonvulsant', 'opiate', 'SSRI', 'SNRI', 'anticholinergic', 'antipsychotic',
+  'alpha blocker', 'antiarrhythmic',
 ]);
+/**
+ * How strong the evidence is that a class of medicine makes heat more dangerous.
+ *
+ * Not every warning here rests on the same footing, and a person should not hear a guess said as firmly as a
+ * measurement. A 2024 meta-analysis of 35 randomised studies (eClinicalMedicine) found that strongly
+ * anticholinergic medicines raised core temperature by 0.42 C in heat of 30 C and over, with less sweating:
+ * that is measured in trials, though mostly with atropine. Diuretics, antipsychotics, beta blockers and the
+ * other classes the CDC lists rest on observational studies of hospital admissions and deaths. The GLP-1 and
+ * SGLT2 drugs rest on how they work (fluid out, less thirst, glucose drawing water into the urine) and on
+ * their labels, not yet on studies of people in the heat.
+ *
+ *   trial          measured in randomised studies in the heat
+ *   observational  seen in studies of admissions and deaths in hot weather
+ *   mechanism      expected from how the drug works and its label; not yet studied in the heat
+ *
+ * Sources:
+ *   https://pmc.ncbi.nlm.nih.gov/articles/PMC11541675/
+ *   https://www.cdc.gov/heat-health/hcp/clinical-guidance/heat-and-medications-guidance-for-clinicians.html
+ */
+export type Evidence = 'trial' | 'observational' | 'mechanism';
+const BY_TRIAL = new Set(['anticholinergic', 'anticholinergic antihistamine']);
+// The 2026 additions (cyclobenzaprine, the alpha blockers, clonidine, hydralazine, amiodarone) rest on their labels and how they work, not on studies in the heat.
+const BY_MECHANISM = new Set(['GLP-1 agonist', 'GLP-1 and GIP agonist', 'SGLT2 inhibitor', 'muscle relaxant', 'alpha blocker', 'blood pressure medicine', 'vasodilator', 'antiarrhythmic']);
+export function evidenceFor(drugClass: string): Evidence {
+  return BY_TRIAL.has(drugClass) ? 'trial' : BY_MECHANISM.has(drugClass) ? 'mechanism' : 'observational';
+}
+export const EVIDENCE_SAY: Record<Evidence, string> = {
+  trial: '',
+  observational: '',
+  mechanism: 'That comes from how the drug works rather than from studies in the heat, so take it as a precaution.',
+};
+
 export function articleFor(drugClass: string): 'a' | 'an' {
   return AN_CLASSES.has(drugClass) ? 'an' : 'a';
 }
@@ -184,6 +217,33 @@ export const MEDICATIONS: Medication[] = [
   { generic: 'diphenhydramine', aliases: ['benadryl'], drugClass: 'anticholinergic antihistamine', mechanisms: ['reduced_sweating', 'photosensitivity'], cold: ['reduced_awareness_cold']  },
   { generic: 'doxylamine', aliases: ['unisom'], drugClass: 'anticholinergic antihistamine', mechanisms: ['reduced_sweating'], cold: ['reduced_awareness_cold']  },
   { generic: 'promethazine', aliases: ['phenergan'], drugClass: 'anticholinergic antihistamine', mechanisms: ['reduced_sweating', 'photosensitivity'], cold: ['reduced_awareness_cold']  },
+  /*
+   * Found missing by evals/coverage.mjs against the 2024 top 300: common medicines the CDC covers by class but does
+   * not name. First-generation antihistamines are the CDC's "antihistamines with anticholinergic properties". The
+   * antispasmodics are anticholinergics, and their FDA labels warn of heat prostration from decreased sweating.
+   * Cyclobenzaprine is built like a tricyclic and carries its anticholinergic effects. The alpha blockers, clonidine
+   * and hydralazine lower blood pressure, and their labels warn of fainting on standing; clonidine is also one of the
+   * drugs StatPearls names for blunting the response to cold. Amiodarone's label warns of photosensitivity.
+   * Minoxidil is left out on purpose: most people who say it mean the scalp treatment, which does none of this.
+   *   https://www.cdc.gov/heat-health/hcp/clinical-guidance/heat-and-medications-guidance-for-clinicians.html
+   *   https://dailymed.nlm.nih.gov/dailymed/search.cfm?query=glycopyrrolate
+   *   https://dailymed.nlm.nih.gov/dailymed/search.cfm?query=dicyclomine
+   *   https://www.ncbi.nlm.nih.gov/books/NBK545239/
+   */
+  { generic: 'hydroxyzine', aliases: ['atarax', 'vistaril'], drugClass: 'anticholinergic antihistamine', mechanisms: ['reduced_sweating'], cold: ['reduced_awareness_cold'] },
+  { generic: 'meclizine', aliases: ['antivert', 'bonine'], drugClass: 'anticholinergic antihistamine', mechanisms: ['reduced_sweating'], cold: ['reduced_awareness_cold'] },
+  { generic: 'cyproheptadine', aliases: ['periactin'], drugClass: 'anticholinergic antihistamine', mechanisms: ['reduced_sweating'] },
+  { generic: 'dicyclomine', aliases: ['bentyl'], drugClass: 'anticholinergic', mechanisms: ['reduced_sweating'] },
+  { generic: 'glycopyrrolate', aliases: ['robinul', 'cuvposa'], drugClass: 'anticholinergic', mechanisms: ['reduced_sweating'] },
+  { generic: 'cyclobenzaprine', aliases: ['flexeril', 'amrix'], drugClass: 'muscle relaxant', mechanisms: ['reduced_sweating'], cold: ['reduced_awareness_cold'] },
+  { generic: 'tamsulosin', aliases: ['flomax'], drugClass: 'alpha blocker', mechanisms: ['faint_risk'] },
+  { generic: 'doxazosin', aliases: ['cardura'], drugClass: 'alpha blocker', mechanisms: ['faint_risk'] },
+  { generic: 'prazosin', aliases: ['minipress'], drugClass: 'alpha blocker', mechanisms: ['faint_risk'] },
+  { generic: 'terazosin', aliases: ['hytrin'], drugClass: 'alpha blocker', mechanisms: ['faint_risk'] },
+  { generic: 'alfuzosin', aliases: ['uroxatral'], drugClass: 'alpha blocker', mechanisms: ['faint_risk'] },
+  { generic: 'clonidine', aliases: ['catapres', 'kapvay'], drugClass: 'blood pressure medicine', mechanisms: ['faint_risk'], cold: ['reduced_heat_production'] },
+  { generic: 'hydralazine', aliases: ['apresoline'], drugClass: 'vasodilator', mechanisms: ['faint_risk'] },
+  { generic: 'amiodarone', aliases: ['pacerone', 'cordarone'], drugClass: 'antiarrhythmic', mechanisms: ['photosensitivity'] },
   { generic: 'cetirizine', aliases: ['zyrtec'], drugClass: 'antihistamine', mechanisms: ['photosensitivity'] },
   { generic: 'loratadine', aliases: ['claritin'], drugClass: 'antihistamine', mechanisms: ['photosensitivity'] },
 

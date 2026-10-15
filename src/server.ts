@@ -20,7 +20,9 @@ import { resolve } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { registerTools, resolveLocation } from './tools.js';
-import { checkHotDayAlerts, checkWarningAlerts, checkOnAlone } from './alerts.js';
+import { registerSkills } from './skill.js';
+import * as impact from './impact.js';
+import { checkHotDayAlerts, checkWarningAlerts, checkOnAlone, checkHotHome } from './alerts.js';
 import { MEDICATIONS } from './meds.js';
 import { CONDITIONS } from './conditions.js';
 import * as weather from './weather.js';
@@ -132,6 +134,9 @@ function build(personId: string): McpServer {
   registerTools(server, () => personId);
   speakErrorsPlainly(server);
 
+  // The Agent Skill for this add-on, readable from the same connection. See skill.ts.
+  registerSkills(server);
+
   server.registerResource(
     'window',
     'ui://sudor/window.html',
@@ -191,6 +196,12 @@ app.get('/demo/phone', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!id) return void res.status(401).json({ error: 'no_sandbox' });
   res.json({ messages: demoPhone(`demo:${id}`) });
+});
+
+// Whether anybody acts on what they are told, as daily totals and nothing about anybody. See impact.ts.
+app.get('/impact', (req, res) => {
+  const days = Math.min(400, Math.max(1, Number(req.query.days) || 30));
+  res.json({ days, ...impact.summary(days), measures: 'warned, sent away, asked afterwards, went looking, family told, carer steps, outings fine and unwell' });
 });
 
 app.get('/health', (_req, res) => {
@@ -561,6 +572,8 @@ const warningTimer = setInterval(() => {
   checkWarningAlerts().catch((err) => console.error('[alerts]', err));
   // And somebody who lives alone and has not been heard from on a dangerous day. See alerts.ts.
   checkOnAlone().catch((err) => console.error('[alerts]', err));
+  // And a home too hot to stay in, whoever lives there. See alerts.ts.
+  checkHotHome().catch((err) => console.error('[alerts]', err));
 }, 10 * 60 * 1000);
 warningTimer.unref?.();
 
