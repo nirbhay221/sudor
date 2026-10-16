@@ -5,6 +5,8 @@
  * from when it lived there; only the file it lives in is new.
  */
 
+import { OLDER_LIMIT_REASON } from '../personal.js';
+import { sayOlderLimit } from '../physiology.js';
 import { MECHANISM_LABEL, evidenceFor, EVIDENCE_SAY, type Evidence } from '../meds.js';
 import * as streak from '../streak.js';
 import { GUIDANCE } from '../domain.js';
@@ -197,6 +199,7 @@ export function register(server: McpServer, personOf: () => string): void {
       const extra = judged.reasons.filter((r) => !r.startsWith('heat index'));
       const plainReason = (r: string) =>
         r === 'felt unwell at this heat before' ? 'how you felt at this heat before'
+          : r === OLDER_LIMIT_REASON ? 'heat your body cannot keep up with'
           : /^UV/.test(r) ? 'the strong sun'
             : /^air quality/.test(r) ? 'the air quality'
               : r;
@@ -210,6 +213,8 @@ export function register(server: McpServer, personOf: () => string): void {
             ? `For you, take care if you go out now${because}.`
             : `For you, it is better to stay in right now if you can${because}.`),
       );
+      // The measured limit, said once, after the verdict it explains. Not under privacy: it says the person's age.
+      if (!person.privacy && judged.reasons.includes(OLDER_LIMIT_REASON)) parts.push(sayOlderLimit('outside', profile.olderLimit === 'blocked'));
       // Hot days in a row, named in advance for the people the risk was found in. See streak.ts.
       const localToday = new Date(Date.now() + (Number(snap.utcOffsetSeconds) || 0) * 1000).toISOString().slice(0, 10);
       const run = person.privacy ? null : streak.hotRun(snap, localToday);

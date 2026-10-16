@@ -280,7 +280,7 @@ export async function checkHotHome(now = new Date(), only?: string): Promise<Del
     const why =
       risk.basis === 'reported'
         ? `They told Sudor it is ${risk.indoorF} degrees inside, which is past the 88 that Health Canada says anybody the heat is hard on should not stay in.`
-        : `${p.cooling === 'fan' ? 'They have only a fan' : p.cooling === 'none' ? 'They have no cooling' : 'Their cooling is not working'}, and it reaches ${risk.highF} outside today and only falls to ${risk.overnightLowF} tonight, so the home has no way to cool down.`;
+        : `${p.cooling === 'fan' ? 'They have only a fan' : p.cooling === 'none' ? 'They have no cooling' : p.cooling === 'cost' ? 'They are not running their cooling' : 'Their cooling is not working'}, and it reaches ${risk.highF} outside today and only falls to ${risk.overnightLowF} tonight, so the home has no way to cool down.`;
     for (const c of to) {
       attempted.push(
         await sendEmail({
@@ -337,7 +337,7 @@ export async function checkHotDayAlerts(now = new Date()): Promise<Delivery[]> {
           text:
             `${plan.best.coldestFeelsF <= 50 ? 'Tomorrow stays dangerously cold' : "Tomorrow's heat stays in the risky range"} all day for the person you look after${p.locationName ? `, near ${p.locationName}` : ''}. ` +
             `Here is what Sudor will tell them: ${plan.spoken}\n\n` +
-            (!p.privacy && p.cooling && p.cooling !== 'working' ? `${p.cooling === 'fan' ? 'They have told Sudor that a fan is the only cooling they have' : 'They have told Sudor the cooling at home is not working'}, so staying in may not keep them cool.\n\n` : '') +
+            (!p.privacy && p.cooling && p.cooling !== 'working' ? `${p.cooling === 'fan' ? 'They have told Sudor that a fan is the only cooling they have' : p.cooling === 'cost' ? 'They have told Sudor they are not running their cooling' : 'They have told Sudor the cooling at home is not working'}, so staying in may not keep them cool.\n\n` : '') +
             'You are getting this because you were added as a contact for stay-inside days and agreed to it.' +
             stopFooter(c),
         }),

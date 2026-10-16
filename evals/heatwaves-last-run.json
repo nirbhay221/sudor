@@ -1,0 +1,116 @@
+[
+  {
+    "id": "portland2021",
+    "title": "Portland, June 2021 heat dome",
+    "who": "over 60, living alone, no working cooling, at home",
+    "source": "https://multco.us/news/2021-heat-killed-72-people-multnomah-county-most-were-older-lived-alone-had-no-ac",
+    "results": [
+      {
+        "day": "2021-06-26",
+        "highF": 106,
+        "overnightLowF": 72,
+        "homeLevel": "watch",
+        "familyTold": false,
+        "homeLine": "With no cooling, staying in is not the same as staying cool: it reaches 106 outside, and a home without cooling ends the day about that hot. It falls to 72 overnight, so open the house up after dark, keep it shut and shaded by day, and spend the afternoon somewhere with working cooling. In heat this hot and dry a fan can push more heat into you, so do not use one: wet your skin with a damp cloth or a spray bottle instead, again and again.",
+        "hottestHour": {
+          "local": "2021-06-26T16:00",
+          "status": "avoid",
+          "pastOlderLimit": false
+        },
+        "controlQuiet": true
+      },
+      {
+        "day": "2021-06-27",
+        "highF": 112,
+        "overnightLowF": 79,
+        "homeLevel": "danger",
+        "familyTold": true,
+        "homeLine": "With no cooling, your home will reach about 112 this afternoon, and that is too hot to stay in. Go somewhere with working cooling before the hottest hours. This is past the heat in which healthy people in their seventies, doing everyday things at home in a lab, could no longer keep their body temperature from climbing. In heat this hot and dry a fan can push more heat into you, so do not use one: wet your skin with a damp cloth or a spray bottle instead, again and again.",
+        "hottestHour": {
+          "local": "2021-06-27T16:00",
+          "status": "avoid",
+          "pastOlderLimit": true
+        },
+        "controlQuiet": true
+      },
+      {
+        "day": "2021-06-28",
+        "highF": 115,
+        "overnightLowF": 66,
+        "homeLevel": "danger",
+        "familyTold": true,
+        "homeLine": "With no cooling, your home will reach about 115 this afternoon, and that is too hot to stay in. Go somewhere with working cooling before the hottest hours. This is past the heat in which healthy people in their seventies, doing everyday things at home in a lab, could no longer keep their body temperature from climbing. In heat this hot and dry a fan can push more heat into you, so do not use one: wet your skin with a damp cloth or a spray bottle instead, again and again.",
+        "hottestHour": {
+          "local": "2021-06-28T16:00",
+          "status": "avoid",
+          "pastOlderLimit": true
+        },
+        "controlQuiet": true
+      }
+    ]
+  },
+  {
+    "id": "phoenix2023",
+    "title": "Phoenix, July 2023",
+    "who": "over 65, living alone, an air conditioner that does not work, at home",
+    "source": "https://www.maricopa.gov/CivicAlerts.aspx?AID=3222",
+    "results": [
+      {
+        "day": "2023-07-15",
+        "highF": 115,
+        "overnightLowF": 92,
+        "homeLevel": "danger",
+        "familyTold": true,
+        "homeLine": "With your cooling not working, your home will reach about 115 this afternoon, and that is too hot to stay in. Go somewhere with working cooling before the hottest hours. This is past the heat in which healthy people in their seventies, doing everyday things at home in a lab, could no longer keep their body temperature from climbing. In heat this hot and dry a fan can push more heat into you, so do not use one: wet your skin with a damp cloth or a spray bottle instead, again and again.",
+        "hottestHour": {
+          "local": "2023-07-15T16:00",
+          "status": "avoid",
+          "pastOlderLimit": true
+        },
+        "controlQuiet": true
+      },
+      {
+        "day": "2023-07-18",
+        "highF": 115,
+        "overnightLowF": 92,
+        "homeLevel": "danger",
+        "familyTold": true,
+        "homeLine": "With your cooling not working, your home will reach about 115 this afternoon, and that is too hot to stay in. Go somewhere with working cooling before the hottest hours. This is past the heat in which healthy people in their seventies, doing everyday things at home in a lab, could no longer keep their body temperature from climbing. In heat this hot and dry a fan can push more heat into you, so do not use one: wet your skin with a damp cloth or a spray bottle instead, again and again.",
+        "hottestHour": {
+          "local": "2023-07-18T15:00",
+          "status": "avoid",
+          "pastOlderLimit": true
+        },
+        "controlQuiet": true
+      },
+      {
+        "day": "2023-07-20",
+        "highF": 116,
+        "overnightLowF": 91,
+        "homeLevel": "danger",
+        "familyTold": true,
+        "homeLine": "With your cooling not working, your home will reach about 116 this afternoon, and that is too hot to stay in. Go somewhere with working cooling before the hottest hours. This is past the heat in which healthy people in their seventies, doing everyday things at home in a lab, could no longer keep their body temperature from climbing. In heat this hot and dry a fan can push more heat into you, so do not use one: wet your skin with a damp cloth or a spray bottle instead, again and again.",
+        "hottestHour": {
+          "local": "2023-07-20T16:00",
+          "status": "avoid",
+          "pastOlderLimit": true
+        },
+        "controlQuiet": true
+      },
+      {
+        "day": "2023-07-22",
+        "highF": 113,
+        "overnightLowF": 90,
+        "homeLevel": "danger",
+        "familyTold": true,
+        "homeLine": "With your cooling not working, your home will reach about 113 this afternoon, and that is too hot to stay in. Go somewhere with working cooling before the hottest hours. This is past the heat in which healthy people in their seventies, doing everyday things at home in a lab, could no longer keep their body temperature from climbing. In heat this hot and dry a fan can push more heat into you, so do not use one: wet your skin with a damp cloth or a spray bottle instead, again and again.",
+        "hottestHour": {
+          "local": "2023-07-22T17:00",
+          "status": "avoid",
+          "pastOlderLimit": true
+        },
+        "controlQuiet": true
+      }
+    ]
+  }
+]

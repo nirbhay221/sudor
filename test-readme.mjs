@@ -89,7 +89,7 @@ const sources = [...walk('./src'), ...walk('./deploy'), ...walk('./strands')].ma
 check('every setting the README names is read by the code', env.every((v) => sources.includes(v)), env.filter((v) => !sources.includes(v)).join());
 
 console.log('\nThings that were true once');
-for (const stale of ['Claude Haiku 4.5 reads', 'seven open lists', 'sixteen open lists', 'Twelve conditions', 'a dozen conditions', 'California only', 'fifty-seven are named one by one']) {
+for (const stale of ['Plus 57 medications', 'fifteen conditions change', 'Claude Haiku 4.5 reads', 'seven open lists', 'sixteen open lists', 'Twelve conditions', 'a dozen conditions', 'California only', 'fifty-seven are named one by one']) {
   check(`"${stale}" is not said any more`, !readme.includes(stale));
 }
 check('no em dashes or arrows', !/[—–→]/.test(readme));

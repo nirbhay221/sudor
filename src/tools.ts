@@ -237,7 +237,7 @@ export function registerTools(server: McpServer, personOf: () => string): void {
           stopMedicines: z.array(z.string()).max(8).optional().describe('Medicines they no longer take, to remove'),
           conditions: z.array(z.string()).max(8).optional().describe('Health conditions they have, to add, the way they say it'),
           stopConditions: z.array(z.string()).max(8).optional().describe('Conditions to remove'),
-          cooling: z.enum(['working', 'broken', 'none', 'fan', 'power_cuts']).optional().describe('The cooling at home, when they say: working, broken (it is there and not working, or they cannot run it), none, power_cuts when the power keeps going off (load shedding), or fan when a fan is all they have'),
+          cooling: z.enum(['working', 'broken', 'none', 'fan', 'power_cuts', 'cost']).optional().describe('The cooling at home, when they say: working, broken (it is there and not working), cost (it works but they cannot afford to run it, or keep it off for the bill), none, power_cuts when the power keeps going off (load shedding), or fan when a fan is all they have'),
           livesAlone: z.boolean().optional().describe('true when they say they live alone, false when somebody lives with them'),
           topFloor: z.boolean().optional().describe('true when they say they live or sleep on the top floor, in an attic room or right under the roof; false when they say they have moved downstairs'),
           indoorTempF: z.number().min(40).max(130).optional().describe('The temperature inside their home in Fahrenheit, when they read it out'),

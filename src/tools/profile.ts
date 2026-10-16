@@ -455,7 +455,7 @@ export function register(server: McpServer, personOf: () => string): void {
         // Named but not recognised, so there is no heat advice for them, but they are still on record here.
         p.recallWatch.length ? `Watching the recall list only for: ${p.recallWatch.join(', ')}.` : '',
         profile.conditions.length ? `Conditions: ${profile.conditions.map((c) => c.label).join(', ')}.` : 'No conditions.',
-        p.cooling ? `Cooling at home: ${p.cooling === 'working' ? 'working' : p.cooling === 'fan' ? 'a fan only' : p.cooling === 'broken' ? 'not working' : p.cooling === 'power_cuts' ? 'working, with power cuts' : 'none'}.` : '',
+        p.cooling ? `Cooling at home: ${p.cooling === 'working' ? 'working' : p.cooling === 'fan' ? 'a fan only' : p.cooling === 'broken' ? 'not working' : p.cooling === 'cost' ? 'working, but too costly to run' : p.cooling === 'power_cuts' ? 'working, with power cuts' : 'none'}.` : '',
         p.topFloor ? 'You sleep on the top floor.' : '',
         p.livesAlone ? (p.contacts.length ? 'You live alone, so on a dangerous day your contacts are asked to check on you if I have not heard from you by 2 pm.' : 'You live alone. Add somebody who can check on you on dangerous days.') : '',
         (p.equipment ?? []).length ? `Equipment: ${(p.equipment ?? []).map((k) => OWN[k] ?? k).join(', ')}.` : '',

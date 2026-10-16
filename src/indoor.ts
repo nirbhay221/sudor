@@ -13,9 +13,19 @@
  *                which strain did not rise over eight hours at 26 C and rose steadily above it.
  *   88 F (31 C)  The same guidance: sustained exposure at or above 31 C "should be avoided for
  *                heat-susceptible populations whenever possible".
- *   90 F         The CDC: use a fan only when the room is below 90, because above it a fan can raise body
- *                temperature. A 2025 trial found fans still helped older adults at 100 F in humid air and
- *                hurt in very hot dry air, so this is said as the CDC's line, not as a law of nature.
+ *   90 F         The CDC: use a fan only when the room is below 90. Above it, what a fan does depends on the
+ *                air and on the body, and the 2024 trials say which:
+ *                  In hot humid air (38 C, 60 percent) a fan, with or without wetting the skin, lowered the strain
+ *                  on older hearts; in very hot dry air (45 C, 15 percent) it tripled it, and wetting the skin on
+ *                  its own helped (Chaseling and others, NEJM 2024).
+ *                  At 36 C, 45 percent, fans did not lower the peak core temperature of people aged 65 to 85 at
+ *                  all; the authors do not support a fan as cooling on its own above 33 to 35 C (O'Connor and
+ *                  others, JAMA 2024), and a Lancet Planetary Health review advises against fans above 35 C for
+ *                  anyone who sweats less, which is older adults and anyone on a medicine that blocks sweating.
+ *                So above 90: in very hot dry air (104 F and under 30 percent humidity indoors) do not use a fan,
+ *                wet the skin; for someone who sweats less, above 95 a fan is never enough on its own; otherwise a
+ *                fan helps more with the skin wet. Wetting the skin is said to anybody without working cooling.
+ *                The 104 F and 30 percent line is this project's, set between the two conditions tested.
  *
  * Sudor cannot measure a room. It uses two real things and says which. If the person says what the
  * thermometer in the house reads, that number is used as it is. Otherwise the live forecast is: a home with
@@ -40,15 +50,41 @@
  *   https://www.canada.ca/en/health-canada/services/publications/healthy-living/guidance-upper-indoor-temperature-limits-protecting-older-adults.html
  *   https://www.maricopa.gov/ArchiveCenter/ViewFile/Item/6510
  *   https://www.cdc.gov/heat-health/about/index.html
+ *   https://doi.org/10.1056/NEJMc2407812 (fans and skin wetting, humid and dry, older adults)
+ *   https://jamanetwork.com/journals/jama/fullarticle/2825091 (fans and core temperature, ages 65 to 85)
+ *   https://doi.org/10.1016/S2542-5196(24)00030-5 (review of electric fans as personal cooling)
  */
 
 import type { LocationSnapshot } from './weather.js';
+import { pastOlderLimit, sayOlderLimit, vapourPressureMmHg } from './physiology.js';
 
-export type Cooling = 'working' | 'broken' | 'none' | 'fan' | 'power_cuts';
+/**
+ * 'cost' is cooling that works and is not being run because of the bill. In Maricopa County's 2024 report, 88
+ * percent of the homes where somebody died indoors had an air conditioner and 70 percent of those were not
+ * working; cost is part of why a working one is left off. It is judged as no cooling, and in the United States the
+ * answer says where help with the bill is: the LIHEAP referral line, and that about 19 states and DC bar shutting
+ * the power off in extreme heat (NCLC, July 2026), with almost every state protecting someone whose doctor says
+ * they need power for medical reasons. No state's own rule is named, because the list could not be confirmed.
+ *   https://www.maricopa.gov/CivicAlerts.aspx?AID=3222
+ *   https://www.nclc.org/report-calls-for-ban-on-utility-disconnections-during-extreme-heat/
+ *   https://liheapch.ncat.org/node/1516
+ */
+export type Cooling = 'working' | 'broken' | 'none' | 'fan' | 'power_cuts' | 'cost';
+
+/** Where help with a cooling bill is, in the United States. Nothing elsewhere: no source was checked. */
+export const BILL_HELP =
+  ' If it is the bill, LIHEAP can help pay for cooling: call 1 866 674 6327 to find your local office. About 19 states and ' +
+  'Washington DC do not allow the power to be shut off in extreme heat, and almost every state protects someone whose ' +
+  'doctor says they need power for their health, so ask your utility before you go without.';
 
 export const LIMIT_F = 79;
 export const AVOID_F = 88;
 export const FAN_F = 90;
+/** Above this a fan is never enough on its own for somebody who sweats less: 35 C. */
+export const FAN_SWEATS_LESS_F = 95;
+/** Hot and dry enough that a fan pushes heat in: 40 C with indoor humidity under 30 percent. */
+export const FAN_DRY_F = 104;
+export const FAN_DRY_RH = 30;
 /** A night that does not fall below this gives the body no recovery. 28C. */
 export const HOT_NIGHT_F = 82;
 /** How long a temperature somebody read out is believed for. */
@@ -88,8 +124,45 @@ export const SOURCES = [
   'https://www.cdc.gov/heat-health/about/index.html',
 ];
 
-const fanLine = (cooling: Cooling | undefined, f: number): string =>
-  cooling === 'fan' && f >= FAN_F ? ' The CDC says a fan stops helping once the room is above 90, so do not rely on it.' : '';
+/** The person's own body, as far as the indoor advice needs it. */
+type Body = { older: boolean; blocked: boolean };
+const bodyOf = (home: { conditions?: string[]; medications?: { mechanisms?: string[] }[] }): Body => ({
+  older: (home.conditions ?? []).includes('older_adult'),
+  blocked: (home.medications ?? []).some((m) => (m.mechanisms ?? []).includes('reduced_sweating')),
+});
+
+/** Indoor humidity, from the outdoor air's moisture warmed to the indoor temperature: a house without cooling holds the same water. */
+function indoorHumidity(snap: LocationSnapshot, indoorF: number): number {
+  const outC = ((snap.tempF - 32) * 5) / 9;
+  const inC = ((indoorF - 32) * 5) / 9;
+  const moisture = vapourPressureMmHg(outC, Number.isFinite(snap.humidityPct) ? snap.humidityPct : 50);
+  const saturated = vapourPressureMmHg(inC, 100);
+  return Math.max(0, Math.min(100, (moisture / saturated) * 100));
+}
+
+/**
+ * What to do about a fan and wet skin, above 90 degrees indoors, for somebody without working cooling. See the
+ * header for the trials behind each line.
+ */
+function fanLine(cooling: Cooling | undefined, f: number, snap: LocationSnapshot, body: Body): string {
+  if (f < FAN_F || cooling === 'working') return '';
+  const rh = indoorHumidity(snap, f);
+  if (f >= FAN_DRY_F && rh < FAN_DRY_RH) {
+    return ' In heat this hot and dry a fan can push more heat into you, so do not use one: wet your skin with a damp cloth or a spray bottle instead, again and again.';
+  }
+  if ((body.older || body.blocked) && f >= FAN_SWEATS_LESS_F) {
+    return ' At this heat a fan alone did not keep the body temperature of people over 65 down in a 2024 trial, so wet your skin with a damp cloth or a spray bottle as well, and get to working cooling.';
+  }
+  return cooling === 'fan'
+    ? ' A fan helps more if you wet your skin too, with a damp cloth or a spray bottle.'
+    : ' Wet your skin with a damp cloth or a spray bottle, and sit where air moves.';
+}
+
+/** The chamber limit, indoors at rest, for whoever it applies to. See physiology.ts. */
+function restLimit(snap: LocationSnapshot, f: number, body: Body): string {
+  if (!body.older && !body.blocked) return '';
+  return pastOlderLimit(f, indoorHumidity(snap, f), 'rest') ? ` ${sayOlderLimit('indoors', body.blocked)}` : '';
+}
 
 /**
  * What the heat indoors means for this person, or null when there is nothing to say.
@@ -102,21 +175,26 @@ const UNDER_ROOF =
 
 export function indoorRisk(
   snap: LocationSnapshot,
-  home: { cooling?: Cooling; indoor?: { f: number; at: string } | null; topFloor?: boolean },
+  home: { cooling?: Cooling; indoor?: { f: number; at: string } | null; topFloor?: boolean; conditions?: string[]; medications?: { mechanisms?: string[] }[]; privacy?: boolean; country?: string },
   vulnerable: boolean,
   now = new Date(),
 ): Indoor | null {
   // Sleeping under the roof is itself a reason to be counted among the people the heat is harder on.
   const found = judge(snap, home, vulnerable || home.topFloor === true, now);
-  return found && home.topFloor ? { ...found, line: found.line + UNDER_ROOF, underRoof: true } : found;
+  const roofed = found && home.topFloor ? { ...found, line: found.line + UNDER_ROOF, underRoof: true } : found;
+  const billHelp = roofed && home.cooling === 'cost' && (home.country ?? 'US').toUpperCase() === 'US';
+  return billHelp ? { ...roofed, line: roofed.line + BILL_HELP } : roofed;
 }
 
 function judge(
   snap: LocationSnapshot,
-  home: { cooling?: Cooling; indoor?: { f: number; at: string } | null; topFloor?: boolean },
+  home: { cooling?: Cooling; indoor?: { f: number; at: string } | null; topFloor?: boolean; conditions?: string[]; medications?: { mechanisms?: string[] }[]; privacy?: boolean; country?: string },
   vulnerable: boolean,
   now = new Date(),
 ): Indoor | null {
+  // The limit line says the person's age, so it is left out under privacy; the fan advice is not personal.
+  const body = bodyOf(home);
+  const limitBody = home.privacy ? { older: false, blocked: false } : body;
   const reading = home.indoor && now.getTime() - new Date(home.indoor.at).getTime() < READING_MS ? home.indoor.f : null;
 
   if (reading != null) {
@@ -143,7 +221,7 @@ function judge(
         level: 'danger',
         basis: 'reported',
         indoorF: f,
-        line: `At ${f} degrees indoors you are past the 88 that Health Canada says to avoid for anybody the heat is hard on. Do not stay in it: go somewhere with working cooling now.${fanLine(home.cooling, f)}`,
+        line: `At ${f} degrees indoors you are past the 88 that Health Canada says to avoid for anybody the heat is hard on. Do not stay in it: go somewhere with working cooling now.${restLimit(snap, f, limitBody)}${fanLine(home.cooling, f, snap, body)}`,
       };
     }
     if (f >= LIMIT_F && vulnerable) {
@@ -167,8 +245,27 @@ function judge(
   const high = Math.round(Math.max(snap.tempF, ...ahead.map((h) => h.tempF)));
   const nights = ahead.filter((h) => !h.isDay);
   const low = Math.round(Math.min(...(nights.length ? nights : ahead).map((h) => h.tempF)));
-  const without = home.cooling === 'fan' ? 'With only a fan' : home.cooling === 'broken' ? 'With your cooling not working' : home.cooling === 'power_cuts' ? 'When the power cuts out' : 'With no cooling';
+  const without = home.cooling === 'cost' ? 'Without the air conditioning on' : home.cooling === 'fan' ? 'With only a fan' : home.cooling === 'broken' ? 'With your cooling not working' : home.cooling === 'power_cuts' ? 'When the power cuts out' : 'With no cooling';
 
+  // Past the limit measured for older adults going about their day, the home is too hot to stay in whatever the
+  // night does. The
+  // Portland heat dome replay (evals/heatwaves.mjs) found this missing on the deadliest day: 115 outside with a
+  // forecast night of 66, which the overnight rule below read as survivable, while 94 percent of Multnomah County's
+  // dead were found at home and almost none had working cooling. A house without cooling ends the day about as hot
+  // as outside, and the measured limit is about the afternoon, not the night.
+  const peak = ahead.reduce((a, h) => (h.tempF > a.tempF ? h : a), ahead[0]);
+  // The light activity limit, because the paper's light activity is the activity of daily living: an afternoon at
+  // home is spent moving about it, not lying still. On 28 June 2021 in Portland the peak, 115 at 12 percent, was
+  // past that limit and 0.2 C short of the one at rest.
+  if (home.cooling !== 'power_cuts' && (limitBody.older || limitBody.blocked) && pastOlderLimit(peak.tempF, peak.humidityPct, 'light')) {
+    return {
+      level: 'danger',
+      basis: 'forecast',
+      highF: high,
+      overnightLowF: low,
+      line: `${without}, your home will reach about ${high} this afternoon, and that is too hot to stay in. Go somewhere with working cooling before the hottest hours. ${sayOlderLimit('at_home', limitBody.blocked)}${fanLine(home.cooling, high, snap, body)}`,
+    };
+  }
   // With power cuts the cooling comes and goes, so "no way to cool down" would overstate it: the night is the risk.
   if (high >= AVOID_F && low >= LIMIT_F && home.cooling !== 'power_cuts') {
     return {
@@ -176,7 +273,7 @@ function judge(
       basis: 'forecast',
       highF: high,
       overnightLowF: low,
-      line: `${without}, your home has no way to cool down: it reaches ${high} outside and only falls to ${low} overnight. Do not sit this out indoors. Go somewhere with working cooling.${fanLine(home.cooling, high)}`,
+      line: `${without}, your home has no way to cool down: it reaches ${high} outside and only falls to ${low} overnight. Do not sit this out indoors. Go somewhere with working cooling.${restLimit(snap, high, limitBody)}${fanLine(home.cooling, high, snap, body)}`,
     };
   }
   // A night that stays hot, for somebody whose cooling cannot be relied on through it.
@@ -198,7 +295,7 @@ function judge(
       basis: 'forecast',
       highF: high,
       overnightLowF: low,
-      line: `${without}, staying in is not the same as staying cool: it reaches ${high} outside, and a home without cooling ends the day about that hot. It falls to ${low} overnight, so open the house up after dark, keep it shut and shaded by day, and spend the afternoon somewhere with working cooling.${fanLine(home.cooling, high)}`,
+      line: `${without}, staying in is not the same as staying cool: it reaches ${high} outside, and a home without cooling ends the day about that hot. It falls to ${low} overnight, so open the house up after dark, keep it shut and shaded by day, and spend the afternoon somewhere with working cooling.${restLimit(snap, high, limitBody)}${fanLine(home.cooling, high, snap, body)}`,
     };
   }
   return null;

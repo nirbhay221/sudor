@@ -48,6 +48,11 @@ export type Condition = {
   cold?: { plan: string; goingOut: string[]; sources: Source[] };
   /** Precautions for going out anyway, most important first. */
   goingOut: string[];
+  /**
+   * One thing a family member should do on a risky day, said to them without naming the condition. For a
+   * condition that takes away the person's own sense of the heat, the carer has to notice for them.
+   */
+  carerStep?: string;
   sources: Source[];
 };
 
@@ -112,6 +117,15 @@ const SRC = {
   diatribe: { name: 'diaTribe, How to keep your insulin cool', url: 'https://diatribe.org/diabetes-medications/how-help-keep-your-insulin-cool' },
   cdcPregnancy: { name: 'CDC, Heat and Pregnancy', url: 'https://www.cdc.gov/heat-health/risk-factors/heat-and-pregnancy.html' },
   cdcRisk: { name: 'CDC, Heat and Your Health, groups at higher risk', url: 'https://www.cdc.gov/heat-health/risk-factors/index.html' },
+  cdcChildren: { name: 'CDC, Infants and Children and Heat (updated June 2024)', url: 'https://www.cdc.gov/heat-health/risk-factors/infants-and-children.html' },
+  dementiaGermany: {
+    name: 'Conte Keivabu, Zagheni and Fink, Dementia and Risks of Temperature-Related Mortality and Hospitalizations in Germany, J Gerontol A (2024)',
+    url: 'https://doi.org/10.1093/gerona/glae292',
+  },
+  dementiaMedicare: {
+    name: 'Extreme heat and hospitalization among older adults with Alzheimer disease and related dementias, JAMA Internal Medicine (2025)',
+    url: 'https://jamanetwork.com/journals/jamainternalmedicine/article-abstract/2829472',
+  },
 } satisfies Record<string, Source>;
 
 export const CONDITIONS: Condition[] = [
@@ -312,6 +326,51 @@ export const CONDITIONS: Condition[] = [
       sources: [SRC.niamsRaynaud],
     },
     sources: [SRC.niamsRaynaud],
+  },
+  /*
+   * Babies and young children rely on the adults with them to keep them cool and to give them drinks, so this is
+   * said to the adult looking after one, and plans the day at the child's sensitivity rather than the adult's. The
+   * steps are the CDC's own: never leave them in a parked car, even with a window open, because a car can warm by
+   * nearly 20 F in ten minutes; loose, light, light-coloured clothes; plenty to drink, not very cold or sugary;
+   * and the stuffed toy moved to the front seat as a reminder that the child is in the back.
+   */
+  {
+    id: 'young_child',
+    label: 'a baby or young child with you',
+    aliases: ['my baby', 'infant', 'newborn', 'toddler', 'young child', 'young children', 'little one', 'small children'],
+    sensitivity: 'sensitive',
+    plan:
+      'Babies and young children rely on you to keep them cool and give them drinks, so plan their time out for the cooler ' +
+      'hours, and never leave them in a parked car, even with a window open.',
+    goingOut: [
+      'Never leave them in the car, even for a minute: it can warm by nearly 20 degrees in ten minutes. Put a toy in the front seat as a reminder that they are in the back.',
+      'Dress them in loose, light, light-coloured clothes, and keep them in the shade.',
+      'Give them plenty to drink, not very cold and not sugary, and watch for fewer wet nappies or diapers.',
+    ],
+    sources: [SRC.cdcChildren],
+  },
+  /*
+   * Dementia takes away the person's own warning: noticing they are hot, feeling thirsty, asking for help. In a
+   * German cohort of about 244,000 people over fifteen years, heat raised the chance of death only for those with
+   * dementia, on days averaging above 24 C, and most for those over 80; in more than three million Medicare
+   * admissions, the odds of hospital rose after one day of extreme heat and further after four. The German
+   * authors' own recommendation is alerts that reach the carer. So this puts the person in the extremely
+   * sensitive group, and gives the family a step of its own, without naming the condition to them.
+   */
+  {
+    id: 'dementia',
+    label: 'dementia',
+    aliases: ['dementia', 'alzheimer', 'alzheimers', 'alzheimer s', 'alzheimer s disease', 'memory loss', 'memory problems', 'lewy body', 'vascular dementia'],
+    sensitivity: 'extreme',
+    plan:
+      'Dementia can stop someone noticing they are too hot or thirsty, so do not wait to feel it: keep to the coolest room, ' +
+      'have drinks put within reach and offered through the day, and let someone you trust check on you.',
+    goingOut: [
+      'Go with someone if you can, in the cooler hours, and take water.',
+      'Tell someone where you are going and when you will be back.',
+    ],
+    carerStep: 'Offer drinks rather than waiting to be asked, and feel the room yourself: they may not notice they are too hot.',
+    sources: [SRC.dementiaGermany, SRC.dementiaMedicare],
   },
   {
     id: 'older_adult',

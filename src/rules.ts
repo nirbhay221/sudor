@@ -25,6 +25,8 @@ const RULES: Rule[] = [
   { when: /\b(where (can|could|do) i go|cooling cent|warming cent|shelter|no (power|heat|air)|power (is )?(out|cut)|house is (freezing|boiling|too hot|too cold))\b/i, tool: 'somewhere_to_go' },
   { when: /\b(hurricane|tornado|flood|blizzard|winter storm|ice storm|wildfire|smoke|evacuat|storm|warning|tsunami|prepare|power cut)\b/i, tool: 'storm_prep' },
   { when: /\b(recall|recalled)\b/i, tool: 'about_me', args: () => ({ recalls: true }) },
+  // Before "broken": "I keep the AC off because of the bill" is a working unit left off, not a broken one.
+  { when: /\b(afford|bill|too (expensive|costly)|costs? too much)\b/i, tool: 'about_me', args: () => ({ cooling: 'cost' }) },
   { when: /\b(air ?con\w*|a\/?c|cooling)\b.*\b(broken|not working|out|died|off)\b/i, tool: 'about_me', args: () => ({ cooling: 'broken' }) },
   { when: /\bonly (have )?a fan\b/i, tool: 'about_me', args: () => ({ cooling: 'fan' }) },
   { when: /\b(i live in|i'?m in|move to|my (home|place|location) is) ([A-Za-z .,'-]{3,60})/i, tool: 'about_me', args: (s) => ({ place: after(s, /\b(?:i live in|i'?m in|move to|my (?:home|place|location) is) ([A-Za-z .,'-]{3,60})/i) }) },

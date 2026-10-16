@@ -13,7 +13,7 @@
 MCP endpoint `https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/mcp` (account linking) ·
 [health](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/health)
 
-Water pills, beta blockers, some antidepressants and fifteen conditions change what heat and cold do to a
+Water pills, beta blockers, some antidepressants and seventeen conditions change what heat and cold do to a
 body. A weather app tells everybody the same thing. Sudor is an Alexa+ add-on that remembers one person's
 medicines, conditions, home and town, and answers for that person:
 
@@ -66,7 +66,7 @@ Nothing here is mocked for the demo. Where something stands in for a thing we co
 
 | Part | Status |
 |---|---|
-| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,224 automated checks, run on every push |
+| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,272 automated checks, run on every push |
 | Agent Skill | **Real**: `skills/sudor-heat-safety`, to the open Agent Skills format, passing the format's own validator. Installable as a folder, and readable from the server as `skill://` resources |
 | Strands agent | **Real**: `strands/agent.mjs`, on AWS's Strands Agents SDK. It reads the skill from the server and follows each next step. The chain, the yes before a write and the step cap are checked with a scripted model at no cost; the path through Claude needs a key and is not in the automated checks |
 | Weather, UV, air quality | **Real, live**: Open-Meteo, worldwide |
@@ -101,7 +101,7 @@ This file is long because the reasoning is the work. If you are evaluating the p
 | Where it is wrong, or cannot know | [Honest limitations](#honest-limitations) |
 
 Free sources, no API keys for the data. Every tool call is answered from memory; nothing external is called
-inside a turn. `npm test` runs 2,224 checks.
+inside a turn. `npm test` runs 2,272 checks.
 
 ## The problem
 
@@ -191,10 +191,17 @@ lists and is treated as the emergency.
 | Kidney disease, dialysis | sensitive | follow the care team's fluid plan | CDC |
 | Diabetes | sensitive | insulin below 86 degrees; check blood sugar more often | American Diabetes Association |
 | Pregnancy | sensitive | even one day of high heat raises risk | CDC |
-| Age 65 or over | sensitive | cooler hours, keep it short | CDC |
+| Age 65 or over | sensitive | cooler hours, keep it short; past the limit measured for older adults, stay in | CDC; Wolf et al. (2023) |
+| Dementia | extremely sensitive | the person may not notice heat or thirst, so drinks offered and the room checked; the family gets a step of its own, without the condition named | Conte Keivabu et al. (2024); JAMA Internal Medicine (2025) |
+| A baby or young child with you | sensitive | the day planned at the child's sensitivity; never left in a parked car; loose light clothes; drinks, not very cold or sugary | CDC, Infants and Children and Heat |
+| Sickle cell disease | extremely sensitive | a sudden swing in temperature either way can set off a pain crisis, so the hours to avoid are the ones where it swings | NIH; studies of weather and crises in children |
+| Raynaud's | sensitive | cold is the trigger, and air conditioning can be too: something warm even on a hot day | NIAMS |
+| Fasting | sensitive | time outside early or after sunset, drinking between sunset and dawn, "break your fast" in first aid | IDF-DAR; review of fasting in kidney disease |
+| Hay fever | general | morning and windy days kept short; a thunderstorm in pollen season is warned about | Victoria Department of Health |
+| Migraine | general | drink steadily; a forecast pressure drop is mentioned, as "can" | studies of weather and headache |
 
-Plus 57 medications classified by heat mechanism from the CDC's clinical guidance on heat and
-medications.
+Plus 71 medications in Sudor's own table, classified by heat mechanism: 57 from the CDC's clinical guidance on
+heat and medications and 14 added from the CDC's classes and FDA labels, with anything else looked up by class.
 
 ## Data
 
@@ -783,12 +790,12 @@ Or without installing Node at all:
 docker build -t sudor . && docker run -p 8789:8789 sudor
 ```
 
-`npm test` runs everything, 2,224 checks. It is also what CI runs on every push, on Node 20 and 22,
+`npm test` runs everything, 2,272 checks. It is also what CI runs on every push, on Node 20 and 22,
 with the live suite in its own job so an outage at a weather service is never mistaken for a
 regression here.
 
 ```bash
-npm run test:unit           # 1,926 checks, no live data
+npm run test:unit           # 1,974 checks, no live data
 npm run test:live           # 298 checks, against a running server and the real forecast
 
 node test.mjs               # heat index formula, categories, medications, how the lines read aloud
@@ -971,6 +978,37 @@ Sources: [Maryland 2026 season](https://marylandmatters.org/?p=101456),
 [the medications meta-analysis](https://pmc.ncbi.nlm.nih.gov/articles/PMC11541675/),
 [INSPQ evaluation guide](https://www.inspq.qc.ca/en/publications/1794),
 [review of heat health warning systems](https://www.preventionweb.net/quick/99463).
+
+## What the October 2026 sweep changed
+
+A second pass, checked against the papers themselves rather than their summaries, and each tested in
+`test-research.mjs` and `test-heatwaves.mjs`.
+
+| Gap | What the evidence says | What Sudor does now |
+|---|---|---|
+| **The thresholds were an approximation** | Wolf and others (2023) took 49 healthy adults aged 71 on average into a chamber and found the heat and humidity past which their core temperature could no longer settle: at 34 C above 62 percent humidity doing light everyday things, at 38 C above 46, at 40 C above 34, and hotter in dry air | That table is in `src/physiology.ts`. For someone 65 or over, or whose medicine blocks sweating, an hour past it is "stay in", and the answer says what was measured: "past the heat in which healthy people in their seventies could no longer keep their body temperature from climbing", with "lower still" when a medicine blocks sweating. Below 34 C, where nobody was tested, it says nothing. Not said under privacy, because it gives away an age |
+| **Fan advice was one number** | A fan helped older hearts in humid heat (38 C, 60 percent) and tripled their strain in very hot dry heat (45 C, 15 percent), where wetting the skin helped (NEJM, 2024). At 36 C a fan did not lower the peak core temperature of people aged 65 to 85 at all (JAMA, 2024) | Above 90 indoors: in very hot dry air, do not use a fan, wet the skin; for someone who sweats less, above 95 a fan is never enough on its own; otherwise a fan helps more with the skin wet. Wetting the skin is said to anybody without working cooling. The 104 F and 30 percent line between dry and humid is this project's, set between the two conditions tested |
+| **Dementia was missing** | In about 244,000 people in Germany over fifteen years, heat raised the chance of death only for those with dementia; in more than three million Medicare admissions, the odds rose after one day of extreme heat and more after four. The German authors recommend alerts that reach the carer | Dementia is a condition, in the extremely sensitive group, with a plan that does not wait for the person to feel hot or thirsty, and a step for the family that never names it: offer drinks rather than wait to be asked, and feel the room yourself |
+| **Babies and young children were missing** | The CDC: they rely on the adults with them; never leave them in a parked car, which can warm by nearly 20 F in ten minutes | "I have a toddler" plans the day at the child's sensitivity, with the CDC's own steps, and fewer wet nappies or diapers as the sign to watch |
+| **A working air conditioner left off** | Maricopa County, 2024: among people who died indoors, 88 percent had an air conditioner and 70 percent of those did not work. About 19 states and DC bar shutting the power off in extreme heat (NCLC, July 2026) | "I can't afford to run it" is its own cooling state, judged as no cooling, and in the United States the answer gives the LIHEAP referral line and that protection, and says to ask the utility. No state's own rule is named, because the list could not be confirmed |
+| **Never checked against a real disaster** | The Portland heat dome: of Multnomah County's 72 heat deaths in 2021, 78 percent were 60 or older, 71 percent lived alone, 94 percent died at home, and almost none had working cooling. Phoenix, July 2023: a record 645 deaths that year | `evals/heatwaves.mjs` runs that person through the archived weather of those days. Phoenix, all four days: "your home is too hot to stay in" and the family told. Portland's deadliest day, 28 June, 115 outside with a forecast night of 66, was only a warning on the first run, because the rule waited for a hot night; the measured limit now makes it the home too hot to stay in, and in that dry heat says to wet the skin rather than use a fan. Every day with working cooling says nothing about the home |
+
+What was looked at and not changed: nitroglycerin tablets were left out of the medicines heat spoils, because a
+stability study found them holding potency at 40 C in their own container. Adding up several medicines that each
+block sweating has no heat specific evidence behind it yet. The UK's heat-health alerts have no documented feed to
+read, so the UK still gets the Met Office's warnings through MeteoAlarm.
+
+Sources: [Wolf et al. 2023](https://doi.org/10.1038/s43247-023-01159-9),
+[Chaseling et al., NEJM 2024](https://doi.org/10.1056/NEJMc2407812),
+[O'Connor et al., JAMA 2024](https://jamanetwork.com/journals/jama/fullarticle/2825091),
+[review of electric fans, Lancet Planetary Health](https://doi.org/10.1016/S2542-5196(24)00030-5),
+[dementia and temperature, Germany](https://doi.org/10.1093/gerona/glae292),
+[dementia and heat, Medicare](https://jamanetwork.com/journals/jamainternalmedicine/article-abstract/2829472),
+[CDC, infants and children](https://www.cdc.gov/heat-health/risk-factors/infants-and-children.html),
+[Maricopa County 2024](https://www.maricopa.gov/CivicAlerts.aspx?AID=3222),
+[NCLC, July 2026](https://www.nclc.org/report-calls-for-ban-on-utility-disconnections-during-extreme-heat/),
+[LIHEAP referral line](https://liheapch.ncat.org/node/1516),
+[Multnomah County 2021](https://multco.us/news/2021-heat-killed-72-people-multnomah-county-most-were-older-lived-alone-had-no-ac).
 
 ## Who agrees to be emailed
 
@@ -1181,7 +1219,9 @@ pair is 33 before anything else is connected. On a host with a ceiling, connect 
 ## Honest limitations
 
 * The one level offset between sensitivity groups follows HeatRisk's own grouping, applied to the NWS
-  heat index categories. That is an approximation, not a clinical threshold for any one person.
+  heat index categories. That is an approximation, not a clinical threshold for any one person. For people 65 and
+  over, and anyone whose medicine blocks sweating, the chamber limit measured by Wolf and others (2023) sits beside
+  it; that was measured in healthy older adults, so it is a floor for this customer, not their own limit.
 * **Outside the United States** the weather, warnings, emergency number and hospitals are real, but the heat
   thresholds are American ones (the NWS heat index, OSHA's proposed lines), and warnings come from the server behind
   the WMO's public map, which is not a published API and could change. A failure there is "could not check", never an
@@ -1191,7 +1231,7 @@ pair is 33 before anything else is connected. On a host with a ceiling, connect 
   psychiatric hospital; psychiatric, children's and veterans' hospitals are now left out.
 * Email is real but the SES account is in its sandbox until Amazon approves production access, so only verified
   addresses receive it. A contact has to agree before they are sent anything but the invitation.
-* Fifteen conditions, and medicines from two sources: 133 of the 286 most prescribed ingredients are recognised
+* Seventeen conditions, and medicines from two sources: 133 of the 286 most prescribed ingredients are recognised
   (`node evals/coverage.mjs`, 14 October 2026). Seventy-one are in Sudor's own table: the fifty-seven drawn from the
   CDC's clinical guidance on heat and medicines, and fourteen added in October from the CDC's classes and FDA labels
   (first-generation antihistamines, two antispasmodics, cyclobenzaprine, the alpha blockers, clonidine, hydralazine

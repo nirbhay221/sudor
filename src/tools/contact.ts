@@ -5,6 +5,7 @@
  * from when it lived there; only the file it lives in is new.
  */
 
+import { conditionById } from '../conditions.js';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -394,6 +395,8 @@ export function register(server: McpServer, personOf: () => string): void {
             quiet ? 'They have not spoken to me since this morning, so ring them or call round.' : 'Ring them or call round this afternoon, in the hottest part of the day.',
             'Check the room they spend the day in: above 79 degrees is past the indoor limit Health Canada gives for older adults.',
             'Make sure they drink regularly, even if they are not thirsty.',
+            // A condition that takes the person's own sense of the heat away gives the carer a step, never its name.
+            ...(person.privacy ? [] : person.conditions.map((id) => conditionById(id)?.carerStep).filter((x): x is string => !!x)),
             'If they are confused, slur their words or faint, that can be heat stroke: call 911.',
           ].filter(Boolean)
         : [];

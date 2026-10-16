@@ -18,7 +18,7 @@ Tell the add-on about the customer, or read back what it knows: where they are, 
 | `stopMedicines` | array | no |
 | `conditions` | array | no |
 | `stopConditions` | array | no |
-| `cooling` | working, broken, none, fan, power_cuts | no |
+| `cooling` | working, broken, none, fan, power_cuts, cost | no |
 | `livesAlone` | boolean | no |
 | `topFloor` | boolean | no |
 | `indoorTempF` | number | no |

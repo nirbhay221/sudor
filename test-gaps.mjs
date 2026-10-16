@@ -143,7 +143,7 @@ console.log('\nA home too hot to stay in, and the family told');
   check('a fan at 84: turn the fan on, and the smart plug words', /Turn your fan on now/.test(fanRoom.said) && /Alexa, turn on the fan/.test(fanRoom.said), fanRoom.said);
   await personIn('acct:fan-hot', { medicine: 'metoprolol', cooling: 'fan' });
   const fanHot = await (await connect('acct:fan-hot'))('about_me', { indoorTempF: 95 });
-  check('a fan at 95 is not offered: the CDC says a fan stops helping above 90', !/Turn your fan on/.test(fanHot.said) && /90/.test(fanHot.said), fanHot.said);
+  check('a fan at 95 is not offered on its own to someone whose medicine blocks sweating, and they are told to wet their skin', !/Turn your fan on/.test(fanHot.said) && /fan alone/.test(fanHot.said) && /wet your skin/.test(fanHot.said), fanHot.said);
 
   await personIn('demo:0123456789abcdef0123456789abcdef', { cooling: 'none', contacts: [agreed('Kim', 'kim@example.org')] });
   sent.length = 0;

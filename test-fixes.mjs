@@ -690,7 +690,11 @@ console.log('\nThe heat inside the house');
   check('a hot day with a cool night is a warning for somebody at risk, with the night as the way out', indoor.indoorRisk(coolNight, { cooling: 'broken' }, true)?.level === 'watch' && /open the house up after dark/.test(indoor.indoorRisk(coolNight, { cooling: 'broken' }, true).line));
   check('...and not for somebody with nothing registered', indoor.indoorRisk(coolNight, { cooling: 'broken' }, false) === null);
   check('a mild day says nothing even with no cooling', indoor.indoorRisk(day(82, 60), { cooling: 'none' }, true) === null);
-  check('a fan on a day past 90 is told what the CDC says about fans', /The CDC says a fan stops helping once the room is above 90/.test(indoor.indoorRisk(hot, { cooling: 'fan' }, true).line) && !/fan stops helping/.test(indoor.indoorRisk(hot, { cooling: 'none' }, true).line));
+  // The CDC's single 90 degree line was replaced by the 2024 trials: what a fan does depends on the air. See indoor.ts.
+  const fanDay = indoor.indoorRisk(hot, { cooling: 'fan' }, true).line;
+  const noneDay = indoor.indoorRisk(hot, { cooling: 'none' }, true).line;
+  check('a fan on a day past 90 is told what to do about the fan and to wet the skin', /fan/.test(fanDay) && /wet your skin/i.test(fanDay), fanDay);
+  check('...and a home with no cooling is told to wet the skin, never to switch a fan on', /wet your skin/i.test(noneDay) && !/turn your fan on/i.test(noneDay), noneDay);
   const roof = indoor.indoorRisk(coolNight, { cooling: 'broken', topFloor: true }, false);
   check('sleeping under the roof with no cooling is told what the French study found, and to sleep lower down', roof?.underRoof === true && /about four times as likely to die/.test(roof.line) && /sleep on the lowest floor you can/.test(roof.line), roof?.line);
   check('...and counts as a reason on its own, with nothing else registered', indoor.indoorRisk(coolNight, { cooling: 'broken' }, false) === null && roof !== null);

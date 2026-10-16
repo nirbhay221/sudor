@@ -1,0 +1,2866 @@
+{
+ "source": "Open-Meteo historical weather archive",
+ "url": "https://open-meteo.com/en/docs/historical-weather-api",
+ "events": {
+  "portland2021": [
+   {
+    "time": "2021-06-25T00:00:00Z",
+    "tempF": 86.8,
+    "humidityPct": 35,
+    "windMph": 8.9,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T01:00:00Z",
+    "tempF": 85.6,
+    "humidityPct": 37,
+    "windMph": 10.6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T02:00:00Z",
+    "tempF": 83,
+    "humidityPct": 42,
+    "windMph": 10.1,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T03:00:00Z",
+    "tempF": 80.7,
+    "humidityPct": 47,
+    "windMph": 8.5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T04:00:00Z",
+    "tempF": 77.2,
+    "humidityPct": 52,
+    "windMph": 6.5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T05:00:00Z",
+    "tempF": 73.5,
+    "humidityPct": 57,
+    "windMph": 6.3,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-25T06:00:00Z",
+    "tempF": 70.7,
+    "humidityPct": 61,
+    "windMph": 6.1,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-25T07:00:00Z",
+    "tempF": 68.8,
+    "humidityPct": 64,
+    "windMph": 5,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-25T08:00:00Z",
+    "tempF": 67.6,
+    "humidityPct": 67,
+    "windMph": 3.1,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-25T09:00:00Z",
+    "tempF": 66.2,
+    "humidityPct": 71,
+    "windMph": 3.8,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-25T10:00:00Z",
+    "tempF": 64.5,
+    "humidityPct": 75,
+    "windMph": 3.2,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-25T11:00:00Z",
+    "tempF": 63,
+    "humidityPct": 80,
+    "windMph": 2.4,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-25T12:00:00Z",
+    "tempF": 64.7,
+    "humidityPct": 76,
+    "windMph": 3,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-25T13:00:00Z",
+    "tempF": 64.9,
+    "humidityPct": 76,
+    "windMph": 3.5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T14:00:00Z",
+    "tempF": 65.8,
+    "humidityPct": 74,
+    "windMph": 3.8,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T15:00:00Z",
+    "tempF": 67.9,
+    "humidityPct": 69,
+    "windMph": 3.5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T16:00:00Z",
+    "tempF": 70.8,
+    "humidityPct": 65,
+    "windMph": 2.7,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T17:00:00Z",
+    "tempF": 74.3,
+    "humidityPct": 59,
+    "windMph": 2.4,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T18:00:00Z",
+    "tempF": 78.1,
+    "humidityPct": 52,
+    "windMph": 3,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T19:00:00Z",
+    "tempF": 82,
+    "humidityPct": 45,
+    "windMph": 3.2,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T20:00:00Z",
+    "tempF": 85.5,
+    "humidityPct": 39,
+    "windMph": 4.2,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T21:00:00Z",
+    "tempF": 88.4,
+    "humidityPct": 34,
+    "windMph": 4.6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T22:00:00Z",
+    "tempF": 90.7,
+    "humidityPct": 32,
+    "windMph": 4.3,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-25T23:00:00Z",
+    "tempF": 92.2,
+    "humidityPct": 32,
+    "windMph": 4.2,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T00:00:00Z",
+    "tempF": 91,
+    "humidityPct": 34,
+    "windMph": 3.9,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T01:00:00Z",
+    "tempF": 91.5,
+    "humidityPct": 34,
+    "windMph": 4.6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T02:00:00Z",
+    "tempF": 90.6,
+    "humidityPct": 34,
+    "windMph": 6.6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T03:00:00Z",
+    "tempF": 88.3,
+    "humidityPct": 38,
+    "windMph": 6.6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T04:00:00Z",
+    "tempF": 84.5,
+    "humidityPct": 43,
+    "windMph": 5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T05:00:00Z",
+    "tempF": 81.5,
+    "humidityPct": 49,
+    "windMph": 5.7,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-26T06:00:00Z",
+    "tempF": 78.1,
+    "humidityPct": 59,
+    "windMph": 5.5,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-26T07:00:00Z",
+    "tempF": 75.5,
+    "humidityPct": 65,
+    "windMph": 4.6,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-26T08:00:00Z",
+    "tempF": 73.1,
+    "humidityPct": 71,
+    "windMph": 2.8,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-26T09:00:00Z",
+    "tempF": 71.2,
+    "humidityPct": 77,
+    "windMph": 3.1,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-26T10:00:00Z",
+    "tempF": 70.3,
+    "humidityPct": 80,
+    "windMph": 2.9,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-26T11:00:00Z",
+    "tempF": 68.9,
+    "humidityPct": 85,
+    "windMph": 3.4,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-26T12:00:00Z",
+    "tempF": 69.8,
+    "humidityPct": 82,
+    "windMph": 2.8,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-26T13:00:00Z",
+    "tempF": 69.9,
+    "humidityPct": 84,
+    "windMph": 2.6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T14:00:00Z",
+    "tempF": 72.4,
+    "humidityPct": 75,
+    "windMph": 3.1,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T15:00:00Z",
+    "tempF": 76.6,
+    "humidityPct": 64,
+    "windMph": 2.9,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T16:00:00Z",
+    "tempF": 81.1,
+    "humidityPct": 55,
+    "windMph": 2.3,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T17:00:00Z",
+    "tempF": 85.8,
+    "humidityPct": 47,
+    "windMph": 2.9,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T18:00:00Z",
+    "tempF": 90.1,
+    "humidityPct": 40,
+    "windMph": 3.1,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T19:00:00Z",
+    "tempF": 94.5,
+    "humidityPct": 35,
+    "windMph": 4.3,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T20:00:00Z",
+    "tempF": 99.6,
+    "humidityPct": 27,
+    "windMph": 6.4,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T21:00:00Z",
+    "tempF": 103.2,
+    "humidityPct": 20,
+    "windMph": 7.7,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T22:00:00Z",
+    "tempF": 105,
+    "humidityPct": 17,
+    "windMph": 8.7,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-26T23:00:00Z",
+    "tempF": 105.6,
+    "humidityPct": 16,
+    "windMph": 9.5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T00:00:00Z",
+    "tempF": 104.5,
+    "humidityPct": 17,
+    "windMph": 8.2,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T01:00:00Z",
+    "tempF": 104.4,
+    "humidityPct": 16,
+    "windMph": 8.3,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T02:00:00Z",
+    "tempF": 103.8,
+    "humidityPct": 16,
+    "windMph": 8.1,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T03:00:00Z",
+    "tempF": 97.3,
+    "humidityPct": 29,
+    "windMph": 9.7,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T04:00:00Z",
+    "tempF": 91.9,
+    "humidityPct": 40,
+    "windMph": 11,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T05:00:00Z",
+    "tempF": 86.7,
+    "humidityPct": 50,
+    "windMph": 10.7,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-27T06:00:00Z",
+    "tempF": 83.7,
+    "humidityPct": 56,
+    "windMph": 10.9,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-27T07:00:00Z",
+    "tempF": 81.8,
+    "humidityPct": 60,
+    "windMph": 9.3,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-27T08:00:00Z",
+    "tempF": 79.8,
+    "humidityPct": 63,
+    "windMph": 7.2,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-27T09:00:00Z",
+    "tempF": 76.9,
+    "humidityPct": 69,
+    "windMph": 4,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-27T10:00:00Z",
+    "tempF": 74.5,
+    "humidityPct": 73,
+    "windMph": 3,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-27T11:00:00Z",
+    "tempF": 72.1,
+    "humidityPct": 78,
+    "windMph": 3.8,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-27T12:00:00Z",
+    "tempF": 72,
+    "humidityPct": 75,
+    "windMph": 4,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-27T13:00:00Z",
+    "tempF": 72.7,
+    "humidityPct": 72,
+    "windMph": 2.6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T14:00:00Z",
+    "tempF": 75.8,
+    "humidityPct": 64,
+    "windMph": 3.5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T15:00:00Z",
+    "tempF": 81.7,
+    "humidityPct": 51,
+    "windMph": 3.7,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T16:00:00Z",
+    "tempF": 88.9,
+    "humidityPct": 37,
+    "windMph": 4.3,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T17:00:00Z",
+    "tempF": 95.5,
+    "humidityPct": 29,
+    "windMph": 6.3,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T18:00:00Z",
+    "tempF": 101.1,
+    "humidityPct": 23,
+    "windMph": 8.8,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T19:00:00Z",
+    "tempF": 105.5,
+    "humidityPct": 19,
+    "windMph": 9.8,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T20:00:00Z",
+    "tempF": 108.3,
+    "humidityPct": 17,
+    "windMph": 11.5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T21:00:00Z",
+    "tempF": 110.2,
+    "humidityPct": 16,
+    "windMph": 12.5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T22:00:00Z",
+    "tempF": 111.2,
+    "humidityPct": 15,
+    "windMph": 12.6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-27T23:00:00Z",
+    "tempF": 112,
+    "humidityPct": 13,
+    "windMph": 11.3,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T00:00:00Z",
+    "tempF": 110.1,
+    "humidityPct": 15,
+    "windMph": 7.9,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T01:00:00Z",
+    "tempF": 109.3,
+    "humidityPct": 15,
+    "windMph": 10.8,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T02:00:00Z",
+    "tempF": 107.5,
+    "humidityPct": 16,
+    "windMph": 11.5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T03:00:00Z",
+    "tempF": 103.8,
+    "humidityPct": 18,
+    "windMph": 8.1,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T04:00:00Z",
+    "tempF": 96.7,
+    "humidityPct": 21,
+    "windMph": 5.3,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T05:00:00Z",
+    "tempF": 92.5,
+    "humidityPct": 24,
+    "windMph": 5.1,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-28T06:00:00Z",
+    "tempF": 88.6,
+    "humidityPct": 35,
+    "windMph": 4.7,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-28T07:00:00Z",
+    "tempF": 85.3,
+    "humidityPct": 42,
+    "windMph": 4.7,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-28T08:00:00Z",
+    "tempF": 82.4,
+    "humidityPct": 46,
+    "windMph": 3.7,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-28T09:00:00Z",
+    "tempF": 81.7,
+    "humidityPct": 47,
+    "windMph": 4,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-28T10:00:00Z",
+    "tempF": 81.4,
+    "humidityPct": 47,
+    "windMph": 4,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-28T11:00:00Z",
+    "tempF": 81.1,
+    "humidityPct": 48,
+    "windMph": 4.5,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-28T12:00:00Z",
+    "tempF": 79.3,
+    "humidityPct": 51,
+    "windMph": 4.5,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-28T13:00:00Z",
+    "tempF": 79.2,
+    "humidityPct": 52,
+    "windMph": 4.1,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T14:00:00Z",
+    "tempF": 83.7,
+    "humidityPct": 45,
+    "windMph": 5.4,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T15:00:00Z",
+    "tempF": 90.8,
+    "humidityPct": 34,
+    "windMph": 3.7,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T16:00:00Z",
+    "tempF": 97.6,
+    "humidityPct": 26,
+    "windMph": 6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T17:00:00Z",
+    "tempF": 103.3,
+    "humidityPct": 21,
+    "windMph": 11.8,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T18:00:00Z",
+    "tempF": 107.2,
+    "humidityPct": 18,
+    "windMph": 13.6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T19:00:00Z",
+    "tempF": 109.5,
+    "humidityPct": 16,
+    "windMph": 15,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T20:00:00Z",
+    "tempF": 110.8,
+    "humidityPct": 15,
+    "windMph": 15.6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T21:00:00Z",
+    "tempF": 112.3,
+    "humidityPct": 14,
+    "windMph": 13.4,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T22:00:00Z",
+    "tempF": 114.1,
+    "humidityPct": 13,
+    "windMph": 12.5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-28T23:00:00Z",
+    "tempF": 114.8,
+    "humidityPct": 12,
+    "windMph": 13,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T00:00:00Z",
+    "tempF": 112.9,
+    "humidityPct": 13,
+    "windMph": 12.6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T01:00:00Z",
+    "tempF": 112.6,
+    "humidityPct": 13,
+    "windMph": 16.5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T02:00:00Z",
+    "tempF": 109.1,
+    "humidityPct": 14,
+    "windMph": 18,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T03:00:00Z",
+    "tempF": 102.7,
+    "humidityPct": 31,
+    "windMph": 2,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T04:00:00Z",
+    "tempF": 84.1,
+    "humidityPct": 39,
+    "windMph": 15.3,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T05:00:00Z",
+    "tempF": 72.8,
+    "humidityPct": 56,
+    "windMph": 15.3,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-29T06:00:00Z",
+    "tempF": 71.8,
+    "humidityPct": 56,
+    "windMph": 11.8,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-29T07:00:00Z",
+    "tempF": 69.5,
+    "humidityPct": 60,
+    "windMph": 9.8,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-29T08:00:00Z",
+    "tempF": 68,
+    "humidityPct": 62,
+    "windMph": 8.3,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-29T09:00:00Z",
+    "tempF": 66.9,
+    "humidityPct": 64,
+    "windMph": 7.2,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-29T10:00:00Z",
+    "tempF": 66.2,
+    "humidityPct": 65,
+    "windMph": 5,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-29T11:00:00Z",
+    "tempF": 65.6,
+    "humidityPct": 67,
+    "windMph": 4.1,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-29T12:00:00Z",
+    "tempF": 66.6,
+    "humidityPct": 67,
+    "windMph": 1.4,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-29T13:00:00Z",
+    "tempF": 66,
+    "humidityPct": 69,
+    "windMph": 2.2,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T14:00:00Z",
+    "tempF": 67.4,
+    "humidityPct": 66,
+    "windMph": 1.8,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T15:00:00Z",
+    "tempF": 69.9,
+    "humidityPct": 62,
+    "windMph": 2,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T16:00:00Z",
+    "tempF": 73.2,
+    "humidityPct": 57,
+    "windMph": 2.1,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T17:00:00Z",
+    "tempF": 76.7,
+    "humidityPct": 52,
+    "windMph": 1.7,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T18:00:00Z",
+    "tempF": 80.7,
+    "humidityPct": 47,
+    "windMph": 1.7,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T19:00:00Z",
+    "tempF": 84.7,
+    "humidityPct": 42,
+    "windMph": 2.4,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T20:00:00Z",
+    "tempF": 88.2,
+    "humidityPct": 37,
+    "windMph": 2.7,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T21:00:00Z",
+    "tempF": 91.6,
+    "humidityPct": 32,
+    "windMph": 3.5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T22:00:00Z",
+    "tempF": 94,
+    "humidityPct": 30,
+    "windMph": 4.4,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-29T23:00:00Z",
+    "tempF": 95.9,
+    "humidityPct": 28,
+    "windMph": 3.7,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T00:00:00Z",
+    "tempF": 92.7,
+    "humidityPct": 33,
+    "windMph": 4.1,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T01:00:00Z",
+    "tempF": 91.8,
+    "humidityPct": 35,
+    "windMph": 3.3,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T02:00:00Z",
+    "tempF": 89.2,
+    "humidityPct": 41,
+    "windMph": 7.1,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T03:00:00Z",
+    "tempF": 84.2,
+    "humidityPct": 47,
+    "windMph": 8.4,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T04:00:00Z",
+    "tempF": 80.8,
+    "humidityPct": 52,
+    "windMph": 5.2,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T05:00:00Z",
+    "tempF": 77.1,
+    "humidityPct": 58,
+    "windMph": 3.4,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-30T06:00:00Z",
+    "tempF": 74.1,
+    "humidityPct": 56,
+    "windMph": 5.6,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-30T07:00:00Z",
+    "tempF": 70.1,
+    "humidityPct": 59,
+    "windMph": 8.7,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-30T08:00:00Z",
+    "tempF": 67.1,
+    "humidityPct": 64,
+    "windMph": 8.1,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-30T09:00:00Z",
+    "tempF": 65.5,
+    "humidityPct": 67,
+    "windMph": 6.9,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-30T10:00:00Z",
+    "tempF": 64.4,
+    "humidityPct": 68,
+    "windMph": 6.2,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-30T11:00:00Z",
+    "tempF": 63.2,
+    "humidityPct": 71,
+    "windMph": 5.9,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-30T12:00:00Z",
+    "tempF": 63.9,
+    "humidityPct": 73,
+    "windMph": 5.2,
+    "isDay": false
+   },
+   {
+    "time": "2021-06-30T13:00:00Z",
+    "tempF": 63.6,
+    "humidityPct": 73,
+    "windMph": 4.9,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T14:00:00Z",
+    "tempF": 64.7,
+    "humidityPct": 71,
+    "windMph": 5.2,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T15:00:00Z",
+    "tempF": 66.7,
+    "humidityPct": 67,
+    "windMph": 4.8,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T16:00:00Z",
+    "tempF": 69.4,
+    "humidityPct": 61,
+    "windMph": 5.4,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T17:00:00Z",
+    "tempF": 71.9,
+    "humidityPct": 57,
+    "windMph": 5,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T18:00:00Z",
+    "tempF": 75.6,
+    "humidityPct": 51,
+    "windMph": 5.4,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T19:00:00Z",
+    "tempF": 79.7,
+    "humidityPct": 44,
+    "windMph": 6,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T20:00:00Z",
+    "tempF": 82.5,
+    "humidityPct": 40,
+    "windMph": 7.1,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T21:00:00Z",
+    "tempF": 84.2,
+    "humidityPct": 38,
+    "windMph": 7.9,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T22:00:00Z",
+    "tempF": 85.9,
+    "humidityPct": 36,
+    "windMph": 7.3,
+    "isDay": true
+   },
+   {
+    "time": "2021-06-30T23:00:00Z",
+    "tempF": 86.5,
+    "humidityPct": 35,
+    "windMph": 7,
+    "isDay": true
+   }
+  ],
+  "phoenix2023": [
+   {
+    "time": "2023-07-14T00:00:00Z",
+    "tempF": 109.9,
+    "humidityPct": 17,
+    "windMph": 12.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T01:00:00Z",
+    "tempF": 109.2,
+    "humidityPct": 16,
+    "windMph": 12,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T02:00:00Z",
+    "tempF": 108.1,
+    "humidityPct": 16,
+    "windMph": 11.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T03:00:00Z",
+    "tempF": 106.7,
+    "humidityPct": 16,
+    "windMph": 9,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-14T04:00:00Z",
+    "tempF": 105.4,
+    "humidityPct": 15,
+    "windMph": 8.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-14T05:00:00Z",
+    "tempF": 104.1,
+    "humidityPct": 15,
+    "windMph": 10.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-14T06:00:00Z",
+    "tempF": 102.3,
+    "humidityPct": 16,
+    "windMph": 11.9,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-14T07:00:00Z",
+    "tempF": 100.6,
+    "humidityPct": 17,
+    "windMph": 11.6,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-14T08:00:00Z",
+    "tempF": 99.1,
+    "humidityPct": 18,
+    "windMph": 10.8,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-14T09:00:00Z",
+    "tempF": 97.6,
+    "humidityPct": 19,
+    "windMph": 10,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-14T10:00:00Z",
+    "tempF": 96.4,
+    "humidityPct": 20,
+    "windMph": 12.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-14T11:00:00Z",
+    "tempF": 94.4,
+    "humidityPct": 26,
+    "windMph": 13.8,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-14T12:00:00Z",
+    "tempF": 93.3,
+    "humidityPct": 24,
+    "windMph": 1.6,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-14T13:00:00Z",
+    "tempF": 90.3,
+    "humidityPct": 27,
+    "windMph": 3.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T14:00:00Z",
+    "tempF": 93.2,
+    "humidityPct": 24,
+    "windMph": 1.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T15:00:00Z",
+    "tempF": 95.8,
+    "humidityPct": 24,
+    "windMph": 2.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T16:00:00Z",
+    "tempF": 98.2,
+    "humidityPct": 24,
+    "windMph": 1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T17:00:00Z",
+    "tempF": 101.4,
+    "humidityPct": 22,
+    "windMph": 4.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T18:00:00Z",
+    "tempF": 104.8,
+    "humidityPct": 20,
+    "windMph": 5.9,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T19:00:00Z",
+    "tempF": 107.9,
+    "humidityPct": 17,
+    "windMph": 7.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T20:00:00Z",
+    "tempF": 110.4,
+    "humidityPct": 16,
+    "windMph": 9.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T21:00:00Z",
+    "tempF": 111.9,
+    "humidityPct": 14,
+    "windMph": 11.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T22:00:00Z",
+    "tempF": 112.9,
+    "humidityPct": 13,
+    "windMph": 11.9,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-14T23:00:00Z",
+    "tempF": 113.1,
+    "humidityPct": 13,
+    "windMph": 12.3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T00:00:00Z",
+    "tempF": 112.4,
+    "humidityPct": 12,
+    "windMph": 11.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T01:00:00Z",
+    "tempF": 111.6,
+    "humidityPct": 12,
+    "windMph": 11.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T02:00:00Z",
+    "tempF": 109.9,
+    "humidityPct": 12,
+    "windMph": 12.9,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T03:00:00Z",
+    "tempF": 107.9,
+    "humidityPct": 13,
+    "windMph": 11.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-15T04:00:00Z",
+    "tempF": 106.6,
+    "humidityPct": 14,
+    "windMph": 10.7,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-15T05:00:00Z",
+    "tempF": 104.8,
+    "humidityPct": 16,
+    "windMph": 12.2,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-15T06:00:00Z",
+    "tempF": 103.1,
+    "humidityPct": 17,
+    "windMph": 13.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-15T07:00:00Z",
+    "tempF": 101.4,
+    "humidityPct": 20,
+    "windMph": 13.6,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-15T08:00:00Z",
+    "tempF": 100,
+    "humidityPct": 22,
+    "windMph": 14,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-15T09:00:00Z",
+    "tempF": 98.4,
+    "humidityPct": 23,
+    "windMph": 12.8,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-15T10:00:00Z",
+    "tempF": 96.7,
+    "humidityPct": 25,
+    "windMph": 14.2,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-15T11:00:00Z",
+    "tempF": 94.9,
+    "humidityPct": 27,
+    "windMph": 12,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-15T12:00:00Z",
+    "tempF": 92,
+    "humidityPct": 31,
+    "windMph": 2.7,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-15T13:00:00Z",
+    "tempF": 90,
+    "humidityPct": 34,
+    "windMph": 3.3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T14:00:00Z",
+    "tempF": 92.8,
+    "humidityPct": 29,
+    "windMph": 4.9,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T15:00:00Z",
+    "tempF": 96.6,
+    "humidityPct": 26,
+    "windMph": 3.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T16:00:00Z",
+    "tempF": 99.4,
+    "humidityPct": 25,
+    "windMph": 2.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T17:00:00Z",
+    "tempF": 102.9,
+    "humidityPct": 22,
+    "windMph": 4.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T18:00:00Z",
+    "tempF": 106.7,
+    "humidityPct": 19,
+    "windMph": 7.9,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T19:00:00Z",
+    "tempF": 109.4,
+    "humidityPct": 17,
+    "windMph": 9.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T20:00:00Z",
+    "tempF": 111.4,
+    "humidityPct": 15,
+    "windMph": 11.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T21:00:00Z",
+    "tempF": 112.9,
+    "humidityPct": 13,
+    "windMph": 11.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T22:00:00Z",
+    "tempF": 114.1,
+    "humidityPct": 12,
+    "windMph": 11,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-15T23:00:00Z",
+    "tempF": 115,
+    "humidityPct": 11,
+    "windMph": 10.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T00:00:00Z",
+    "tempF": 114.4,
+    "humidityPct": 12,
+    "windMph": 10.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T01:00:00Z",
+    "tempF": 114.4,
+    "humidityPct": 11,
+    "windMph": 12.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T02:00:00Z",
+    "tempF": 113.3,
+    "humidityPct": 11,
+    "windMph": 13.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T03:00:00Z",
+    "tempF": 110.8,
+    "humidityPct": 11,
+    "windMph": 11.1,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-16T04:00:00Z",
+    "tempF": 109.3,
+    "humidityPct": 12,
+    "windMph": 10.9,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-16T05:00:00Z",
+    "tempF": 106.2,
+    "humidityPct": 19,
+    "windMph": 13.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-16T06:00:00Z",
+    "tempF": 103.6,
+    "humidityPct": 22,
+    "windMph": 16.4,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-16T07:00:00Z",
+    "tempF": 100.4,
+    "humidityPct": 28,
+    "windMph": 16.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-16T08:00:00Z",
+    "tempF": 98.3,
+    "humidityPct": 28,
+    "windMph": 13.1,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-16T09:00:00Z",
+    "tempF": 95.4,
+    "humidityPct": 31,
+    "windMph": 3.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-16T10:00:00Z",
+    "tempF": 93.5,
+    "humidityPct": 34,
+    "windMph": 2.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-16T11:00:00Z",
+    "tempF": 91.6,
+    "humidityPct": 36,
+    "windMph": 3.8,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-16T12:00:00Z",
+    "tempF": 92.6,
+    "humidityPct": 36,
+    "windMph": 11,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-16T13:00:00Z",
+    "tempF": 90.9,
+    "humidityPct": 38,
+    "windMph": 5.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T14:00:00Z",
+    "tempF": 92.5,
+    "humidityPct": 36,
+    "windMph": 2.3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T15:00:00Z",
+    "tempF": 95.4,
+    "humidityPct": 32,
+    "windMph": 3.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T16:00:00Z",
+    "tempF": 98.9,
+    "humidityPct": 28,
+    "windMph": 5.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T17:00:00Z",
+    "tempF": 101.4,
+    "humidityPct": 28,
+    "windMph": 8.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T18:00:00Z",
+    "tempF": 103.4,
+    "humidityPct": 27,
+    "windMph": 9.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T19:00:00Z",
+    "tempF": 105.7,
+    "humidityPct": 25,
+    "windMph": 9.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T20:00:00Z",
+    "tempF": 107.8,
+    "humidityPct": 22,
+    "windMph": 9.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T21:00:00Z",
+    "tempF": 109.6,
+    "humidityPct": 20,
+    "windMph": 9.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T22:00:00Z",
+    "tempF": 110.9,
+    "humidityPct": 19,
+    "windMph": 9.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-16T23:00:00Z",
+    "tempF": 111.7,
+    "humidityPct": 18,
+    "windMph": 8.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T00:00:00Z",
+    "tempF": 110.8,
+    "humidityPct": 18,
+    "windMph": 6.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T01:00:00Z",
+    "tempF": 110.4,
+    "humidityPct": 17,
+    "windMph": 8.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T02:00:00Z",
+    "tempF": 109,
+    "humidityPct": 16,
+    "windMph": 9.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T03:00:00Z",
+    "tempF": 107.2,
+    "humidityPct": 19,
+    "windMph": 6.9,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-17T04:00:00Z",
+    "tempF": 106.2,
+    "humidityPct": 20,
+    "windMph": 6,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-17T05:00:00Z",
+    "tempF": 105,
+    "humidityPct": 21,
+    "windMph": 6.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-17T06:00:00Z",
+    "tempF": 103.2,
+    "humidityPct": 25,
+    "windMph": 13.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-17T07:00:00Z",
+    "tempF": 98.9,
+    "humidityPct": 29,
+    "windMph": 12.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-17T08:00:00Z",
+    "tempF": 96.8,
+    "humidityPct": 31,
+    "windMph": 12.7,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-17T09:00:00Z",
+    "tempF": 95.3,
+    "humidityPct": 32,
+    "windMph": 11.6,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-17T10:00:00Z",
+    "tempF": 94,
+    "humidityPct": 33,
+    "windMph": 7.8,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-17T11:00:00Z",
+    "tempF": 93.5,
+    "humidityPct": 34,
+    "windMph": 1.6,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-17T12:00:00Z",
+    "tempF": 89.9,
+    "humidityPct": 38,
+    "windMph": 3.7,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-17T13:00:00Z",
+    "tempF": 90.1,
+    "humidityPct": 39,
+    "windMph": 1.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T14:00:00Z",
+    "tempF": 92.2,
+    "humidityPct": 35,
+    "windMph": 2.9,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T15:00:00Z",
+    "tempF": 95.3,
+    "humidityPct": 32,
+    "windMph": 0.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T16:00:00Z",
+    "tempF": 98.4,
+    "humidityPct": 29,
+    "windMph": 3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T17:00:00Z",
+    "tempF": 101.2,
+    "humidityPct": 26,
+    "windMph": 2.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T18:00:00Z",
+    "tempF": 104.1,
+    "humidityPct": 23,
+    "windMph": 0.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T19:00:00Z",
+    "tempF": 107.6,
+    "humidityPct": 20,
+    "windMph": 4.3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T20:00:00Z",
+    "tempF": 110.5,
+    "humidityPct": 18,
+    "windMph": 7.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T21:00:00Z",
+    "tempF": 112.1,
+    "humidityPct": 17,
+    "windMph": 11.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T22:00:00Z",
+    "tempF": 111.8,
+    "humidityPct": 16,
+    "windMph": 9.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-17T23:00:00Z",
+    "tempF": 111.6,
+    "humidityPct": 16,
+    "windMph": 6.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T00:00:00Z",
+    "tempF": 112.9,
+    "humidityPct": 13,
+    "windMph": 9.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T01:00:00Z",
+    "tempF": 112.6,
+    "humidityPct": 13,
+    "windMph": 9.3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T02:00:00Z",
+    "tempF": 111.9,
+    "humidityPct": 12,
+    "windMph": 8.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T03:00:00Z",
+    "tempF": 110.4,
+    "humidityPct": 12,
+    "windMph": 10.6,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-18T04:00:00Z",
+    "tempF": 101.8,
+    "humidityPct": 21,
+    "windMph": 12.4,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-18T05:00:00Z",
+    "tempF": 102.7,
+    "humidityPct": 21,
+    "windMph": 8.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-18T06:00:00Z",
+    "tempF": 101.3,
+    "humidityPct": 21,
+    "windMph": 5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-18T07:00:00Z",
+    "tempF": 101.5,
+    "humidityPct": 21,
+    "windMph": 8.9,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-18T08:00:00Z",
+    "tempF": 99.2,
+    "humidityPct": 23,
+    "windMph": 5.7,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-18T09:00:00Z",
+    "tempF": 96.3,
+    "humidityPct": 26,
+    "windMph": 3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-18T10:00:00Z",
+    "tempF": 96.6,
+    "humidityPct": 25,
+    "windMph": 1.8,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-18T11:00:00Z",
+    "tempF": 93.2,
+    "humidityPct": 29,
+    "windMph": 2,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-18T12:00:00Z",
+    "tempF": 92.2,
+    "humidityPct": 33,
+    "windMph": 3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-18T13:00:00Z",
+    "tempF": 92,
+    "humidityPct": 33,
+    "windMph": 3.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T14:00:00Z",
+    "tempF": 94.1,
+    "humidityPct": 31,
+    "windMph": 2.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T15:00:00Z",
+    "tempF": 96.9,
+    "humidityPct": 28,
+    "windMph": 1.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T16:00:00Z",
+    "tempF": 100,
+    "humidityPct": 25,
+    "windMph": 2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T17:00:00Z",
+    "tempF": 103.1,
+    "humidityPct": 22,
+    "windMph": 0.3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T18:00:00Z",
+    "tempF": 106.1,
+    "humidityPct": 20,
+    "windMph": 0.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T19:00:00Z",
+    "tempF": 108.9,
+    "humidityPct": 18,
+    "windMph": 2.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T20:00:00Z",
+    "tempF": 111.7,
+    "humidityPct": 16,
+    "windMph": 4.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T21:00:00Z",
+    "tempF": 114,
+    "humidityPct": 14,
+    "windMph": 4.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T22:00:00Z",
+    "tempF": 115.4,
+    "humidityPct": 12,
+    "windMph": 8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-18T23:00:00Z",
+    "tempF": 115,
+    "humidityPct": 11,
+    "windMph": 13.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T00:00:00Z",
+    "tempF": 112.6,
+    "humidityPct": 12,
+    "windMph": 9.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T01:00:00Z",
+    "tempF": 112,
+    "humidityPct": 13,
+    "windMph": 7.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T02:00:00Z",
+    "tempF": 111.2,
+    "humidityPct": 13,
+    "windMph": 9.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T03:00:00Z",
+    "tempF": 109.8,
+    "humidityPct": 13,
+    "windMph": 10.1,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-19T04:00:00Z",
+    "tempF": 108.2,
+    "humidityPct": 14,
+    "windMph": 8.9,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-19T05:00:00Z",
+    "tempF": 106.7,
+    "humidityPct": 15,
+    "windMph": 8.1,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-19T06:00:00Z",
+    "tempF": 104.5,
+    "humidityPct": 16,
+    "windMph": 7.4,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-19T07:00:00Z",
+    "tempF": 102.4,
+    "humidityPct": 17,
+    "windMph": 7.2,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-19T08:00:00Z",
+    "tempF": 100.5,
+    "humidityPct": 21,
+    "windMph": 11.4,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-19T09:00:00Z",
+    "tempF": 98.4,
+    "humidityPct": 23,
+    "windMph": 9.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-19T10:00:00Z",
+    "tempF": 96.6,
+    "humidityPct": 24,
+    "windMph": 9,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-19T11:00:00Z",
+    "tempF": 94.9,
+    "humidityPct": 24,
+    "windMph": 8.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-19T12:00:00Z",
+    "tempF": 92.4,
+    "humidityPct": 28,
+    "windMph": 4.1,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-19T13:00:00Z",
+    "tempF": 93.9,
+    "humidityPct": 26,
+    "windMph": 0.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T14:00:00Z",
+    "tempF": 94.4,
+    "humidityPct": 26,
+    "windMph": 2.3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T15:00:00Z",
+    "tempF": 97.6,
+    "humidityPct": 24,
+    "windMph": 4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T16:00:00Z",
+    "tempF": 101,
+    "humidityPct": 22,
+    "windMph": 3.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T17:00:00Z",
+    "tempF": 104.5,
+    "humidityPct": 19,
+    "windMph": 2.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T18:00:00Z",
+    "tempF": 108.2,
+    "humidityPct": 17,
+    "windMph": 3.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T19:00:00Z",
+    "tempF": 111.4,
+    "humidityPct": 15,
+    "windMph": 5.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T20:00:00Z",
+    "tempF": 113.7,
+    "humidityPct": 12,
+    "windMph": 8.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T21:00:00Z",
+    "tempF": 115.1,
+    "humidityPct": 10,
+    "windMph": 11.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T22:00:00Z",
+    "tempF": 115.8,
+    "humidityPct": 10,
+    "windMph": 12.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-19T23:00:00Z",
+    "tempF": 115.6,
+    "humidityPct": 10,
+    "windMph": 13,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T00:00:00Z",
+    "tempF": 113.9,
+    "humidityPct": 11,
+    "windMph": 11.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T01:00:00Z",
+    "tempF": 113.5,
+    "humidityPct": 10,
+    "windMph": 11.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T02:00:00Z",
+    "tempF": 112.2,
+    "humidityPct": 10,
+    "windMph": 11.9,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T03:00:00Z",
+    "tempF": 110,
+    "humidityPct": 10,
+    "windMph": 10.8,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-20T04:00:00Z",
+    "tempF": 107.9,
+    "humidityPct": 11,
+    "windMph": 10.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-20T05:00:00Z",
+    "tempF": 105.9,
+    "humidityPct": 13,
+    "windMph": 10.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-20T06:00:00Z",
+    "tempF": 104.5,
+    "humidityPct": 14,
+    "windMph": 10.2,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-20T07:00:00Z",
+    "tempF": 102.8,
+    "humidityPct": 16,
+    "windMph": 10.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-20T08:00:00Z",
+    "tempF": 100.2,
+    "humidityPct": 22,
+    "windMph": 11.9,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-20T09:00:00Z",
+    "tempF": 97.8,
+    "humidityPct": 27,
+    "windMph": 12.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-20T10:00:00Z",
+    "tempF": 96.4,
+    "humidityPct": 28,
+    "windMph": 12.1,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-20T11:00:00Z",
+    "tempF": 94.4,
+    "humidityPct": 29,
+    "windMph": 9.7,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-20T12:00:00Z",
+    "tempF": 90.8,
+    "humidityPct": 35,
+    "windMph": 3.7,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-20T13:00:00Z",
+    "tempF": 89.5,
+    "humidityPct": 34,
+    "windMph": 3.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T14:00:00Z",
+    "tempF": 92.5,
+    "humidityPct": 27,
+    "windMph": 2.3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T15:00:00Z",
+    "tempF": 96.1,
+    "humidityPct": 24,
+    "windMph": 3.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T16:00:00Z",
+    "tempF": 100.5,
+    "humidityPct": 22,
+    "windMph": 5.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T17:00:00Z",
+    "tempF": 104.4,
+    "humidityPct": 19,
+    "windMph": 5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T18:00:00Z",
+    "tempF": 107.7,
+    "humidityPct": 17,
+    "windMph": 3.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T19:00:00Z",
+    "tempF": 110.6,
+    "humidityPct": 15,
+    "windMph": 4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T20:00:00Z",
+    "tempF": 113.5,
+    "humidityPct": 12,
+    "windMph": 6.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T21:00:00Z",
+    "tempF": 115.3,
+    "humidityPct": 10,
+    "windMph": 10,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T22:00:00Z",
+    "tempF": 115.9,
+    "humidityPct": 9,
+    "windMph": 12.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-20T23:00:00Z",
+    "tempF": 116.2,
+    "humidityPct": 8,
+    "windMph": 13.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T00:00:00Z",
+    "tempF": 114.5,
+    "humidityPct": 10,
+    "windMph": 13.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T01:00:00Z",
+    "tempF": 113.6,
+    "humidityPct": 10,
+    "windMph": 13.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T02:00:00Z",
+    "tempF": 112.6,
+    "humidityPct": 11,
+    "windMph": 12.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T03:00:00Z",
+    "tempF": 110.1,
+    "humidityPct": 11,
+    "windMph": 11.2,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-21T04:00:00Z",
+    "tempF": 108.5,
+    "humidityPct": 10,
+    "windMph": 12,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-21T05:00:00Z",
+    "tempF": 106.1,
+    "humidityPct": 10,
+    "windMph": 11.2,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-21T06:00:00Z",
+    "tempF": 103.6,
+    "humidityPct": 10,
+    "windMph": 8.8,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-21T07:00:00Z",
+    "tempF": 101.5,
+    "humidityPct": 10,
+    "windMph": 8.7,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-21T08:00:00Z",
+    "tempF": 98.7,
+    "humidityPct": 11,
+    "windMph": 6.9,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-21T09:00:00Z",
+    "tempF": 95.5,
+    "humidityPct": 13,
+    "windMph": 6,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-21T10:00:00Z",
+    "tempF": 93.3,
+    "humidityPct": 14,
+    "windMph": 6.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-21T11:00:00Z",
+    "tempF": 90.9,
+    "humidityPct": 15,
+    "windMph": 5.8,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-21T12:00:00Z",
+    "tempF": 92.7,
+    "humidityPct": 20,
+    "windMph": 9.4,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-21T13:00:00Z",
+    "tempF": 89.2,
+    "humidityPct": 32,
+    "windMph": 9,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T14:00:00Z",
+    "tempF": 90.3,
+    "humidityPct": 37,
+    "windMph": 9.3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T15:00:00Z",
+    "tempF": 92,
+    "humidityPct": 39,
+    "windMph": 10.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T16:00:00Z",
+    "tempF": 94.8,
+    "humidityPct": 35,
+    "windMph": 7.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T17:00:00Z",
+    "tempF": 98.2,
+    "humidityPct": 29,
+    "windMph": 6.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T18:00:00Z",
+    "tempF": 101.5,
+    "humidityPct": 24,
+    "windMph": 5.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T19:00:00Z",
+    "tempF": 105.2,
+    "humidityPct": 20,
+    "windMph": 5.3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T20:00:00Z",
+    "tempF": 109,
+    "humidityPct": 16,
+    "windMph": 6.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T21:00:00Z",
+    "tempF": 112.3,
+    "humidityPct": 13,
+    "windMph": 8.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T22:00:00Z",
+    "tempF": 113.9,
+    "humidityPct": 12,
+    "windMph": 11.9,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-21T23:00:00Z",
+    "tempF": 114.4,
+    "humidityPct": 12,
+    "windMph": 10.9,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T00:00:00Z",
+    "tempF": 114.6,
+    "humidityPct": 12,
+    "windMph": 10.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T01:00:00Z",
+    "tempF": 112.9,
+    "humidityPct": 12,
+    "windMph": 12.3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T02:00:00Z",
+    "tempF": 112.8,
+    "humidityPct": 10,
+    "windMph": 8.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T03:00:00Z",
+    "tempF": 108.5,
+    "humidityPct": 15,
+    "windMph": 11.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-22T04:00:00Z",
+    "tempF": 106.1,
+    "humidityPct": 17,
+    "windMph": 7.8,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-22T05:00:00Z",
+    "tempF": 105.4,
+    "humidityPct": 16,
+    "windMph": 10.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-22T06:00:00Z",
+    "tempF": 104.7,
+    "humidityPct": 16,
+    "windMph": 7.2,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-22T07:00:00Z",
+    "tempF": 103,
+    "humidityPct": 17,
+    "windMph": 6.7,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-22T08:00:00Z",
+    "tempF": 99.5,
+    "humidityPct": 20,
+    "windMph": 4.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-22T09:00:00Z",
+    "tempF": 98,
+    "humidityPct": 21,
+    "windMph": 6.7,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-22T10:00:00Z",
+    "tempF": 96.7,
+    "humidityPct": 23,
+    "windMph": 7.4,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-22T11:00:00Z",
+    "tempF": 95.4,
+    "humidityPct": 26,
+    "windMph": 7.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-22T12:00:00Z",
+    "tempF": 94.2,
+    "humidityPct": 29,
+    "windMph": 5.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-22T13:00:00Z",
+    "tempF": 92.4,
+    "humidityPct": 29,
+    "windMph": 6.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T14:00:00Z",
+    "tempF": 94.2,
+    "humidityPct": 28,
+    "windMph": 5.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T15:00:00Z",
+    "tempF": 97.9,
+    "humidityPct": 25,
+    "windMph": 2.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T16:00:00Z",
+    "tempF": 101.4,
+    "humidityPct": 22,
+    "windMph": 3.1,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T17:00:00Z",
+    "tempF": 104.5,
+    "humidityPct": 20,
+    "windMph": 3.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T18:00:00Z",
+    "tempF": 107.1,
+    "humidityPct": 17,
+    "windMph": 2.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T19:00:00Z",
+    "tempF": 109.2,
+    "humidityPct": 16,
+    "windMph": 1.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T20:00:00Z",
+    "tempF": 110.3,
+    "humidityPct": 15,
+    "windMph": 0.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T21:00:00Z",
+    "tempF": 112.6,
+    "humidityPct": 14,
+    "windMph": 6.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T22:00:00Z",
+    "tempF": 112.2,
+    "humidityPct": 13,
+    "windMph": 2.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-22T23:00:00Z",
+    "tempF": 112.7,
+    "humidityPct": 12,
+    "windMph": 5.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T00:00:00Z",
+    "tempF": 112.8,
+    "humidityPct": 13,
+    "windMph": 6.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T01:00:00Z",
+    "tempF": 112.6,
+    "humidityPct": 13,
+    "windMph": 6.3,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T02:00:00Z",
+    "tempF": 111.7,
+    "humidityPct": 13,
+    "windMph": 6.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T03:00:00Z",
+    "tempF": 109.8,
+    "humidityPct": 14,
+    "windMph": 8,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-23T04:00:00Z",
+    "tempF": 107,
+    "humidityPct": 16,
+    "windMph": 9.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-23T05:00:00Z",
+    "tempF": 105.6,
+    "humidityPct": 17,
+    "windMph": 8.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-23T06:00:00Z",
+    "tempF": 104,
+    "humidityPct": 17,
+    "windMph": 8.1,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-23T07:00:00Z",
+    "tempF": 102.2,
+    "humidityPct": 18,
+    "windMph": 7.8,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-23T08:00:00Z",
+    "tempF": 99.9,
+    "humidityPct": 20,
+    "windMph": 6.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-23T09:00:00Z",
+    "tempF": 96.7,
+    "humidityPct": 23,
+    "windMph": 3.4,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-23T10:00:00Z",
+    "tempF": 95.2,
+    "humidityPct": 25,
+    "windMph": 2.6,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-23T11:00:00Z",
+    "tempF": 92.6,
+    "humidityPct": 27,
+    "windMph": 3.9,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-23T12:00:00Z",
+    "tempF": 89.7,
+    "humidityPct": 32,
+    "windMph": 5.2,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-23T13:00:00Z",
+    "tempF": 89.4,
+    "humidityPct": 33,
+    "windMph": 5.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T14:00:00Z",
+    "tempF": 91.9,
+    "humidityPct": 30,
+    "windMph": 2.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T15:00:00Z",
+    "tempF": 95.8,
+    "humidityPct": 27,
+    "windMph": 2.4,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T16:00:00Z",
+    "tempF": 99.2,
+    "humidityPct": 25,
+    "windMph": 3.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T17:00:00Z",
+    "tempF": 102.1,
+    "humidityPct": 22,
+    "windMph": 4.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T18:00:00Z",
+    "tempF": 104.5,
+    "humidityPct": 20,
+    "windMph": 7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T19:00:00Z",
+    "tempF": 106,
+    "humidityPct": 19,
+    "windMph": 7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T20:00:00Z",
+    "tempF": 107.3,
+    "humidityPct": 17,
+    "windMph": 2.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T21:00:00Z",
+    "tempF": 108.6,
+    "humidityPct": 16,
+    "windMph": 3.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T22:00:00Z",
+    "tempF": 109.6,
+    "humidityPct": 15,
+    "windMph": 6.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-23T23:00:00Z",
+    "tempF": 111,
+    "humidityPct": 15,
+    "windMph": 8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T00:00:00Z",
+    "tempF": 106.9,
+    "humidityPct": 17,
+    "windMph": 5.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T01:00:00Z",
+    "tempF": 108.2,
+    "humidityPct": 16,
+    "windMph": 7.9,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T02:00:00Z",
+    "tempF": 105.4,
+    "humidityPct": 18,
+    "windMph": 11.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T03:00:00Z",
+    "tempF": 104,
+    "humidityPct": 19,
+    "windMph": 9.3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-24T04:00:00Z",
+    "tempF": 103,
+    "humidityPct": 20,
+    "windMph": 11.7,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-24T05:00:00Z",
+    "tempF": 100,
+    "humidityPct": 26,
+    "windMph": 13,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-24T06:00:00Z",
+    "tempF": 97.9,
+    "humidityPct": 30,
+    "windMph": 8.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-24T07:00:00Z",
+    "tempF": 96.5,
+    "humidityPct": 31,
+    "windMph": 6.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-24T08:00:00Z",
+    "tempF": 95.2,
+    "humidityPct": 33,
+    "windMph": 4.5,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-24T09:00:00Z",
+    "tempF": 93.3,
+    "humidityPct": 36,
+    "windMph": 3,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-24T10:00:00Z",
+    "tempF": 93.5,
+    "humidityPct": 35,
+    "windMph": 1.6,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-24T11:00:00Z",
+    "tempF": 91,
+    "humidityPct": 38,
+    "windMph": 2.7,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-24T12:00:00Z",
+    "tempF": 92.1,
+    "humidityPct": 34,
+    "windMph": 5.4,
+    "isDay": false
+   },
+   {
+    "time": "2023-07-24T13:00:00Z",
+    "tempF": 90.1,
+    "humidityPct": 38,
+    "windMph": 2.9,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T14:00:00Z",
+    "tempF": 91.4,
+    "humidityPct": 37,
+    "windMph": 5.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T15:00:00Z",
+    "tempF": 95.3,
+    "humidityPct": 33,
+    "windMph": 5.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T16:00:00Z",
+    "tempF": 98.7,
+    "humidityPct": 28,
+    "windMph": 3.7,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T17:00:00Z",
+    "tempF": 101.4,
+    "humidityPct": 26,
+    "windMph": 1.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T18:00:00Z",
+    "tempF": 105,
+    "humidityPct": 22,
+    "windMph": 1.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T19:00:00Z",
+    "tempF": 107.7,
+    "humidityPct": 19,
+    "windMph": 0.8,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T20:00:00Z",
+    "tempF": 107.2,
+    "humidityPct": 18,
+    "windMph": 16.2,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T21:00:00Z",
+    "tempF": 104.3,
+    "humidityPct": 20,
+    "windMph": 5.6,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T22:00:00Z",
+    "tempF": 103.1,
+    "humidityPct": 22,
+    "windMph": 6.5,
+    "isDay": true
+   },
+   {
+    "time": "2023-07-24T23:00:00Z",
+    "tempF": 105.4,
+    "humidityPct": 19,
+    "windMph": 9.4,
+    "isDay": true
+   }
+  ]
+ }
+}

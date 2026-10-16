@@ -25,6 +25,7 @@ import { MECHANISM_LABEL, type Mechanism } from './meds.js';
 import { conditionById, type Condition } from './conditions.js';
 import type { Hour, LocationSnapshot } from './weather.js';
 import { windChillF, coldCategory } from './cold.js';
+import { pastOlderLimit } from './physiology.js';
 
 export type Sensitivity = 'general' | 'sensitive' | 'extreme';
 export type Status = 'good' | 'caution' | 'avoid';
@@ -50,7 +51,15 @@ export type Profile = {
    * because one good afternoon is not evidence that the next one is safe.
    */
   learnedLimitF: number | null;
+  /**
+   * Whose limit the older adult chamber measurement speaks to (physiology.ts): 'older' for someone 65 or over,
+   * 'blocked' for someone whose medicine blocks sweating, whose limit is lower still. Null for everyone else.
+   */
+  olderLimit: 'older' | 'blocked' | null;
 };
+
+/** The reason an hour carries when it is past that measured limit. */
+export const OLDER_LIMIT_REASON = 'past the limit measured for older adults';
 
 const SEVERITY: Record<Mechanism, number> = {
   reduced_sweating: 5,
@@ -128,6 +137,7 @@ export function profileOf(
     private: isPrivate,
     coldSensitive: extras.coldSensitive === true || conditions.some((c) => !!c.cold),
     learnedLimitF: unwell.length ? Math.min(...unwell) : null,
+    olderLimit: conditions.some((c) => c.id === 'older_adult') ? 'older' : heat.includes('reduced_sweating') ? 'blocked' : null,
   };
 }
 
@@ -166,6 +176,14 @@ export function judgeHour(h: Hour, p: Profile): Judged {
     if (status === 'good') reasons.push(`heat index ${Math.round(hi)}`);
     status = 'avoid';
     reasons.push('felt unwell at this heat before');
+  }
+
+  // Past the limit measured in healthy older adults doing light everyday things: whatever the category says,
+  // their body cannot keep up there. See physiology.ts.
+  if (p.olderLimit && pastOlderLimit(h.tempF, h.humidityPct, 'light')) {
+    if (status === 'good') reasons.push(`heat index ${Math.round(hi)}`);
+    status = 'avoid';
+    reasons.push(OLDER_LIMIT_REASON);
   }
 
   // The cold half. Without it the planner only knew about heat, so on a winter day it judged every hour
@@ -339,7 +357,7 @@ export function planDay(
     parts.push(`You felt unwell near heat index ${p.learnedLimitF} before, so I'm treating that as your limit.`);
   }
   if (worst) {
-    const why = worst.reasons.filter((r) => r !== 'heat index' && r !== 'wind chill' && r !== 'felt unwell at this heat before');
+    const why = worst.reasons.filter((r) => r !== 'heat index' && r !== 'wind chill' && r !== 'felt unwell at this heat before' && r !== OLDER_LIMIT_REASON);
     parts.push(
       `Avoid ${worst.label} if you can, when the ${isCold(worst) ? `wind chill drops to ${worst.coldestFeelsF}` : `heat index reaches ${worst.peakHeatIndexF}`}` +
         `${why.length ? ` and ${why.join(' and ')} is a problem` : ''}.`,
