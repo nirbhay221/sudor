@@ -46,6 +46,7 @@ import {
   profileFor,
   say,
   snapshotFor,
+  settle,
   officialWarning,
 } from './shared.js';
 
@@ -60,6 +61,7 @@ const GUIDANCE_SHORT = {
   increased_sweating: 'drink before you feel thirsty',
   faint_risk: 'get up slowly and sit down if you feel light-headed',
   kidney_risk: 'do not let yourself run dry',
+  liver_risk: 'keep strictly to the dose on the packet',
   reduced_vasodilation: 'take shade and rest earlier than you think you need to',
   heat_damaged: 'keep it out of a hot car and the sun',
 } as const;
@@ -90,6 +92,7 @@ export function register(server: McpServer, personOf: () => string): void {
         const had = attention.heard(personOf());
         return say(had ? "Okay. I won't mention it again today." : 'Okay.', { heard: true });
       }
+      await settle(personOf());
       const person = store.get(personOf());
       const snap = snapshotFor(person);
       if (typeof snap === 'string') return say(snap, { unavailable: true });

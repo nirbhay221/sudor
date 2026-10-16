@@ -92,5 +92,63 @@ check('...with the LIHEAP line and the shutoff protections, in the US', /1 866 6
 const uk = indoorRisk(snap(42, 15, { tempF: 108, ...hot }), { cooling: 'cost', country: 'GB' }, true);
 check('...and no US numbers anywhere else', uk && !/1 866/.test(uk.line), uk?.line);
 
+console.log('\nAcetaminophen, from the CDC revision of September 2025');
+const meds = await import('./dist/meds.js');
+const rx = await import('./dist/rxclass.js');
+const { GUIDANCE } = await import('./dist/domain.js');
+check('"Tylenol", "paracetamol" and "Panadol" are all acetaminophen, hard on the liver in the heat',
+  ['tylenol', 'paracetamol', 'panadol'].every((n) => meds.findMedication(n)?.generic === 'acetaminophen' && meds.findMedication(n).mechanisms.join() === 'liver_risk'));
+check('the advice is the dose, and not to take it for heat illness', /dose on the packet/.test(GUIDANCE.liver_risk) && /will not bring an overheated body down/.test(GUIDANCE.liver_risk), GUIDANCE.liver_risk);
+const rxRow = (name) => ({ rxclassDrugInfoList: { rxclassDrugInfo: [{ minConcept: { name, tty: 'IN' }, rxclassMinConceptItem: { classId: 'N02BE' } }] } });
+const otherBrand = rx.parse(rxRow('acetaminophen'));
+check('another brand, looked up by its class, gets the same', otherBrand?.mechanisms.join() === 'liver_risk', JSON.stringify(otherBrand));
+check('...and only acetaminophen in that class', rx.parse(rxRow('phenacetin')) === null);
+check('on its own it counts like ibuprofen: sensitive, never extremely', profileOf(['liver_risk'], []).sensitivity === profileOf(['kidney_risk'], []).sensitivity && profileOf(['liver_risk'], []).sensitivity !== 'extreme', JSON.stringify(profileOf(['liver_risk'], [])));
+
+console.log('\nA pill that is two medicines');
+check('RxNorm\'s answer for Tylenol PM is read as both its ingredients', JSON.stringify(rx.ingredientsIn({ rxclassDrugInfoList: { rxclassDrugInfo: [
+  { minConcept: { name: 'acetaminophen', tty: 'IN' }, rxclassMinConceptItem: { classId: 'N02BE' } },
+  { minConcept: { name: 'diphenhydramine', tty: 'IN' }, rxclassMinConceptItem: { classId: 'D04AA' } },
+  { minConcept: { name: 'diphenhydramine', tty: 'IN' }, rxclassMinConceptItem: { classId: 'R06AA' } },
+] } })) === '["acetaminophen","diphenhydramine"]');
+check('...and one medicine is not a combination', rx.ingredientsIn(rxRow('acetaminophen')) === null);
+{
+  const { mkdirSync, rmSync } = await import('node:fs');
+  const DIR = './data/test-research-combo';
+  rmSync(DIR, { recursive: true, force: true });
+  mkdirSync(DIR, { recursive: true });
+  process.env.SUDOR_DATA = `${DIR}/people.json`;
+  process.env.SUDOR_OUTBOX = `${DIR}/outbox.jsonl`;
+  const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+  const store = await import('./dist/store.js');
+  const { registerTools } = await import('./dist/tools.js');
+  const asked = [];
+  rx.configureIngredientsForTest(async (name) => { asked.push(name); return name === 'tylenol pm' ? ['acetaminophen', 'diphenhydramine'] : null; });
+  rx.configureForTest(async () => null);
+  const server = new McpServer({ name: 't', version: '1' }, { capabilities: { tools: {}, resources: {} } });
+  registerTools(server, () => 'acct:combo');
+  const client = new Client({ name: 'c', version: '1' }, { capabilities: {} });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  await Promise.all([server.connect(a), client.connect(b)]);
+  const add = async (name, action = 'add') => (await client.callTool({ name: 'medication', arguments: { action, name } })).content.map((c) => c.text).join(' ');
+  const generics = () => store.get('acct:combo').medications.map((m) => m.generic).sort().join();
+  const pm = await add('Tylenol PM');
+  check('"Tylenol PM" adds the acetaminophen and the diphenhydramine that blocks sweating', generics() === 'acetaminophen,diphenhydramine' && /acetaminophen and diphenhydramine/.test(pm), pm);
+  await add('Tylenol PM', 'remove');
+  check('...and removing it takes both off', generics() === '', generics());
+  const norco = await add('Norco');
+  check('Norco is hydrocodone and acetaminophen without asking anybody', generics() === 'acetaminophen,hydrocodone' && !asked.includes('norco'), norco);
+  await add('Norco', 'remove');
+  asked.length = 0;
+  await add('lisinopril');
+  await add('Zestril');
+  check('a name the table holds as said is never sent to be spelled out', asked.length === 0, asked.join());
+  rx.configureIngredientsForTest(null);
+  rx.configureForTest(null);
+  rmSync(DIR, { recursive: true, force: true });
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

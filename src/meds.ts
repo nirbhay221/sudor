@@ -66,6 +66,12 @@ export type Mechanism =
   | 'faint_risk'
   /** The kidneys are at risk once the person is dry. CDC: NSAIDs, aspirin and sulfonamide antibiotics, "kidney injury with dehydration". */
   | 'kidney_risk'
+  /**
+   * The liver is at risk in the heat. CDC, updated September 2025: acetaminophen, "heat-related liver injury,
+   * increased risk of acetaminophen hepatotoxicity". It is also the medicine people reach for when the heat
+   * gives them a headache or a temperature, and for heat illness it does not help (CDC first aid).
+   */
+  | 'liver_risk'
   /** The skin's blood vessels open less, so less heat leaves through it. CDC: antiplatelets, "reduced superficial vasodilation". */
   | 'reduced_vasodilation'
   /**
@@ -284,6 +290,9 @@ export const MEDICATIONS: Medication[] = [
   // ---- Thyroid replacement: increased sweating ----
   { generic: 'levothyroxine', aliases: ['synthroid'], drugClass: 'thyroid hormone', mechanisms: ['increased_sweating'] },
 
+  // ---- Added from the CDC's September 2025 revision of the same guidance ----
+  { generic: 'acetaminophen', aliases: ['tylenol', 'paracetamol', 'panadol'], drugClass: 'pain and fever reliever', mechanisms: ['liver_risk'] },
+
   // ---- Antibiotics: photosensitivity ----
   { generic: 'doxycycline', aliases: ['vibramycin'], drugClass: 'tetracycline antibiotic', mechanisms: ['photosensitivity'] },
   { generic: 'minocycline', aliases: ['minocin'], drugClass: 'tetracycline antibiotic', mechanisms: ['photosensitivity'] },
@@ -304,14 +313,35 @@ for (const m of MEDICATIONS) {
 
 /** Loose match on what a person actually says: case-insensitive, trims dosage noise. */
 export function findMedication(spoken: string): Medication | null {
-  const clean = spoken
+  const clean = cleanName(spoken);
+  return byName.get(clean) ?? byName.get(clean.split(' ')[0]) ?? null;
+}
+
+/** What a person said, lowercased, without the dose. */
+export function cleanName(spoken: string): string {
+  return spoken
     .toLowerCase()
     .trim()
     .replace(/\b\d+(\.\d+)?\s*(mg|mcg|g|ml)\b/g, '')
     .replace(/\s+/g, ' ')
     .trim();
-  return byName.get(clean) ?? byName.get(clean.split(' ')[0]) ?? null;
 }
+
+/** True when the table holds the name as it was said, not only its first word ("tylenol pm"). */
+export function namedExactly(spoken: string): boolean {
+  return byName.has(cleanName(spoken));
+}
+
+/**
+ * Brands in the table that are more than one medicine. Each ingredient acts on its own, and the acetaminophen
+ * in them is the part most people do not know they take. As RxNorm lists them, read on 16 October 2026. Any
+ * other name said with more words than the table holds ("Tylenol PM") is asked of RxNorm when it is added.
+ */
+export const COMBINATIONS: Record<string, string[]> = {
+  norco: ['hydrocodone', 'acetaminophen'],
+  vicodin: ['hydrocodone', 'acetaminophen'],
+  percocet: ['oxycodone', 'acetaminophen'],
+};
 
 export const MECHANISM_LABEL: Record<Mechanism, string> = {
   reduced_sweating: 'blocks your sweating',
@@ -324,6 +354,7 @@ export const MECHANISM_LABEL: Record<Mechanism, string> = {
   fluid_loss: 'makes you lose fluid faster than you notice',
   faint_risk: 'can make you dizzy or faint in the heat',
   kidney_risk: 'is hard on your kidneys once you are short of water',
+  liver_risk: 'is harder on your liver in the heat',
   reduced_vasodilation: 'lets less heat leave through your skin',
   heat_damaged: 'is itself spoiled by heat',
 };
@@ -340,6 +371,7 @@ export const MECHANISM_BASE: Record<Mechanism, string> = {
   fluid_loss: 'make you lose fluid faster than you notice',
   faint_risk: 'make you dizzy or faint in the heat',
   kidney_risk: 'be hard on your kidneys once you are short of water',
+  liver_risk: 'be harder on your liver in the heat',
   reduced_vasodilation: 'let less heat leave through your skin',
   heat_damaged: 'be spoiled by heat themselves',
 };

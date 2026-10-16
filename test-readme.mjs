@@ -19,7 +19,7 @@ const check = (label, cond, detail = '') => {
 };
 
 const readme = readFileSync('./README.md', 'utf8');
-const WORDS = { thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, 'twenty-three': 23, 'seventy-one': 71, 'fifty-seven': 57 };
+const WORDS = { thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, 'twenty-three': 23, 'seventy-one': 71, 'seventy-two': 72, 'fifty-seven': 57 };
 const number = (w) => (/^\d/.test(w) ? Number(w.replace(/,/g, '')) : WORDS[w.toLowerCase()]);
 
 const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');

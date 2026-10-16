@@ -1,9 +1,9 @@
 /**
- * Any medicine with a name, not only the seventy-one in the table.
+ * Any medicine with a name, not only the seventy-two in the table.
  *
  * meds.ts holds the drugs the CDC's clinical guidance on heat and medicines names one by one. A person does
  * not take "a beta blocker", though. They take bisoprolol, or Coreg, or whatever the pharmacy handed over,
- * and a table of seventy-one names answers "I don't have that" to most of a real medicine cabinet.
+ * and a table of seventy-two names answers "I don't have that" to most of a real medicine cabinet.
  *
  * So a name the table does not know is looked up in RxNorm, the National Library of Medicine's drug
  * vocabulary, through its public RxClass service: free, no key, and it answers a brand name or a generic
@@ -63,6 +63,7 @@ export const RULES: Rule[] = [
   { atc: 'B01AC', drugClass: 'antiplatelet', mechanisms: ['reduced_vasodilation'] },
   { atc: 'N02BA', drugClass: 'aspirin', mechanisms: ['kidney_risk'] },
   { atc: 'M01A', drugClass: 'anti-inflammatory painkiller', mechanisms: ['kidney_risk'] },
+  { atc: 'N02BE', drugClass: 'pain and fever reliever', mechanisms: ['liver_risk'], only: ['acetaminophen'] },
   { atc: 'J01E', drugClass: 'sulfonamide antibiotic', mechanisms: ['kidney_risk'] },
   { atc: 'J05AE', drugClass: 'antiretroviral', mechanisms: ['kidney_risk'], only: ['indinavir'] },
   { atc: 'A10BJ', drugClass: 'GLP-1 agonist', mechanisms: ['fluid_loss'] },
@@ -156,15 +157,31 @@ export function parse(body: unknown): Classified | null {
   };
 }
 
-type Lookup = (name: string) => Promise<Classified | null>;
+/**
+ * Every ingredient an RxClass answer names, when there is more than one: "Tylenol PM" is acetaminophen and
+ * diphenhydramine, and only the first would be heard if the name were read as one drug.
+ */
+export function ingredientsIn(body: unknown): string[] | null {
+  const list = (body as { rxclassDrugInfoList?: { rxclassDrugInfo?: unknown } } | null)?.rxclassDrugInfoList?.rxclassDrugInfo;
+  if (!Array.isArray(list)) return null;
+  const names = new Set<string>();
+  for (const row of list as Info[]) {
+    const name = typeof row.minConcept?.name === 'string' ? row.minConcept.name.toLowerCase().trim() : '';
+    const tty = row.minConcept?.tty;
+    if (name && (tty === 'IN' || tty === 'PIN') && !name.includes('/')) names.add(name.slice(0, 60));
+  }
+  return names.size > 1 ? [...names] : null;
+}
 
-async function fetchClass(name: string, timeoutMs = 1500): Promise<Classified | null> {
+type Lookup = (name: string) => Promise<Classified | null>;
+type Ingredients = (name: string) => Promise<string[] | null>;
+
+async function fetchBody(name: string, timeoutMs = 1500): Promise<unknown> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(`https://rxnav.nlm.nih.gov/REST/rxclass/class/byDrugName.json?drugName=${encodeURIComponent(name)}&relaSource=ATC`, { signal: ctrl.signal });
-    if (!res.ok) return null;
-    return parse(await res.json());
+    return res.ok ? await res.json() : null;
   } catch {
     // Slow or down: the medicine is treated as unrecognised, which is the honest answer, not a guess.
     return null;
@@ -173,17 +190,36 @@ async function fetchClass(name: string, timeoutMs = 1500): Promise<Classified | 
   }
 }
 
-let lookup: Lookup = (name) => fetchClass(name);
+const fetchClass = async (name: string): Promise<Classified | null> => parse(await fetchBody(name));
+const fetchIngredients = async (name: string): Promise<string[] | null> => ingredientsIn(await fetchBody(name));
 
-/** A spoken name to its class, or null. Only plain names are sent: nothing that could be anything but a drug name. */
-export async function classify(spoken: string): Promise<Classified | null> {
+let lookup: Lookup = fetchClass;
+let ingredientLookup: Ingredients = fetchIngredients;
+
+/** Only plain names are sent: nothing that could be anything but a drug name. */
+function sendable(spoken: string): string | null {
   const name = spoken.toLowerCase().replace(/\b\d+(\.\d+)?\s*(mg|mcg|g|ml)\b/g, '').replace(/\s+/g, ' ').trim();
-  if (!/^[a-z][a-z0-9 -]{2,40}$/.test(name)) return null;
-  return lookup(name);
+  return /^[a-z][a-z0-9 -]{2,40}$/.test(name) ? name : null;
+}
+
+/** A spoken name to its class, or null. */
+export async function classify(spoken: string): Promise<Classified | null> {
+  const name = sendable(spoken);
+  return name ? lookup(name) : null;
+}
+
+/** The ingredients of a combination medicine, or null when it is one medicine or the lookup failed. */
+export async function ingredients(spoken: string): Promise<string[] | null> {
+  const name = sendable(spoken);
+  return name ? ingredientLookup(name) : null;
 }
 
 export function configureForTest(fn: Lookup | null): void {
-  lookup = fn ?? ((name) => fetchClass(name));
+  lookup = fn ?? fetchClass;
+}
+
+export function configureIngredientsForTest(fn: Ingredients | null): void {
+  ingredientLookup = fn ?? fetchIngredients;
 }
 
 /*

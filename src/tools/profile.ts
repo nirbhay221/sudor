@@ -11,7 +11,7 @@ import { OWN } from '../devices.js';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { assess, heatIndexF, photoRisk, type HeatCategory } from '../domain.js';
-import { findMedication as classifyMedication, nearMatches, MEDICATIONS, articleFor, COLD_MECHANISM_SAY, type ColdMechanism } from '../meds.js';
+import { findMedication as classifyMedication, nearMatches, MEDICATIONS, articleFor, COLD_MECHANISM_SAY, type ColdMechanism, COMBINATIONS, cleanName, namedExactly } from '../meds.js';
 import { chooseOne, canAsk } from '../elicit.js';
 import { CONDITIONS, findCondition } from '../conditions.js';
 import { windChillF, coldCategory, coldMeaning, COLD_WORDS, matchColdFirstAid } from '../cold.js';
@@ -173,10 +173,13 @@ export function register(server: McpServer, personOf: () => string): void {
             { removed: false },
           );
         }
-        store.update(id, (p) => void (p.medications = p.medications.filter((m) => m.generic !== match.generic)));
-        return say(`Removed ${match.generic}. I won't factor it into your heat checks any more.`, {
+        // A combination came in as one name and goes out as one: "remove Norco" takes the acetaminophen with it.
+        const gone = [...new Set([match.generic, ...person.medications.filter((m) => sameName(m.spoken, name)).map((m) => m.generic)])];
+        store.update(id, (p) => void (p.medications = p.medications.filter((m) => !gone.includes(m.generic))));
+        return say(`Removed ${andList(gone)}. I won't factor ${gone.length === 1 ? 'it' : 'them'} into your heat checks any more.`, {
           removed: true,
           generic: match.generic,
+          ...(gone.length > 1 ? { generics: gone } : {}),
         });
       }
 
@@ -198,10 +201,15 @@ export function register(server: McpServer, personOf: () => string): void {
       let readAs = '';
       // The drug database is asked once per name, whichever step asks first.
       let asked: { name: string; found: Awaited<ReturnType<typeof rxclass.classify>> } | null = null;
-      if (!classifyMedication(name)) {
+      // A combination medicine: a brand the table knows is two drugs, or a name the table does not hold as said
+      // ("Tylenol PM", "Excedrin"), which RxNorm is asked to spell out. Otherwise only its first drug would be kept.
+      const combo = COMBINATIONS[cleanName(name)] ?? (namedExactly(name) ? null : await rxclass.ingredients(name));
+      if (combo || !classifyMedication(name)) {
         const country = store.get(id).country ?? null;
-        const intl = usName(name);
-        let brand = intl === name.toLowerCase().trim() ? ingredientsOf(name, country) : null;
+        const intl = combo ? name.toLowerCase().trim() : usName(name);
+        let brand: ReturnType<typeof ingredientsOf> = combo
+          ? { brand: cleanName(name), ingredients: combo, country: 'US' }
+          : intl === name.toLowerCase().trim() ? ingredientsOf(name, country) : null;
         // Spain has no brand download; its regulator's search is asked live. See brands.ts.
         if (!brand && intl === name.toLowerCase().trim() && country === 'ES') {
           const es = await lookupSpain(name);
@@ -224,7 +232,7 @@ export function register(server: McpServer, personOf: () => string): void {
           );
         }
         // Each ingredient in the drug database's own English name: "furosémide", "nifedipino".
-        if (brand) {
+        if (brand && !combo) {
           const named: string[] = [];
           for (const ing of brand.ingredients) named.push(classifyMedication(ing) ? ing : (await englishName(ing)) ?? ing);
           brand = { ...brand, ingredients: [...new Set(named)] };
@@ -267,9 +275,9 @@ export function register(server: McpServer, personOf: () => string): void {
           return say(
             added.length
               ? `${what} Added ${andList(added)}, and I'll factor ${added.length === 1 ? 'it' : 'them'} into your heat check.` +
-                  (unknown.length ? ` ${andList(unknown)} I can't judge for heat, so ask your pharmacist about ${unknown.length === 1 ? 'it' : 'them'}.` : '')
+                  (unknown.length ? ` ${andList(unknown).replace(/^./, (c) => c.toUpperCase())} I can't judge for heat, so ask your pharmacist about ${unknown.length === 1 ? 'it' : 'them'}.` : '')
               : `${what} None of those is one I know a heat effect for. That doesn't mean they're safe, only that I don't know.`,
-            { recognized: added.length > 0, brand: brand.brand, ingredients: brand.ingredients, added, source: 'india-brands' },
+            { recognized: added.length > 0, brand: brand.brand, ingredients: brand.ingredients, added, source: combo ? 'rxnorm' : 'india-brands' },
           );
         }
       }

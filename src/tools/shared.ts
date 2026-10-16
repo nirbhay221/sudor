@@ -123,6 +123,23 @@ export function locate(person: store.Person): { lat: number; lon: number } | str
   return { lat: person.lat, lon: person.lon };
 }
 
+/**
+ * Wait, briefly, for a place or its weather that is still on its way.
+ *
+ * The place is looked up in the background, and on the deployed server the first question asked straight after
+ * setting it arrived a tenth of a second before the lookup finished and was told "ask me again in a moment".
+ * Waiting up to two and a half seconds costs nothing when there is nothing pending, and answers that question.
+ */
+export async function settle(personId: string, waitMs = 2500): Promise<void> {
+  const until = Date.now() + waitMs;
+  while (Date.now() < until) {
+    const person = store.get(personId);
+    const where = locate(person);
+    if (typeof where === 'string' ? person.locationStatus !== 'locating' : weather.current(where.lat, where.lon)) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
 export function snapshotFor(person: store.Person, forAccount = false): weather.LocationSnapshot | string {
   const where = locate(person);
   if (typeof where === 'string') return where;

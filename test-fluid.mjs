@@ -108,7 +108,7 @@ console.log('\nSeverity sits below losing the ability to sweat, above sweating m
 
 console.log('\nThe table grew rather than being rebuilt');
 {
-  check('71 medications now: the 57, and 14 added in October 2026 from the CDC classes and FDA labels', meds.MEDICATIONS.length === 71, String(meds.MEDICATIONS.length));
+  check('72 medications now: the 57, 14 added in October 2026 from the CDC classes and FDA labels, and acetaminophen from the CDC revision', meds.MEDICATIONS.length === 72, String(meds.MEDICATIONS.length));
   check('the old entries still resolve', meds.findMedication('lisinopril')?.generic === 'lisinopril');
   check('and metoprolol still blocks sweating',
     meds.findMedication('metoprolol').mechanisms.includes('reduced_sweating'));

@@ -78,6 +78,7 @@ const SEVERITY: Record<Mechanism, number> = {
   // These two do not change how hot the body gets. They change what a hot day costs: a fall, or a kidney.
   faint_risk: 2,
   kidney_risk: 2,
+  liver_risk: 2,
   // About the medicine, not the person, so it never moves anybody's limit.
   heat_damaged: 0,
   photosensitivity: 0,

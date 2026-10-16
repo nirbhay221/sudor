@@ -33,6 +33,8 @@ A fine day names nothing. That is one answer, and the conversation is over.
 | `about_me` | a place, medicine or condition was added | `weather_check` |
 | `about_me` | the place given differs from the one saved | `about_me` with `confirmPlace: true` |
 | `about_me` | they said the cooling is broken on a hot day | `somewhere_to_go` |
+| `about_me` | they said they cannot afford to run the cooling, on a day the home is too hot | `somewhere_to_go` |
+| `about_me` | dementia was added and nobody is on the family list yet | `contact` with action `add`, after asking who could check on them |
 | `contact` | someone was added | `contact` with action `confirm`, after the person says yes |
 
 ## After an outing

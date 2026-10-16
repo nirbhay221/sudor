@@ -55,10 +55,10 @@ every safety line is written by code from live public data and published guidanc
 check, it never tells anyone to stop a medicine, and nothing is sent to anyone who has not agreed.
 
 **Tested the way people talk.** Older adults recorded using voice assistants at home repeated themselves, said
-"never mind", asked "what about tomorrow though?" and "why?" (arXiv 2403.02421, 2510.06690). Fourteen conversations
-in those patterns, played turn by turn against the real tools with the model seeing every earlier answer, got 33 of
-34 turns right on Opus, and the one it read differently was a fair reading (`conversations.mjs`,
-`evals/conversations-last-run.json`).
+"never mind", asked "what about tomorrow though?" and "why?" (arXiv 2403.02421, 2510.06690). Sixteen conversations
+in those patterns, played turn by turn against the real tools with the model seeing every earlier answer, got 38 of
+38 turns right on Opus on 16 October (`conversations.mjs`, `evals/conversations-last-run.json`). The first run, of
+fourteen, got 33 of 34, and the one it read differently was a fair reading.
 
 ## What is real, and what is not
 
@@ -66,7 +66,7 @@ Nothing here is mocked for the demo. Where something stands in for a thing we co
 
 | Part | Status |
 |---|---|
-| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,272 automated checks, run on every push |
+| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,297 automated checks, run on every push |
 | Agent Skill | **Real**: `skills/sudor-heat-safety`, to the open Agent Skills format, passing the format's own validator. Installable as a folder, and readable from the server as `skill://` resources |
 | Strands agent | **Real**: `strands/agent.mjs`, on AWS's Strands Agents SDK. It reads the skill from the server and follows each next step. The chain, the yes before a write and the step cap are checked with a scripted model at no cost; the path through Claude needs a key and is not in the automated checks |
 | Weather, UV, air quality | **Real, live**: Open-Meteo, worldwide |
@@ -101,7 +101,7 @@ This file is long because the reasoning is the work. If you are evaluating the p
 | Where it is wrong, or cannot know | [Honest limitations](#honest-limitations) |
 
 Free sources, no API keys for the data. Every tool call is answered from memory; nothing external is called
-inside a turn. `npm test` runs 2,272 checks.
+inside a turn. `npm test` runs 2,297 checks.
 
 ## The problem
 
@@ -200,8 +200,9 @@ lists and is treated as the emergency.
 | Hay fever | general | morning and windy days kept short; a thunderstorm in pollen season is warned about | Victoria Department of Health |
 | Migraine | general | drink steadily; a forecast pressure drop is mentioned, as "can" | studies of weather and headache |
 
-Plus 71 medications in Sudor's own table, classified by heat mechanism: 57 from the CDC's clinical guidance on
-heat and medications and 14 added from the CDC's classes and FDA labels, with anything else looked up by class.
+Plus 72 medications in Sudor's own table, classified by heat mechanism: 57 from the CDC's clinical guidance on
+heat and medications, 14 added from the CDC's classes and FDA labels, and acetaminophen from the CDC's September
+2025 revision of that guidance, with anything else looked up by class.
 
 ## Data
 
@@ -790,12 +791,12 @@ Or without installing Node at all:
 docker build -t sudor . && docker run -p 8789:8789 sudor
 ```
 
-`npm test` runs everything, 2,272 checks. It is also what CI runs on every push, on Node 20 and 22,
+`npm test` runs everything, 2,297 checks. It is also what CI runs on every push, on Node 20 and 22,
 with the live suite in its own job so an outage at a weather service is never mistaken for a
 regression here.
 
 ```bash
-npm run test:unit           # 1,974 checks, no live data
+npm run test:unit           # 1,999 checks, no live data
 npm run test:live           # 298 checks, against a running server and the real forecast
 
 node test.mjs               # heat index formula, categories, medications, how the lines read aloud
@@ -804,6 +805,7 @@ node test-actions.mjs       # removing, privacy, learned limits, contacts, email
 node test-panel.mjs         # the MCP Apps handshake against a simulated host
 node test-skill.mjs         # the Agent Skill: its format, every tool and chain it names, and reading it over MCP
 node test-gaps.mjs          # a home too hot, asking afterwards, carers, how sure, more cities, more outages, the counts
+node test-aws-findings.mjs  # what a session against the deployed server found: the first question after a place, first aid's voice
 node test-conversations.mjs # whole conversations in the patterns real users were recorded in, with a scripted host
 node test-readme.mjs        # every count, file, setting and result this README states, against the code
 node strands/test.mjs       # the Strands agent, with a scripted model: needs `npm install` in strands/ first
@@ -993,6 +995,23 @@ A second pass, checked against the papers themselves rather than their summaries
 | **A working air conditioner left off** | Maricopa County, 2024: among people who died indoors, 88 percent had an air conditioner and 70 percent of those did not work. About 19 states and DC bar shutting the power off in extreme heat (NCLC, July 2026) | "I can't afford to run it" is its own cooling state, judged as no cooling, and in the United States the answer gives the LIHEAP referral line and that protection, and says to ask the utility. No state's own rule is named, because the list could not be confirmed |
 | **Never checked against a real disaster** | The Portland heat dome: of Multnomah County's 72 heat deaths in 2021, 78 percent were 60 or older, 71 percent lived alone, 94 percent died at home, and almost none had working cooling. Phoenix, July 2023: a record 645 deaths that year | `evals/heatwaves.mjs` runs that person through the archived weather of those days. Phoenix, all four days: "your home is too hot to stay in" and the family told. Portland's deadliest day, 28 June, 115 outside with a forecast night of 66, was only a warning on the first run, because the rule waited for a hot night; the measured limit now makes it the home too hot to stay in, and in that dry heat says to wet the skin rather than use a fan. Every day with working cooling says nothing about the home |
 
+The chains follow. Saving dementia with nobody on the family list now asks who could check on them and names
+`contact` as the next step, before the weather. "I cannot afford to run it" joins the cooling states that send someone
+somewhere cool on a day the home is too hot (`test-chains-oct.mjs`). Golden sentences and two conversations were
+added for dementia, a toddler, the bill and fans, and were run on Opus on 16 October (below). Two of them were
+written wrong, about a carer's parent with dementia, as if the condition belonged to the carer: Sudor keeps only its
+own account holder's details, and the model rightly saved nothing. Both now speak as the person with dementia, and the
+carer's sentence is a decline.
+| **Acetaminophen was missing** | The CDC revised its heat and medications guidance for clinicians on 18 September 2025 and added acetaminophen: heat-related liver injury, and a higher risk of liver damage from the drug itself. Its own first aid already says fever medicine does not help heat illness | Tylenol, paracetamol and Panadol are in the table, and any other brand is found by its class: "keep strictly to the dose on the packet, and not take it for feeling ill from the heat: it will not bring an overheated body down". A pill that is two medicines is now kept as both: Norco and Percocet are an opiate and acetaminophen, and Tylenol PM is acetaminophen and diphenhydramine, which blocks sweating; any other name the table does not hold as said is spelled out by RxNorm, where before only the first drug was kept |
+
+**What testing on the deployed server found, 16 October 2026.** A session against the server on AWS, rather
+than a laptop, turned up two faults the local tests had passed. The first question asked straight after setting a
+place arrived a tenth of a second before the background lookup finished and was told "I'm still looking up Phoenix,
+ask me again in a moment"; the answer now waits for it, up to two and a half seconds and only when something is
+pending. And the advice for heat exhaustion spoke to "you" and then said "get medical help if they vomit"; it now
+says "if there is vomiting", which reads right for the person and for somebody helping them. Both are pinned in
+`test-aws-findings.mjs`.
+
 What was looked at and not changed: nitroglycerin tablets were left out of the medicines heat spoils, because a
 stability study found them holding potency at 40 C in their own container. Adding up several medicines that each
 block sweating has no heat specific evidence behind it yet. The UK's heat-health alerts have no documented feed to
@@ -1008,7 +1027,8 @@ Sources: [Wolf et al. 2023](https://doi.org/10.1038/s43247-023-01159-9),
 [Maricopa County 2024](https://www.maricopa.gov/CivicAlerts.aspx?AID=3222),
 [NCLC, July 2026](https://www.nclc.org/report-calls-for-ban-on-utility-disconnections-during-extreme-heat/),
 [LIHEAP referral line](https://liheapch.ncat.org/node/1516),
-[Multnomah County 2021](https://multco.us/news/2021-heat-killed-72-people-multnomah-county-most-were-older-lived-alone-had-no-ac).
+[Multnomah County 2021](https://multco.us/news/2021-heat-killed-72-people-multnomah-county-most-were-older-lived-alone-had-no-ac),
+[CDC, heat and medications, September 2025](https://www.cdc.gov/heat-health/hcp/clinical-guidance/heat-and-medications-guidance-for-clinicians.html).
 
 ## Who agrees to be emailed
 
@@ -1135,8 +1155,12 @@ that is deliberately flaky, over-eager or sends bad arguments. Live runs on Opus
 every chosen read-only call answered ($0.95). On 14 October, after ten sentences for the new features, 1 trial: tool
 choice 96.8% of 95, arguments 100% ($0.49). Of the three misses, "call an ambulance" chose `get_help` (which says it
 cannot phone and to call 911) and "I think I overdid it out there" chose the warning signs, both now accepted with the
-reason written in the golden file; "is the power out around here" chose nothing, and the storm tool's description now
-says it answers that, after which it chose `storm_prep` three times in three. Read that with care: the first live runs missed several sentences, and the
+reason written in the golden file (the ambulance one was written as a decline with `get_help` allowed, which the
+scorer never accepts for a decline, so it kept counting as a miss until 16 October, when it was made a `get_help`
+case); "is the power out around here" chose nothing, and the storm tool's description now
+says it answers that, after which it chose `storm_prep` three times in three. On 16 October, with the October sentences, 1 trial: tool
+choice 98.0% of 98, arguments 100%, nothing that was right before went wrong ($0.51); the two misses were the
+ambulance sentence and the carer's one, both described above. Read that with care: the first live runs missed several sentences, and the
 fixes were tool descriptions plus a few golden sentences that were not fair single-turn tests (a required value only
 the customer knows, so asking back is correct), so 100% is a regression baseline and not a blind score. A golden set is also fixed, so it cannot notice a failure it does not contain, and cases should be
 added from real misses.
@@ -1231,14 +1255,15 @@ pair is 33 before anything else is connected. On a host with a ceiling, connect 
   psychiatric hospital; psychiatric, children's and veterans' hospitals are now left out.
 * Email is real but the SES account is in its sandbox until Amazon approves production access, so only verified
   addresses receive it. A contact has to agree before they are sent anything but the invitation.
-* Seventeen conditions, and medicines from two sources: 133 of the 286 most prescribed ingredients are recognised
-  (`node evals/coverage.mjs`, 14 October 2026). Seventy-one are in Sudor's own table: the fifty-seven drawn from the
-  CDC's clinical guidance on heat and medicines, and fourteen added in October from the CDC's classes and FDA labels
+* Seventeen conditions, and medicines from two sources: 134 of the 286 most prescribed ingredients are recognised
+  (`node evals/coverage.mjs`, 16 October 2026). Seventy-two are in Sudor's own table: the fifty-seven drawn from the
+  CDC's clinical guidance on heat and medicines, fourteen added in October from the CDC's classes and FDA labels
   (first-generation antihistamines, two antispasmodics, cyclobenzaprine, the alpha blockers, clonidine, hydralazine
-  and amiodarone), each marked with how strong its evidence is. Any other name is looked up in RxNorm, the National Library of Medicine's drug vocabulary,
+  and amiodarone), and acetaminophen from the CDC's September 2025 revision, each marked with how strong its evidence is. Any other name is looked up in RxNorm, the National Library of Medicine's drug vocabulary,
   which gives the ingredient and its ATC class; the class is then read against the same CDC guidance, and the answer
   says it rests on the class (`src/rxclass.ts`). Classes that mix drugs with different effects are left
-  unclassified on purpose, and a combination product such as Adderall is not classified. Not a clinical database.
+  unclassified on purpose. A combination product is kept as its ingredients, each read on its own, as RxNorm lists
+  them. Not a clinical database.
 * **Which parts update themselves and which do not.** Drug names and classes come live from the National Library of
   Medicine, and each medicine's current FDA label is read live for an explicit heat warning (`src/labels.ts`), so a
   new drug or a new label warning is picked up without a code change. The CDC's own list is a web page with no data

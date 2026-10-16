@@ -37,6 +37,7 @@ import {
   profileFor,
   say,
   snapshotFor,
+  settle,
 } from './shared.js';
 
 export function register(server: McpServer, personOf: () => string): void {
@@ -66,6 +67,7 @@ export function register(server: McpServer, personOf: () => string): void {
       _meta: { ui: { resourceUri: UI } },
     },
     async ({ activity, minutes, day, shiftStart, shiftEnd, startedWork }) => {
+      await settle(personOf());
       const person = store.get(personOf());
       const snap = snapshotFor(person);
       if (typeof snap === 'string') return say(snap, { unavailable: true });
@@ -126,6 +128,7 @@ export function register(server: McpServer, personOf: () => string): void {
       },
     },
     async ({ step, privatePrecautions }) => {
+      await settle(personOf());
       const person = store.get(personOf());
       const snap = snapshotFor(person);
       if (typeof snap === 'string') return say(snap, { unavailable: true });

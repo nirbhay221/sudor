@@ -367,11 +367,8 @@
     },
     {
       "say": "call an ambulance",
-      "tool": null,
-      "alsoOk": [
-        "get_help"
-      ],
-      "why": "Sudor cannot phone anyone, and get_help says so first and tells them to call 911, then emails family; that is a fair answer to an emergency."
+      "tool": "get_help",
+      "why": "Sudor cannot phone anyone, and get_help says so first and tells them to call 911, then emails family; that is a fair answer to an emergency. It was written as a decline with get_help allowed, which the scorer never accepts for a decline (test-golden.mjs), so it could not pass whatever the model did; it is scored as get_help from 16 October."
     },
     {
       "say": "what is the stock price of Pfizer",
@@ -572,6 +569,33 @@
     {
       "say": "I came in from the heat and I feel faint",
       "tool": "warning_signs"
+    },
+    {
+      "_comment": "Added in October 2026 for dementia, young children, the cost of cooling and fans. First run on a model on 16 October."
+    },
+    {
+      "say": "I have dementia and my daughter helps me",
+      "tool": "health_condition",
+      "args": {
+        "action": "add"
+      }
+    },
+    {
+      "say": "my mum has dementia and lives with me",
+      "tool": null,
+      "why": "Sudor keeps only the account holder's own details, so a carer's mother is not saved to the carer. Written first as health_condition, which would have put her dementia on the wrong person; the model declined, and was right. Corrected 16 October."
+    },
+    {
+      "say": "is it okay to take my toddler to the park this afternoon",
+      "tool": "weather_check",
+      "alsoOk": [
+        "plan_my_day"
+      ],
+      "why": "Whether now is fine and when is best are both fair readings of an afternoon plan."
+    },
+    {
+      "say": "is it safe to just use a fan today",
+      "tool": "weather_check"
     }
   ]
 }

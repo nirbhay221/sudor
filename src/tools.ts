@@ -382,6 +382,13 @@ export function registerTools(server: McpServer, personOf: () => string): void {
         const asking = did.find((d) => d.status === 'confirm') as { nextAction?: unknown } | undefined;
         if (asking?.nextAction) return say(once.join(' '), { did, nextAction: asking.nextAction });
         if (goSomewhere) return say(once.join(' '), { did, fullAnswer: true, nextAction: { tool: 'somewhere_to_go', arguments: {} } });
+        // Dementia takes away the person's own warning, and the study behind it recommends alerts that reach a carer.
+        // With nobody on the list yet, adding somebody comes before the weather. See conditions.ts.
+        const meNow = store.get(personOf());
+        if (meNow.conditions.includes('dementia') && !meNow.contacts.length && a.conditions?.length && !locating) {
+          const ask = 'Is there somebody who could check on you on hot days? Tell me their name and I will ask them.';
+          return say([...once, ask].join(' '), { did, offer: ask, nextAction: { tool: 'contact', arguments: { action: 'add' } } });
+        }
         return say(once.join(' '), { did, ...(added && !locating ? { nextAction: { tool: 'weather_check', arguments: {} } } : {}) });
       },
     );

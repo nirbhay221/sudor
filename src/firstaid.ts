@@ -152,7 +152,7 @@ export function triage(description: string, p?: Profile, lastedMinutes?: number)
       matched: exhaustion,
       spoken:
         `That sounds like heat exhaustion. Move somewhere cooler, ideally air conditioned, loosen clothing, use ${cool}, ` +
-        `and ${sip}. Aspirin, acetaminophen and ibuprofen will not bring it down, so do not take them for this. Get medical help if they vomit, it gets worse, or it lasts longer than an hour.${ms}`,
+        `and ${sip}. Aspirin, acetaminophen and ibuprofen will not bring it down, so do not take them for this. Get medical help if there is vomiting, it gets worse, or it lasts longer than an hour.${ms}`,
       sources,
     };
   }
@@ -177,7 +177,7 @@ export function triage(description: string, p?: Profile, lastedMinutes?: number)
     spoken:
       'Heat stroke signs are confusion, slurred speech, hot skin, fainting, or a temperature above 103. That is an ' +
       'emergency: call 911 and give nothing to drink. Heat exhaustion signs are heavy sweating, dizziness, nausea, ' +
-      `weakness and a headache: cool down, ${sip}, and get help if it lasts over an hour or they vomit.`,
+      `weakness and a headache: cool down, ${sip}, and get help if it lasts over an hour or there is vomiting.`,
     sources,
   };
 }
