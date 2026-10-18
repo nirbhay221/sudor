@@ -62,6 +62,7 @@ const link = async (name, passphrase, client = clientId, verifier = verifierOf()
     client_id: client, redirect_uri: REDIRECT, code_challenge: auth.pkceS256(verifier), state: 's1', account: name,
   });
   if (passphrase !== undefined) body.set('passphrase', passphrase);
+  body.set('consent', 'yes');
   const t0 = Date.now();
   const res = await fetch(`${base}/oauth/authorize`, { method: 'POST', body, redirect: 'manual' });
   const ms = Date.now() - t0;

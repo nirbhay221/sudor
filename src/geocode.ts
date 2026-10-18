@@ -76,6 +76,43 @@ export function splitQuery(query: string): { name: string; state: string | null;
   return { name: q, state: null };
 }
 
+/**
+ * A country as people say it, to the two letter code the geocoder carries.
+ *
+ * Only the geocoder's own country name was matched, so "London, UK" found nothing (it says "United Kingdom"),
+ * and "San Juan, Puerto Rico" found nothing because the geocoder gives Puerto Rico a code and no name.
+ */
+const COUNTRY_SAID: Record<string, string> = {
+  uk: 'GB', britain: 'GB', 'great britain': 'GB', uae: 'AE', america: 'US',
+};
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+export const countryName = (code?: string | null): string | null => {
+  if (!code) return null;
+  try {
+    const n = regionNames.of(code.toUpperCase());
+    return n && n !== code.toUpperCase() ? n : null;
+  } catch {
+    return null;
+  }
+};
+let byName: Map<string, string> | null = null;
+/** "France", "Puerto Rico", "UK", "IN" to a country code, or null when it is not a country. */
+export function countryCodeOf(said: string): string | null {
+  const w = said.trim().toLowerCase().replace(/\./g, '').replace(/^the /, '');
+  if (COUNTRY_SAID[w]) return COUNTRY_SAID[w];
+  if (/^[a-z]{2}$/.test(w)) return countryName(w) ? w.toUpperCase() : null;
+  if (!byName) {
+    byName = new Map();
+    const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    for (const a of A) for (const b of A) {
+      const n = countryName(a + b);
+      // The first code for a name: FX ("Metropolitan France") also reads "France".
+      if (n && !/unknown/i.test(n) && !byName.has(n.toLowerCase())) byName.set(n.toLowerCase(), a + b);
+    }
+  }
+  return byName.get(w) ?? null;
+}
+
 /** Pick the right result: the named state if one was said, otherwise the first (most prominent) US match. */
 export function pickPlace(query: string, results: GeoResult[]): Place | null {
   const { state, elsewhere, country } = splitQuery(query);
@@ -86,12 +123,14 @@ export function pickPlace(query: string, results: GeoResult[]): Place | null {
     lon: hit.longitude,
     timezone: hit.timezone ?? null,
     country: hit.country_code ?? 'US',
-    countryName: hit.country ?? null,
+    countryName: hit.country ?? countryName(hit.country_code),
   });
   if (elsewhere) {
     // "Lyon, France", "Munich, Bavaria", "Pune, IN": the country, the region, or its two letter code.
     const want = (country ?? '').toLowerCase().replace(/^the /, '');
-    const hit = results.find((r) => [r.country, r.admin1, r.country_code].some((v) => (v ?? '').toLowerCase() === want)) ??
+    const code = countryCodeOf(want);
+    const hit = (code ? results.find((r) => r.country_code === code) : undefined) ??
+      results.find((r) => [r.country, r.admin1, r.country_code].some((v) => (v ?? '').toLowerCase() === want)) ??
       results.find((r) => [r.country, r.admin1].some((v) => !!v && v.toLowerCase().includes(want)));
     return hit ? of(hit) : null;
   }
@@ -102,26 +141,40 @@ export function pickPlace(query: string, results: GeoResult[]): Place | null {
   return !state && results[0] ? of(results[0]) : null;
 }
 
+/** The geocoder did not answer. Not the same as a place it does not know, which is null. */
+export class GeocoderDown extends Error {}
+
+/**
+ * The place, or null when there is no such place. Throws GeocoderDown when the service did not answer, so a
+ * timeout is never told to the person as "I couldn't find Phoenix".
+ */
 export async function geocode(query: string, timeoutMs = 8000): Promise<Place | null> {
-  const { name, elsewhere, state } = splitQuery(query);
+  const { name, elsewhere, state, country } = splitQuery(query);
   if (!name) return null;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  const search = async (us: boolean): Promise<GeoResult[]> => {
+  const search = async (within: string | null): Promise<GeoResult[]> => {
     const url =
       `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}` +
-      `&count=10&language=en&format=json${us ? '&countryCode=US' : ''}`;
-    const res = await fetch(url, { signal: ctrl.signal });
-    if (!res.ok) return [];
+      `&count=10&language=en&format=json${within ? `&countryCode=${within}` : ''}`;
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: ctrl.signal });
+    } catch (err) {
+      throw new GeocoderDown(String(err));
+    }
+    if (!res.ok) throw new GeocoderDown(`HTTP ${res.status}`);
     return ((await res.json()) as { results?: GeoResult[] }).results ?? [];
   };
   try {
-    if (elsewhere) return pickPlace(query, await search(false));
-    const inUS = pickPlace(query, await search(true));
+    if (elsewhere) {
+      // Within the country that was named: ten answers worldwide for "San Juan" need not hold the one meant.
+      const code = countryCodeOf(country ?? '');
+      return pickPlace(query, await search(code)) ?? (code ? pickPlace(query, await search(null)) : null);
+    }
+    const inUS = pickPlace(query, await search('US'));
     if (inUS || state) return inUS;
-    return pickPlace(query, await search(false));
-  } catch {
-    return null;
+    return pickPlace(query, await search(null));
   } finally {
     clearTimeout(timer);
   }

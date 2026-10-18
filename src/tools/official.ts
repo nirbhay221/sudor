@@ -184,7 +184,7 @@ export function register(server: McpServer, personOf: () => string): void {
         .sort((a, b) => Number(/warning|emergency/i.test(b.event)) - Number(/warning|emergency/i.test(a.event)))[0] ?? null;
       // The weather service forecasts wind and ice. It does not forecast the
       // sun, and a severe geomagnetic storm is the other way a grid gets into
-      // trouble, so that half comes from Orbita over MCP. Silence when there is
+      // trouble, so that half comes from NOAA's space weather feed. Silence when there is
       // nothing to say, and silence when it cannot be reached.
       // Said at the end, not the start. A geomagnetic storm is the least likely
       // of the things on this list to actually cut someone's power, and leading
@@ -266,6 +266,19 @@ export function register(server: McpServer, personOf: () => string): void {
           heart: person.conditions.includes('heart_disease'),
           medicines: person.medications.length > 0 || person.recallWatch.length > 0,
           older: person.conditions.includes('older_adult'),
+          heating: person.heating,
+          livesAlone: person.livesAlone === true,
+          youngChild: person.conditions.includes('young_child'),
+          dementia: person.conditions.includes('dementia'),
+          oxygen: (person.equipment ?? []).includes('oxygen_concentrator'),
+          mobility: (person.equipment ?? []).includes('wheelchair') || person.conditions.includes('older_adult'),
+          heatSensitive: person.medications.length > 0 || person.conditions.some((c) => c !== 'older_adult'),
+          state: /Florida|, FL/.test(person.locationName ?? '') ? ('FL' as const) : /Texas|, TX/.test(person.locationName ?? '') ? ('TX' as const) : null,
+          us: (person.country ?? 'US').toUpperCase() === 'US',
+          country: person.country ?? 'US',
+          conditions: person.conditions,
+          // Dispensed day by day at a clinic, which a disaster can close for days. See hazard.ts.
+          dailyClinic: [...person.medications.map((m) => m.generic), ...person.recallWatch].some((n) => /methadone/i.test(n)),
         };
         const all = stepsFor(hazard, needs, steps);
         // A warning or an emergency, or anything the service rates severe, is a real threat; an advisory or a

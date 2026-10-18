@@ -79,7 +79,7 @@ try {
   const consent = await fetch(`${BASE}/oauth/authorize`, {
     method: 'POST', redirect: 'manual',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: REDIRECT_A, code_challenge: challenge, state: 's1', account: 'jordan', passphrase: 'correct horse battery' }),
+    body: new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: REDIRECT_A, code_challenge: challenge, state: 's1', account: 'jordan', passphrase: 'correct horse battery', consent: 'yes' }),
   });
   const code = new URL(consent.headers.get('location')).searchParams.get('code');
   check('consent issues a code for the static client', !!code);
@@ -99,7 +99,7 @@ try {
   const consent2 = await fetch(`${BASE}/oauth/authorize`, {
     method: 'POST', redirect: 'manual',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: REDIRECT_B, code_challenge: challenge, state: 's2', account: 'jordan', passphrase: 'correct horse battery' }),
+    body: new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: REDIRECT_B, code_challenge: challenge, state: 's2', account: 'jordan', passphrase: 'correct horse battery', consent: 'yes' }),
   });
   check("a second, different registered redirect_uri is accepted, not just the first one",
     consent2.status === 302 && new URL(consent2.headers.get('location')).searchParams.get('code'), String(consent2.status));

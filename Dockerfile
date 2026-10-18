@@ -5,7 +5,7 @@
 # Nothing else is needed: no keys, no account, no database. The server reads the
 # forecast for each registered place on a timer and holds it in memory.
 
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -13,7 +13,20 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
-FROM node:20-alpine
+# The scheduled alert check (src/sweep.ts, started by src/lambda.ts), as a Lambda image. infra/ builds this
+# target; locally, docker-compose.yml runs it with the emulator the base image carries.
+#
+#   docker build --target sweep --provenance=false -t sudor-sweep .
+FROM public.ecr.aws/lambda/nodejs:22 AS sweep
+COPY package.json package-lock.json ${LAMBDA_TASK_ROOT}/
+RUN cd ${LAMBDA_TASK_ROOT} && npm ci --omit=dev && npm cache clean --force
+COPY --from=build /app/dist ${LAMBDA_TASK_ROOT}/dist
+# Lambda's file system is read-only outside /tmp, and these are only ever a local log.
+ENV SUDOR_OUTBOX=/tmp/outbox.jsonl SUDOR_IMPACT=/tmp/impact.json SUDOR_DATA=/tmp/people.json
+CMD ["dist/lambda.handler"]
+
+# The server, and the default target.
+FROM node:22-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 COPY package.json package-lock.json ./

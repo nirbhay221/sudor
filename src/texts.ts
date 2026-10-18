@@ -21,15 +21,30 @@ import { canEmailFor } from './notify.js';
 export type Text = { to: string; text: string; reason: 'emergency' | 'help' | 'safe' | 'warning'; sender: string };
 export type TextDelivery = { at: string; to: string; reason: string; status: 'sent' | 'off' | 'limited' | 'failed'; detail?: string };
 
+/**
+ * The country codes a text may go to. +1 (the United States and Canada) unless SUDOR_SMS_COUNTRY_CODES lists
+ * others, as "1,44,91".
+ *
+ * Any number with a plus used to be accepted, and the person typing it is a stranger on a public page. A text
+ * to some countries costs many times one to the United States, and filling forms with numbers that bill
+ * that way is a known fraud against SMS senders (Amazon calls it SMS pumping). Opening a country is a setting.
+ */
+const smsCountries = (): string[] =>
+  (process.env.SUDOR_SMS_COUNTRY_CODES ?? '1').split(',').map((c) => c.trim().replace(/^\+/, '')).filter((c) => /^\d{1,3}$/.test(c));
+
 /** E.164: a plus, a country code and the number. "(602) 555-0100" becomes "+16025550100". */
 export function phoneOf(typed: string): string | null {
   const t = typed.trim();
   if (!t) return null;
   const digits = t.replace(/[^\d]/g, '');
-  if (t.startsWith('+')) return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : null;
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  return null;
+  let e164: string | null = null;
+  if (t.startsWith('+')) e164 = digits.length >= 8 && digits.length <= 15 ? `+${digits}` : null;
+  else if (digits.length === 10) e164 = `+1${digits}`;
+  else if (digits.length === 11 && digits.startsWith('1')) e164 = `+${digits}`;
+  if (!e164) return null;
+  // +1 numbers are ten digits after the code; anything else on +1 is not a real number.
+  if (e164.startsWith('+1') && e164.length !== 12) return null;
+  return smsCountries().some((c) => e164!.startsWith(`+${c}`)) ? e164 : null;
 }
 
 /** The last four digits only, for anything spoken or logged. */

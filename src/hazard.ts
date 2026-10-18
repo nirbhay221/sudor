@@ -16,6 +16,9 @@
  */
 
 import type { Alert } from './warnings.js';
+import { SPACE_HEATER, type Heating } from './indoorcold.js';
+import { registry, earlySupply, warmPlace } from './aid.js';
+import { inUS } from './world.js';
 
 export type Hazard = 'hurricane' | 'flood' | 'tornado' | 'winter' | 'smoke' | 'heat' | 'cold' | 'wind' | 'tsunami' | 'fire' | 'other';
 
@@ -48,6 +51,26 @@ export type Needs = {
   /** Takes any medicine at all, so a supply and a written list matter. */
   medicines: boolean;
   older: boolean;
+  /** What follows is optional, so a caller that knows less still gets the general and medicine steps. */
+  heating?: Heating;
+  livesAlone?: boolean;
+  youngChild?: boolean;
+  dementia?: boolean;
+  /** Oxygen at home, which a battery carries for hours, not days. */
+  oxygen?: boolean;
+  /** Stairs or getting out quickly are hard: a powered wheelchair (the 'wheelchair' equipment key), or age. */
+  mobility?: boolean;
+  /** A medicine or condition that makes heat harder on them, for the days after a storm takes the power. */
+  heatSensitive?: boolean;
+  /** Where they are, for the registries and refill rules that are a state's own. */
+  state?: 'FL' | 'TX' | null;
+  us?: boolean;
+  /** ISO country code, for the help that is a country's own. See aid.ts. */
+  country?: string;
+  /** Condition ids from conditions.ts, for the steps each one needs. */
+  conditions?: string[];
+  /** A medicine dispensed daily at a clinic, which a disaster can close: methadone. */
+  dailyClinic?: boolean;
 };
 
 const GENERAL: Record<Hazard, string[]> = {
@@ -113,6 +136,120 @@ export const mayLosePower = (h: Hazard): boolean => CUTS_POWER.includes(h);
 export const mayHaveToLeave = (h: Hazard): boolean => MAY_HAVE_TO_LEAVE.includes(h);
 
 /**
+ * What a disaster asks of this person in particular, beyond medicines and equipment.
+ *
+ * Registries: Florida's counties keep a special needs registry for people who need help to evacuate or a shelter
+ * with power, and stop new sign-ups 72 hours before tropical storm winds (Florida Department of Health). Texas
+ * keeps STEAR, by 211 or online, which tells responders who needs help and promises no service (TDEM).
+ * Refills: in Florida, once a hurricane warning or a state of emergency is declared, insurers must allow early
+ * refills (Fla. Stat. 252.358); elsewhere the line is only to ask the pharmacist now.
+ * Oxygen: a concentrator on battery runs about three to ten hours for a portable unit, so the backup is
+ * cylinders from the supplier. After Hurricane Ida, nine people aged 64 to 79 in New Orleans died of heat in the
+ * days the power was out (Louisiana Department of Health, September 2021), so the heat after a hurricane is said.
+ * After a flood, the CDC's two that matter most: a wound in flood water and a tetanus shot, and the boil water
+ * notice.
+ *   https://nassau.floridahealth.gov/programs-and-services/emergency-preparedness-and-response/special-needs-shelter/
+ *   https://tdem.texas.gov/response/state-of-texas-emergency-assistance-registry
+ *   https://florida.public.law/statutes/fla._stat._252.358
+ *   https://www.cdc.gov/floods/safety/index.html
+ */
+function particular(hazard: Hazard, needs: Needs): string[] {
+  const out: string[] = [];
+  const leave = mayHaveToLeave(hazard);
+  const power = mayLosePower(hazard);
+  // Anything that can take the power, the pharmacy or the house away for a while.
+  const disrupt = power || leave;
+  const has = (id: string): boolean => (needs.conditions ?? []).includes(id);
+  const country = needs.country ?? (needs.us === false ? 'ZZ' : 'US');
+  const helpToLeave = needs.poweredEquipment || needs.dialysis || needs.mobility || (needs.older && needs.livesAlone);
+  if (helpToLeave && (leave || (power && needs.poweredEquipment))) out.push(registry(country, needs.state ?? null, hazard === 'hurricane'));
+  if (needs.medicines && (hazard === 'hurricane' || leave)) out.push(earlySupply(country, needs.state ?? null, hazard === 'hurricane'));
+  if (needs.dailyClinic && disrupt) {
+    out.push(
+      inUS(country)
+        ? 'Ask your clinic today for take-home doses and a letter with your dose, in case it closes: after Hurricane Helene, many methadone clinics were shut for days. If you have to leave, a clinic near where you go can dose you as a guest.'
+        : country === 'GB'
+          ? "Ask your drug service today how you will get your doses if your pharmacy closes, and carry a letter with your dose. A pharmacist's emergency supply does not cover methadone."
+          : 'Ask your clinic today how you will get your doses if it closes, and carry a letter with your dose.',
+    );
+  }
+  if (needs.oxygen && disrupt) {
+    out.push('A concentrator on battery lasts hours, about three to ten for a portable one, so ask your supplier today for spare oxygen cylinders, and keep them away from any flame.');
+  }
+  if (hazard === 'tornado' && needs.mobility) {
+    out.push('If stairs are hard, choose your place now: a ground floor bathroom or closet with no windows, and a mattress or heavy blankets to cover you. In a mobile home, leave when a tornado watch is issued, not when the warning comes.');
+  }
+  if (hazard === 'hurricane' && (needs.older || needs.heatSensitive)) {
+    out.push('After the storm the danger is often the heat with no power: after Hurricane Ida, nine people aged 64 to 79 in New Orleans died of heat in the days the power was out. Decide now where you would go to cool off.');
+  }
+  if (hazard === 'flood') {
+    out.push('If you are cut in flood water, clean it well and ask about a tetanus shot, and follow any boil water notice before drinking from the tap.');
+  }
+  if ((hazard === 'winter' || hazard === 'cold') && needs.heating && needs.heating !== 'working') {
+    out.push(needs.heating === 'space_heater' ? SPACE_HEATER.trim() : `Your heating cannot be relied on, so decide now where you will go if the house gets cold: a relative, a friend, or ${warmPlace(country)}.`);
+  }
+
+  // Conditions, each from the guidance written for it. See CONDITION_SOURCES below.
+  if (has('pregnancy') && disrupt) {
+    out.push('Leave early rather than late, and take your prenatal records, your vitamins and two weeks of medicines. Stay out of flood water, and wash your hands often in a shelter, where infections spread. Bleeding or fluid leaking, a bad headache or blurred vision, sudden swelling of the face or hands, or the baby moving less: get care straight away.');
+  }
+  if (has('sickle_cell') && (disrupt || hazard === 'cold')) {
+    out.push('With sickle cell, the cold, the stress and too little to drink in a storm can set off a crisis: drink steadily, keep warm and dry, stay out of cold water, and carry your medicines and your pain plan. A fever of 101 degrees or more is an emergency for you.');
+  }
+  if (has('multiple_sclerosis') && disrupt) {
+    out.push('When the power goes, your cooling goes with it, and a small rise in body temperature can bring MS symptoms back: pack a cooling vest or neck wrap and a battery fan, and know where you would go to cool off.');
+  }
+  if (has('spinal_cord_injury') && disrupt) {
+    out.push('Pack a week of catheters, skin care and medicines, and a card that explains autonomic dysreflexia for whoever treats you: emergency staff may not know it. Your body may not warm or cool itself, so plan for both, and on a shelter cot shift your weight often to protect your skin.');
+  }
+  if (has('erythromelalgia') && disrupt) {
+    out.push('If the power cut takes your cooling, a battery fan and cool water, never ice, are your plan for a flare.');
+  }
+  if (has('pots') && disrupt) {
+    out.push('Pack water, electrolyte drinks, salty snacks and your compression stockings. Standing in a queue is the hard part: ask for a seat, and cross your legs or squat if you feel faint.');
+  }
+  if (has('raynauds') && (hazard === 'winter' || hazard === 'cold' || power)) {
+    out.push('Keep gloves, warm socks and hand warmers in your bag, and your hands out of cold water: a cold house or a chilly shelter can set off an attack.');
+  }
+  if (has('migraine') && disrupt) {
+    out.push('Pack your migraine medicine, an eye mask and earplugs: lost sleep, missed meals and a bright, noisy shelter are all triggers.');
+  }
+  if (has('hay_fever') && hazard === 'flood') {
+    out.push('After a flood, mould grows within a day or two: keep out of damp rooms and keep your hay fever medicine with you.');
+  }
+  if (has('fasting') && (disrupt || hazard === 'heat')) {
+    out.push('If you are fasting: scholars agree the fast is not required of somebody who is ill or travelling, and must be broken when it puts health in danger. Leaving home, or heat without power, is that time, so drink.');
+  }
+
+  if (needs.youngChild && disrupt) out.push("Have a week of formula or baby food, nappies and the child's medicines ready.");
+  if (needs.dementia && disrupt) out.push('Ask somebody to stay with you through it, and keep a card in your pocket with your name, your medicines and a number to call.');
+  if (needs.livesAlone && disrupt) out.push('Tell somebody you trust what your plan is, and agree a time they will check on you.');
+  return out;
+}
+
+/*
+ * CONDITION_SOURCES, for the lines above:
+ *   Pregnancy: CDC, emergency preparedness during pregnancy, and its urgent maternal warning signs; Florida
+ *     Department of Health, a two week supply and prenatal vitamins.
+ *     https://www.cdc.gov/pregnancy/during/emergency-preparedness.html
+ *   Sickle cell: CDC, a fever at about 101 F or more needs emergency care; cold, dehydration and stress as crisis triggers.
+ *     https://www.cdc.gov/sickle-cell/complications/fever.html (101.3 F, 38.5 C; its emergency guide says above 101)
+ *   Multiple sclerosis: MS Australia, a rise of 0.2 to 0.5 C in core temperature can worsen symptoms.
+ *     https://www.msaustralia.org.au/wp-content/uploads/2016/03/MSAustralia_Keeping_Cool_Survey_Policy_Implications_Report_2009-3rd-ed2012-1.pdf
+ *   Spinal cord injury: MSKTC emergency preparedness factsheet (a week of catheters, skin care and medicines);
+ *     University of Washington SCI forum (an autonomic dysreflexia card).
+ *     https://msktc.org/sci/factsheets/emergency-preparedness-and-sci
+ *     https://sci.washington.edu/info/forums/reports/emergency_pre_tips.asp
+ *   POTS: Kennedy Krieger factsheet: fluid, salt, compression, and long standing as a trigger.
+ *     https://www.kennedykrieger.org/sites/default/files/library/documents/community/specialized-health-needs-interagency-collaboration-shnic/factsheets-medical-conditions/POTS_1.pdf
+ *   Fasting: the exemption for the ill and the traveller, and the duty to break a fast that endangers health.
+ *     https://zakat.org/valid-exemptions-for-not-fasting-ramadan
+ *   Methadone: STAT on clinics closed after Hurricane Helene; ASPR TRACIE on methadone patients in emergencies.
+ *     https://www.statnews.com/2025/07/23/methadone-clinics-otp-climate-disaster-disrupted-treatment-texas-floods-hurricane-helene/
+ *     https://files.asprtracie.hhs.gov/documents/aspr-tracie-ta-methadone-patients-during-emergencies-12-30-16-508.pdf
+ */
+
+/**
  * The steps for this person, most important first: what the hazard asks of anybody, then what it asks of
  * them in particular. The first general step always comes first, because "go to the lowest floor now" is
  * not something to say after a sentence about a pharmacy.
@@ -136,6 +273,7 @@ export function stepsFor(hazard: Hazard, needs: Needs, detailed: string[] = []):
     if (hazard === 'winter' && needs.heart) personal.push('Do not shovel snow. It can push a heart to its limit within minutes, so ask somebody else.');
     if (hazard === 'winter' && needs.older) personal.push('A house at 60 to 65 degrees is cold enough to bring on hypothermia at your age, so do not wait for it to feel dangerous.');
     if (hazard === 'tornado' && needs.medicines) personal.push('If there is time, take your medicines and your phone into the room with you.');
+    personal.push(...particular(hazard, needs));
     // The detailed advice already says to charge everything, so the general line that says it again is left out.
     const rest = general.slice(1).filter((g) => !(/^Charge your phone/.test(g) && detailed.some((d) => /^Charge your phone/.test(d))));
     return [general[0], ...detailed, ...personal, ...rest];
@@ -161,6 +299,7 @@ export function stepsFor(hazard: Hazard, needs: Needs, detailed: string[] = []):
   if (hazard === 'winter' && needs.heart) personal.push('Do not shovel snow. It can push a heart to its limit within minutes, so ask somebody else.');
   if ((hazard === 'winter' || hazard === 'cold') && needs.older) personal.push('A house at 60 to 65 degrees is cold enough to bring on hypothermia at your age, so do not wait for it to feel dangerous.');
   if (hazard === 'tornado' && needs.medicines) personal.push('If there is time, take your medicines and your phone into the room with you.');
+  personal.push(...particular(hazard, needs));
 
   // The first thing for anybody, then everything particular to them, then the rest of the general advice.
   return [general[0], ...personal, ...general.slice(1)];

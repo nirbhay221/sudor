@@ -74,6 +74,8 @@ export function register(server: McpServer, personOf: () => string): void {
       // profile does not say which this person is.
       const centres = cooling.near(person.lat, person.lon, 10);
       const centresHere = (centres ?? []).filter((c) => !c.openTo || (/older|senior|60/i.test(c.openTo) && older));
+      // And for the cold, the warming centres the county or city publishes. See WARMING in cooling.ts.
+      const warmHere = cold ? (cooling.near(person.lat, person.lon, 10, 'warm') ?? []) : [];
 
       // The CDC's own first answer, and it is a better one than any list.
       // Whether the power is out at their address already, where the state publishes it. See outages.ts.
@@ -93,6 +95,14 @@ export function register(server: McpServer, personOf: () => string): void {
             `In danger, ring ${world.known(person.country) ? world.emergencyNumber(person.country) : '112, or your local emergency number'}.` +
             (hospital ? ` ${hospital}` : ''),
         );
+      } else if (cold && warmHere.length) {
+        // A named warming centre, from the county's own list, ahead of the federal shelter list. Its hours are read
+        // out, because the lists that keep warming centres rarely keep today's opening, and ringing first is said.
+        const first = warmHere[0];
+        parts.push(cooling.sentence(first));
+        if (older && first.accessible) parts.push('It is step-free.');
+        if (warmHere.length > 1) parts.push(`There ${warmHere.length === 2 ? 'is' : 'are'} ${warmHere.length - 1} more within 10 miles.`);
+        parts.push('Ring before you set off if you can, or call 211, to check it is open tonight, and wrap up for the journey.');
       } else if (!cold && centresHere.length) {
         // A named cooling centre, open today where the list says so, ahead of the federal shelter list, which on
         // a hot day without a disaster is nearly empty. See cooling.ts.
@@ -193,12 +203,14 @@ export function register(server: McpServer, personOf: () => string): void {
                   openTo: c.openTo,
                   source: c.source,
                 })),
+        warmingCentres: warmHere.length ? warmHere.slice(0, 3).map((c) => ({ name: c.name, address: c.address, milesAway: Math.round((c.milesAway ?? 0) * 10) / 10, hours: c.hours, phone: c.phone, source: c.source })) : undefined,
         referral: { call: '211', text: '898-211' },
         sources: [
           'https://gis.fema.gov/arcgis/rest/services/NSS/FEMA_NSS/MapServer',
           ...(centresHere.length ? [`${centresHere[0].source} (open data)`] : []),
+          ...(warmHere.length ? [`${warmHere[0].source} (open data)`] : []),
           'https://www.cdc.gov/winter-weather/prevention/index.html',
-          'https://www.nia.nih.gov/health/safety/cold-weather-safety-older-adults',
+          'https://www.nih.gov/news-events/news-releases/hypothermia-cold-weather-hazard-seniors',
           'https://www.cdc.gov/carbon-monoxide/about/index.html',
         ],
       });

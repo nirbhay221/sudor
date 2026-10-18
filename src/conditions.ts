@@ -265,6 +265,8 @@ export const CONDITIONS: Condition[] = [
     label: 'diabetes',
     aliases: ['diabetes', 'diabetic', 'type 1 diabetes', 'type 2 diabetes'],
     sensitivity: 'sensitive',
+    // Named among the groups wildfire smoke is harder on (Minnesota Department of Health). See smoke.ts.
+    airQuality: true,
     insulin: true,
     plan: 'Heat can change blood sugar and ruin insulin, so plan time outside for cooler hours.',
     goingOut: [
@@ -286,6 +288,8 @@ export const CONDITIONS: Condition[] = [
     label: 'pregnancy',
     aliases: ['pregnant', 'pregnancy', 'expecting a baby'],
     sensitivity: 'sensitive',
+    // Named among the groups wildfire smoke is harder on (Minnesota Department of Health). See smoke.ts.
+    airQuality: true,
     plan: 'Even one day of high heat can raise risks in pregnancy, so keep time in the heat short.',
     goingOut: ['Keep the trip short, stay in shade or air conditioning, and drink water regularly.'],
     sources: [SRC.cdcPregnancy],
@@ -339,6 +343,8 @@ export const CONDITIONS: Condition[] = [
     label: 'a baby or young child with you',
     aliases: ['my baby', 'infant', 'newborn', 'toddler', 'young child', 'young children', 'little one', 'small children'],
     sensitivity: 'sensitive',
+    // Named among the groups wildfire smoke is harder on (Minnesota Department of Health). See smoke.ts.
+    airQuality: true,
     plan:
       'Babies and young children rely on you to keep them cool and give them drinks, so plan their time out for the cooler ' +
       'hours, and never leave them in a parked car, even with a window open.',
@@ -377,6 +383,8 @@ export const CONDITIONS: Condition[] = [
     label: 'age 65 or over',
     aliases: ['older adult', 'over 65', '65 or older', 'senior', 'elderly'],
     sensitivity: 'sensitive',
+    // Named among the groups wildfire smoke is harder on (Minnesota Department of Health). See smoke.ts.
+    airQuality: true,
     plan: 'People 65 and older are more prone to heat related health problems, so plan time outside for the cooler hours.',
     goingOut: ['Go in the cooler hours, keep it short, and take water with you.'],
     cold: {

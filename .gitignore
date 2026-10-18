@@ -3,3 +3,5 @@ dist/
 data/
 .deploy/
 evals/last-run.json
+cdk.out/
+cdk.context.json

@@ -66,14 +66,14 @@ Nothing here is mocked for the demo. Where something stands in for a thing we co
 
 | Part | Status |
 |---|---|
-| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,297 automated checks, run on every push |
+| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,509 automated checks, run on every push |
 | Agent Skill | **Real**: `skills/sudor-heat-safety`, to the open Agent Skills format, passing the format's own validator. Installable as a folder, and readable from the server as `skill://` resources |
 | Strands agent | **Real**: `strands/agent.mjs`, on AWS's Strands Agents SDK. It reads the skill from the server and follows each next step. The chain, the yes before a write and the step cap are checked with a scripted model at no cost; the path through Claude needs a key and is not in the automated checks |
 | Weather, UV, air quality | **Real, live**: Open-Meteo, worldwide |
-| Cooling centres | **Real, live**: twenty-three open lists published by Maricopa County, New York City, New York State, Washington DC, Harris County, Riverside County, the City of Los Angeles, Philadelphia, San Diego County, Maryland, San Antonio, Columbus, Cuyahoga County, Rhode Island, Toronto, British Columbia, Milwaukee, Chester and York Counties in Pennsylvania, Johnson County in Kansas, Lake County in Illinois, Ramsey County in Minnesota and Lincoln. Everywhere else the answer gives open shelters and the 211 line |
+| Cooling and warming centres | **Real, live**: 27 open lists published by Maricopa County, New York City, New York State, Washington DC, Harris County, Riverside County, the City of Los Angeles, Philadelphia, San Diego County, Maryland, San Antonio, Columbus, Cuyahoga County, Rhode Island, Toronto, British Columbia, Milwaukee, Chester and York Counties in Pennsylvania, Johnson County in Kansas, Lake County in Illinois, Ramsey County in Minnesota and Lincoln; and four for the cold, the warming centres published by Missouri's health department, Philadelphia, Cook County and DeKalb County. Everywhere else the answer gives open shelters and the 211 line |
 | Power already out at the address | **Real, live, where a list is published**: California's Office of Emergency Services, Duke Energy (the Carolinas, Florida, Indiana, Ohio and Kentucky) and BC Hydro. Where only county counts are published (Maryland, Pennsylvania, Ohio, and Alliant Energy in Iowa and Wisconsin) a large outage in the county is said as the county, never as the street |
 | Official warnings | **Real, live**: the National Weather Service in the US, MeteoAlarm in Europe, INMET in Brazil, SACHET in India, and the WMO Severe Weather Information Centre elsewhere. In the US also the Weather Service's 7-day HeatRisk, the hurricane centre's cones and river flood forecasts |
-| Medicines | **Real sources**: the CDC's clinical guidance on heat and medications, and the National Library of Medicine's RxClass for every other name, by drug class. Brand names from the regulators of India, Canada, France, Brazil, Italy, Spain and the United Kingdom. Measured against the 286 most prescribed ingredients in the US (ClinCalc, 2024): 119 recognised; the rest are mostly drugs the CDC lists no heat effect for. `node evals/coverage.mjs` re-runs it |
+| Medicines | **Real sources**: the CDC's clinical guidance on heat and medications, and the National Library of Medicine's RxClass for every other name, by drug class. Brand names from the regulators of India, Canada, France, Brazil, Italy, Spain and the United Kingdom. Measured against the 286 most prescribed ingredients in the US (ClinCalc, 2024): 134 recognised; the rest are mostly drugs the CDC lists no heat effect for. `node evals/coverage.mjs` re-runs it |
 | Medicine and equipment recalls | **Real, live**: openFDA drug and device enforcement reports |
 | Nearest emergency department | **Real**: Amazon Location Service, confirmed against Medicare's hospital list in the US |
 | Emails to family | **Real**, through Amazon SES, only after the recipient agrees. The account is in the SES sandbox (production access requested), so today it reaches verified addresses only. The public demo never sends email; it shows the message on a phone panel instead |
@@ -101,7 +101,7 @@ This file is long because the reasoning is the work. If you are evaluating the p
 | Where it is wrong, or cannot know | [Honest limitations](#honest-limitations) |
 
 Free sources, no API keys for the data. Every tool call is answered from memory; nothing external is called
-inside a turn. `npm test` runs 2,297 checks.
+inside a turn. `npm test` runs 2,509 checks.
 
 ## The problem
 
@@ -427,6 +427,128 @@ once a day at most, whether the cooling is working, and remembers the answer (`s
   roof had about four times the odds of dying (Vandentorren and others, 2006). Somebody who says they sleep on
   the top floor is told that, with the one thing to do about it: sleep lower down until it passes.
 
+### In the cold, when the heating goes
+
+The winter half of the same question. In Winter Storm Uri, Texas counted 246 deaths, and 158 were hypothermia, many
+indoors in homes that had lost power or heat. Hypothermia indoors comes on at temperatures most people would call
+chilly, so Sudor now asks about the heating the way it asks about the cooling (`src/indoorcold.ts`):
+
+* **The heating is a saved state:** working, broken, none, `cost` (it works and is kept off for the bill),
+  power cuts, or a space heater only. On a cold day with a night at or below 45 and nothing known, it asks once:
+  "Staying in only helps if your heating works. Is it working?"
+* **The numbers are the NIA's and the WHO's.** 68 is the National Institute on Aging's floor for rooms an older adult
+  uses, 64 (18 C) the WHO Housing and Health Guidelines' minimum, and 60 to 65 is where the NIA says hypothermia can
+  start in an older body. A reading said aloud is believed for three hours; 55 or below is too cold for anybody.
+  Without a reading, the night decides: heating that is out with a freezing night is the danger level for anybody the
+  cold is hard on, and a hard freeze (20 or below) for anybody, with "let a tap drip" for the pipes.
+* **Who the cold is hard on** is counted from what they have said: 65 or over, a young child, dementia, heart disease,
+  diabetes, Raynaud's, sickle cell, or a medicine that blunts shivering (antipsychotic hypothermia is most likely in
+  the first week of a new or higher dose, a systematic review found).
+* **What to do comes with it:** a relative, a friend or a warming centre first; if they must stay, one room with the
+  door shut, layers and a hat, warm food and drink; never the oven, a grill or a generator indoors. A space heater
+  gets the three rules behind most heating fire deaths: three feet clear, straight into the wall, off when asleep. In
+  the US, heating kept off for the bill gets the LIHEAP line and that a doctor's note can hold off a winter shutoff.
+* **The family is told once,** with `checkColdHome`, in the afternoon so there is daylight left to act, and a carer
+  checking in hears the winter steps: the room at 68 or more, layers, warm food, and the signs of hypothermia.
+* **First aid follows the words, not only the weather.** "My hands are numb and I'm shivering" on a hot day used to be
+  answered as heat stroke. Shivering, numbness and frostbite now get cold first aid whatever the weather, and so does
+  anything said in a home they have read out as 64 or below.
+
+### Smoke, from the forecast
+
+Smoke used to be said only when an official alert was in force. The hourly US AQI is on the forecast call already
+made, so a smoky day is now said whether or not anybody issued one (`src/smoke.ts`). The line is AirNow's 101 for
+the groups state health guidance names (adults 65 and over, children, pregnancy, diabetes, heart and lung
+conditions) and 151 for everybody. The answer says when it peaks, to stay in with the windows shut and the air
+conditioning on recirculate, to make one clean room with a HEPA purifier or a box fan with a MERV 13 filter, and
+that only an N95 helps outdoors. And the conflict nobody else resolves: on a hot day without working cooling, a house
+shut against smoke becomes too hot, so the answer names the heat as the bigger danger and says to open up or go
+somewhere cooled with clean air, as King County's guidance does.
+
+### A disaster, for one person
+
+`storm_prep` already joined a warning to the person's medicines and equipment. It now also says what the disaster
+asks of them in particular (`particular` in `src/hazard.ts`):
+
+| Who | What is added |
+|---|---|
+| Needs help to leave, or a shelter with power | Florida's county special needs registry, which closes to new sign-ups 72 hours before tropical storm winds; Texas's STEAR, by 211; elsewhere in the US, to ask the county |
+| Takes medicines, a hurricane coming | In Florida, that insurers must allow early refills once a warning or emergency is declared (Fla. Stat. 252.358); elsewhere, to ask the pharmacist now |
+| Home oxygen | A concentrator on battery lasts hours, so spare cylinders from the supplier |
+| Older, or heat-sensitive, after a hurricane | The heat once the power is out: after Ida, nine people aged 64 to 79 in New Orleans died of it |
+| A flood | A cut in flood water and a tetanus shot; the boil water notice |
+| Stairs are hard, a tornado | A ground floor bathroom or closet and a mattress over you; from a mobile home, leave at the watch |
+| Heating out or a space heater, in a winter storm | Where to go if the house gets cold, or the space heater rules |
+| A young child, dementia, living alone | A week of formula and nappies; somebody to stay and a card in the pocket; a plan told to somebody and a check agreed |
+| Pregnancy | Leave early; prenatal records, vitamins and two weeks of medicines; out of flood water; the CDC's urgent warning signs |
+| Sickle cell | Cold, stress and too little to drink set off a crisis; a fever of 101 degrees or more is an emergency (CDC) |
+| Multiple sclerosis, erythromelalgia | The cooling goes with the power: a cooling vest and a battery fan; for erythromelalgia cool water, never ice |
+| Spinal cord injury | A week of catheters and skin care, an autonomic dysreflexia card for whoever treats you, turning on a shelter cot (MSKTC) |
+| POTS, Raynaud's, migraine, hay fever | Fluids, salt, compression and a seat in the queue; gloves and hand warmers; an eye mask and earplugs; mould after a flood |
+| Fasting | The fast is not required of somebody ill or travelling, and must be broken when it endangers health: leaving home, or heat without power |
+| Methadone | Take-home doses and a letter with the dose before the clinic closes, as after Hurricane Helene; in the UK, that an emergency supply never covers it |
+
+**The help that is a country's own** (`src/aid.ts`). The registries, the early refill, the help with a bill and the
+number that knows where the warm and cool places are used to be American everywhere. Now each of the twelve countries
+Alexa+ is in (October 2026) has its own, checked against its regulator or a government notice:
+
+| | Warm or cool place | If power or leaving matters | Medicine before a disaster | Help with the bill |
+|---|---|---|---|---|
+| United States | 211 | Florida and Texas registries, else the county | Florida's early refill law, else ask now | LIHEAP |
+| Canada | 211 | the electricity company | ask now; many provinces allow an emergency supply | Ontario's LEAP and winter disconnection ban |
+| United Kingdom | the council's warm spaces | the Priority Services Register | a pharmacist's emergency supply, up to 30 days, never methadone | the Warm Home Discount |
+| Australia | the local council | life support registration, four business days' notice | three days from a pharmacist in most states, never a controlled drug | the retailer's hardship program |
+| France | the mairie; Canicule Info Service, 0 800 06 66 66, in a heatwave | the mairie's register of vulnerable people | ask now | the chèque énergie |
+| Germany | Wärmestuben, the town hall or Kältehilfe | the electricity company | the pharmacy emergency line, 22833 | no cut-off where life or health is in danger (EnWG 41f) |
+| Austria | the town hall | the electricity company | Apothekenruf, 1455 | |
+| Italy | the comune; the Health Ministry's 1500 in a heatwave | the electricity company | ask now | the bonus sociale, and the one for electromedical equipment |
+| Spain | climate shelters, from the ayuntamiento | the electricity company | ask now | the bono social eléctrico, no cut-off in 2026 |
+| Mexico | Protección Civil's temporary refuges, through 911 | the electricity company | ask now | |
+| Brazil | Defesa Civil, 199 | SMS alerts on 40199, Defesa Civil on 199 | ask now | the Tarifa Social de Energia Elétrica |
+| India | heat action plan cooling centres | the electricity company | ask now | |
+| Elsewhere | the local council | the electricity company and the council | ask now | nothing said, rather than something invented |
+
+Family emails follow the same rule, so a daughter in Leeds is not told to call 211.
+
+Sources: [Texas DSHS via the Texas Tribune](https://www.texastribune.org/2022/01/02/texas-winter-storm-final-death-toll-246),
+[WHO Housing and Health Guidelines](https://www.ncbi.nlm.nih.gov/books/NBK535294/),
+[NIH on hypothermia in older adults](https://www.nih.gov/news-events/news-releases/hypothermia-cold-weather-hazard-seniors),
+[antipsychotic hypothermia review](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5594062/),
+[CPSC generators](https://www.cpsc.gov/content/winter-warning-portable-generators-hold-top-spot-in-cpsc-report-on-carbon-monoxide-deaths),
+[NEADA LIHEAP survey](https://neada.org/wp-content/uploads/2013/05/survey2004-executive_summary.pdf),
+[Minnesota smoke guidance](https://www.health.mn.gov/communities/environment/emergency/docs/staysafesmoke.pdf),
+[King County smoke](https://kingcounty.gov/so-so/dept/dph/health-safety/safety-injury-prevention/emergency-preparedness/personal-preparedness/wildfire-smoke),
+[Penn State on box fan filters](https://extension.psu.edu/box-fan-filters-provide-cleaner-indoor-air-during-smoke-events),
+[Florida special needs shelters](https://nassau.floridahealth.gov/programs-and-services/emergency-preparedness-and-response/special-needs-shelter/),
+[TDEM STEAR](https://tdem.texas.gov/response/state-of-texas-emergency-assistance-registry),
+[Fla. Stat. 252.358](https://florida.public.law/statutes/fla._stat._252.358),
+[Ida deaths via AP](https://kutv.com/news/nation-world/ida-deaths-rise-by-11-in-new-orleans-louisiana-toll-now-26),
+[CDC on fever in sickle cell](https://www.cdc.gov/sickle-cell/complications/fever.html),
+[CDC on pregnancy in emergencies](https://www.cdc.gov/pregnancy/during/emergency-preparedness.html),
+[MSKTC on SCI](https://msktc.org/sci/factsheets/emergency-preparedness-and-sci),
+[Kennedy Krieger on POTS](https://www.kennedykrieger.org/sites/default/files/library/documents/community/specialized-health-needs-interagency-collaboration-shnic/factsheets-medical-conditions/POTS_1.pdf),
+[STAT on methadone after Helene](https://www.statnews.com/2025/07/23/methadone-clinics-otp-climate-disaster-disrupted-treatment-texas-floods-hurricane-helene/),
+[Ofgem Priority Services Register](https://www.ofgem.gov.uk/consumers/household-gas-and-electricity-guide/extra-help-energy-services/priority-services-register-people-need),
+[UK emergency supply](https://norfolk.communitypharmacy.org.uk/commissioned-services/ccg-information/funded-emergency-supplies/),
+[AER life support guide](https://www.aer.gov.au/retail-markets/compliance-reporting/aer-life-support-registration-guide-2021),
+[211 Canada](https://211ontario.ca/contact-211-ontario),
+[Alexa+ in 12 countries](https://community.amazondeveloper.com/t/sept-21-2026-alexa-in-india-aws-builder-app/29198),
+[OEB winter ban](https://oeb.ca/node/5400),
+[PBS emergency supply](https://www.pbs.gov.au/publication/factsheets/pbs-arrangements-natural-disasters-and-emergencies),
+[EnWG 41f](https://www.gesetze-im-internet.de/enwg_2005/__41f.html),
+[Apothekenruf 1455](https://www.pressetext.com/news/apothekenruf-1455-begruesst-gesundheitstelefon-1450.html),
+[French heatwave register](https://www.service-public.gouv.fr/particuliers/actualites/A14978?lang=fr),
+[Canicule Info Service](https://www.santepubliquefrance.fr/sites/default/files/2026-06/bullreg_canicule_bfc_20260624.pdf),
+[chèque énergie 2026](https://www.info.gouv.fr/actualite/crise-energetique-envoi-anticipe-du-cheque-energie-2026),
+[Italy's 1500](https://www.salute.gov.it/new/it/tema/ondate-di-calore/numero-di-pubblica-utilita-1500-proteggiamoci-dal-caldo/),
+[ARERA bonus sociale 2026](https://www.arera.it/comunicati-stampa/dettaglio/bonus-sociali-arera-alza-a-9796-euro-la-soglia-isee-per-laccesso-alle-agevolazioni-per-acqua-luce-gas-e-rifiuti),
+[bono social 2026](https://www.merca2.es/2026/05/27/cnmc-recalcula-bono-social-electrico-2026-2385118/),
+[Chihuahua refuges](https://nortedigital.mx/habilitan-en-el-estado-354-refugios-para-enfrentar-bajas-temperaturas),
+[Defesa Civil 199](https://prefeitura.sp.gov.br/web/defesa_civil/w/noticias/184614),
+[SMS 40199](https://teletime.com.br/14/09/2017/sms-com-alerta-de-desastre-natural-sera-ampliado-para-todo-o-pais/),
+[Tarifa Social](https://www.folhape.com.br/economia/tarifa-social-de-energia-veja-como-familias-com-cadastro/482584/),
+[India heat action plans](https://www.undrr.org/news/heatwaves-lessons-india-dealing-growing-hazard).
+
 ## Outside the United States
 
 Alexa+ is sold in the United States, Canada and the UK, and in early access in Brazil, Mexico, Germany, Austria,
@@ -484,7 +606,7 @@ Mississippi), and anywhere else when a country is said ("Lyon, France").
 The brand lists are rebuilt with `scripts/build-india-brands.py` and `scripts/build-country-brands.py`, and the
 warning areas with `scripts/build-meteoalarm-areas.py`.
 
-## One add-on asking another
+## The sun, from NOAA
 
 The National Weather Service does not forecast the sun. A severe geomagnetic storm is the other way
 a power grid gets into trouble, and NOAA's own scale says a G4 can bring "possible widespread
@@ -493,17 +615,17 @@ blackouts" ([NOAA space weather scales](https://www.swpc.noaa.gov/noaa-scales-ex
 person keeping insulin between 36 and 46 degrees, or running an oxygen concentrator, that is a
 medical question rather than an astronomical one.
 
-Orbita already reads that forecast, and it is an MCP server, so Sudor talks to it the way a host
-would: it opens a Streamable HTTP MCP client, calls the public `storm_status` tool twice an hour,
-and reads the NOAA scale out of the answer. `storm_prep` then leads with the storm when one is
-coming. `SUDOR_ORBITA_URL` points at the Orbita to ask; without it the feature is simply off.
+NOAA's Space Weather Prediction Center publishes that forecast in two free files with no key,
+[`noaa-scales.json`](https://services.swpc.noaa.gov/products/noaa-scales.json) for today's G level and
+the three day outlook, and `noaa-planetary-k-index-forecast.json` for Kp. Sudor reads both twice an
+hour, and `storm_prep` mentions the storm when one is coming. `SUDOR_SPACE_WEATHER=off` switches it off.
 
-Two rules make it safe, and both are tested against a stand-in Orbita that records everything it
+Two rules make it safe, and both are tested against a stand-in NOAA that records everything it
 receives:
 
-* **Nothing personal goes the other way.** The call carries no arguments at all: no location, no
-  medicines, no identifier. `test-spaceweather.mjs` reads the wire and fails if the word
-  "medication", "lat", "email" or the demo city appears anywhere in the transcript.
+* **Nothing personal goes the other way.** The requests are two fixed addresses with no query at all:
+  no location, no medicines, no identifier. `test-spaceweather.mjs` reads the wire and fails if the word
+  "medication", "lat=", "email" or the demo city appears anywhere in it.
 * **A failure is silence, never an all clear.** Unreachable, slow, or an answer in an unexpected
   shape all mean the same thing: say nothing about space weather. Telling someone on home oxygen
   that the grid looks fine because a request timed out would be the worst thing this could do.
@@ -573,6 +695,21 @@ person has already saved (as counts, never names), are passed to it exactly as a
 key, or once the cap is reached, plain word rules choose the tool instead (`src/rules.ts`), as another entry in
 this hackathon, Recall Check, does, and the screen says which chose. The demo page takes typed or spoken words;
 hearing and speaking are the browser's own.
+
+It keeps the conversation, as Alexa+ does: Amazon's guide says Alexa, not the add-on, holds continuity across turns and
+understands references to earlier ones. The page sends its last six turns with each sentence, so a bare "no" after
+"Do you take any medicines?" is read as the answer to that question
+([conversation surface](https://developer.amazon.com/docs/alexaplus/add-ons/mcp-addon-conversation-surface.html)).
+
+It takes a whole turn the way Alexa+ does, not one tool call. Amazon's guide says Alexa reads what the add-on returns
+and composes the reply itself, and the hackathon's rules let the Alexa+ experience be simulated in a web app "using
+their own agentic tools", judged on whether it is "a complete, coherent product experience". So the model calls a
+tool, reads the result, may call the next step it names, and then speaks a short reply in its own words
+(`converse()` in `src/agent.ts`). Three limits: at most three tools a turn; after the first, only a tool that changes
+nothing runs without the customer, so nothing is saved, sent or emailed by a chain; and a reply that drops an
+emergency number the tool said is replaced by the tool's own words. With no model, the word rules read a bare "yes",
+"no" or "not sure" against the question just asked, and a "yes" takes the step the last answer named
+(`bareAnswer()` in `src/rules.ts`).
 
 ## Hearing it
 
@@ -791,12 +928,50 @@ Or without installing Node at all:
 docker build -t sudor . && docker run -p 8789:8789 sudor
 ```
 
-`npm test` runs everything, 2,297 checks. It is also what CI runs on every push, on Node 20 and 22,
+### Where people are kept, and who sends the alerts
+
+By default everything is in one sealed file and the alert emails are sent by timers inside the
+server, which is right for one machine and wrong for the part of Sudor nobody is there to watch.
+A family is warned that a parent living alone has not been heard from on a dangerous day by a
+check that only ran while the web server did: a crash or a stuck deploy meant no email, and a
+second copy of the server would have meant two.
+
+So there is a second way to run it, and the code for it is the same code:
+
+* **The people table.** With `SUDOR_STORE=dynamodb` every person is one DynamoDB item, sealed with
+  the same data key, bound to their own id so one record cannot be moved onto another
+  ([`src/table.ts`](src/table.ts)). Each write says which version it read; if somebody else wrote
+  first the write is refused, theirs is read, and the change is made again on top of it, so neither
+  is lost. Sandbox records carry a `ttl`, so DynamoDB deletes them after seven days even if no
+  server is running.
+* **The alert check on its own.** [`src/sweep.ts`](src/sweep.ts) is the same four checks, run by a
+  Lambda that EventBridge Scheduler starts every ten minutes. It reads the table, the forecast and the
+  warnings for each place that has somebody to tell, and writes down what it sent before it sends.
+  With `SUDOR_ALERTS=scheduler` the server stops running them itself.
+* **Watched.** An alarm fires if the check fails twice in a row, and another if it has not run for
+  half an hour, because an absence produces no error.
+* **As code.** [`infra/`](infra/) is all of it in CDK: the table (on demand, point-in-time recovery,
+  deletion protection, kept if the stack is deleted), the Lambda built from this repository's own
+  Dockerfile, the schedule, the alarms, and access for the existing server. `cd infra && npm test`
+  checks those promises on the synthesized template.
+
+```bash
+docker compose up --build   # the server, the alert check and DynamoDB Local, as on AWS
+npm run test:dynamo         # the store against DynamoDB Local's own version rule
+cd infra && npm test        # what the stack promises, with no AWS account
+cd infra && npx cdk deploy -c publicUrl=https://... -c serverRole=... -c emailFrom=...
+```
+
+Moving a running server over is `node scripts/copy-to-table.mjs` once on the host, which copies
+every record in and changes nothing if run twice, then the `/sudor/store` parameter set to
+`dynamodb` and a restart. The file is kept, so going back is the parameter and a restart.
+
+`npm test` runs everything, 2,509 checks. It is also what CI runs on every push, on Node 20 and 22,
 with the live suite in its own job so an outage at a weather service is never mistaken for a
 regression here.
 
 ```bash
-npm run test:unit           # 1,999 checks, no live data
+npm run test:unit           # 2,211 checks, no live data
 npm run test:live           # 298 checks, against a running server and the real forecast
 
 node test.mjs               # heat index formula, categories, medications, how the lines read aloud
@@ -806,6 +981,7 @@ node test-panel.mjs         # the MCP Apps handshake against a simulated host
 node test-skill.mjs         # the Agent Skill: its format, every tool and chain it names, and reading it over MCP
 node test-gaps.mjs          # a home too hot, asking afterwards, carers, how sure, more cities, more outages, the counts
 node test-aws-findings.mjs  # what a session against the deployed server found: the first question after a place, first aid's voice
+node test-table.mjs          # the DynamoDB store: conflicts keep both changes, sealing per person, and the scheduled check from the table alone
 node test-conversations.mjs # whole conversations in the patterns real users were recorded in, with a scripted host
 node test-readme.mjs        # every count, file, setting and result this README states, against the code
 node strands/test.mjs       # the Strands agent, with a scripted model: needs `npm install` in strands/ first
@@ -814,7 +990,8 @@ node test-static-client.mjs # the account linking shape Alexa+ actually uses
 node test-cold.mjs          # wind chill against the NWS chart, frostbite times, hypothermia first aid
 node test-recalls.mjs       # FDA recalls, severity, privacy, and never a false all clear
 node test-warnings.mjs      # official alerts, the personal half, and storm prep by medicine
-node test-spaceweather.mjs  # asking Orbita over MCP, what crosses the wire, the base rate, silence on failure
+node test-disasters.mjs     # a home too cold, smoke from the forecast, and each disaster for one person
+node test-spaceweather.mjs  # reading NOAA's storm feed, what crosses the wire, the base rate, silence on failure
 node test-shelters.mjs      # open shelters, distances, what the feed does not say, and 211
 node test-web.mjs           # the demo page, every request on it, one profile per visitor, older hosts
 node test-contract.mjs      # every listed tool invoked for real, on an empty profile and a half set
@@ -902,7 +1079,7 @@ Three things were added for the day the weather is most dangerous, which is the 
   "Nearest" is said only when a distance was measured, and where the map cannot be reached a hospital in the same
   town is named from the Medicare list. Looked up in the background when a place is set, never inside a tool call.
 * **Shelters and storm preparation are part of the default tool set again.** `somewhere_to_go` now ends by offering
-  to tell the family, and `storm_prep` is where a geomagnetic storm from Orbita is turned into what to do about
+  to tell the family, and `storm_prep` is where a geomagnetic storm forecast by NOAA is turned into what to do about
   medicines that need a fridge or a socket.
 
 What is not there: a text message or a phone call. Both need a registered sending number, and neither has been set
@@ -1122,7 +1299,86 @@ disease. The two answers differ in 36 to 86 percent of waking hours. In Tampa th
 fine hour to be outside, and the first had none; in Phoenix it was 24 days against 5. It counts how often the answers
 differ, from heat alone. It does not show that anybody was harmed or protected. `node evals/backtest.mjs` regenerates it.
 
+## What a replay of the conversations found, and what changed
+
+Playing the sixteen test conversations through the real tools with the arguments a host would fill in, and reading
+every answer, found four faults no test had caught, because the tests checked which tool was chosen and not what it
+then said. Each is fixed and pinned in `test-disasters.mjs`.
+
+| What was said | What happened | What it does now |
+|---|---|---|
+| "Let my son know I'm going to the library", with only a daughter on the list | The daughter was emailed | `get_help` takes `who`, a name or a relation. Only that person is told; with nobody matching, nobody is, and the answer says who could be or how to add them |
+| "The doctor started me on Lasix", then "does that change anything about today?" | Answered about the lisinopril already on file; the new medicine was never named | A medicine added in the last few minutes is named first when it does anything in the heat, and a second medicine that does something different is named after it |
+| Somebody living alone, silent, on a dangerous cold day | Told the family "today's heat is in the dangerous range" | The check-in names what made the day dangerous: the heat, the cold, a home too hot or too cold, or an official warning, which now counts on its own |
+| "Check on me if you haven't heard from me by eleven" | Nothing to keep it in: the check was fixed at 2 pm | `about_me` takes `checkInBy`, the hour their family is asked, the way STAY lets a resident set their own safety window |
+
+And one found by reading the code: the family alerts judged a cold day without the medicines that blunt shivering,
+which the spoken answer counts. They count them now.
+
+## How it asks, and what it asks for consent
+
+Health details are sensitive personal information, and Amazon's rules for Alexa+ add-ons are specific about them.
+Each rule below is in the code and checked in `test-disasters.mjs` and `test-auth.mjs`.
+
+* **Consent before anything is kept.** The linking page has a box to tick that says what is kept (medicines,
+  conditions, medical equipment, age, home and town), what for (heat, cold and disaster advice for that person only),
+  that it never goes to their contacts, and that it lasts until they say forget everything. Without the box ticked,
+  nothing is linked.
+* **Why first, the question last.** Each setup question says what the answer changes, then asks, so the question is
+  the last thing heard before the microphone opens. Every one is yes or no, or has a short answer:
+  "Some medicines change what the heat and the cold do to your body. I'd use yours only to warn you, until you tell me
+  to forget them. Do you take any medicines?"
+* **Age can be declined**, and an age under 18 is not kept: Sudor is for adults, and the policy forbids collecting
+  children's information.
+* **Names said aloud only if they want.** Once medicines are known, one question asks whether their names may be said
+  out loud or kept to "one of your medicines" in case somebody else can hear. The choice is kept.
+* **The disclaimer, in Amazon's words.** The first time a health detail is kept, Sudor says once what it is for and
+  "This information is not a substitute for professional medical advice." "What can you do" says it too.
+
+Sources: [Alexa+ add-on policy requirements](https://developer.amazon.com/en-US/docs/alexa/alexaplus/add-ons/policy-requirements.html),
+[functional requirements](https://developer.amazon.com/en-US/docs/alexa/alexaplus/add-ons/functional-requirements.html),
+[Alexa design guide](https://developer.amazon.com/en-US/docs/alexa/alexa-design/get-started.html).
+
+## What it asks, who can check, and where to go in the cold
+
+Four things that were missing, each tested in `test-disasters.mjs`.
+
+* **It asks, a question at a time** (`src/setup.ts`). Somebody who had only said where they live got the same answer
+  as everybody else, with one sentence inviting them to say more. Now, after an ordinary answer on a day that is not
+  dangerous, one question is put: do you take any medicines, then any health conditions, then how old you are, then
+  whether you live on your own. One a day at most, none for a week once asked, never on a day with a warning, an
+  emergency or a home that is not safe, and a "no" is kept so it is not asked again. How each is worded is below. `about_me` takes `age`,
+  `noMedicines` and `noConditions`; 65 or over adds the older adult condition.
+* **One carer, several people.** A carer, two parents, an agency's round: one account can now check on up to 25
+  people, each of whom gave their own one-time code, so consent stays with each person. `share_my_day` takes
+  `called` when joining ("Mum", "Mr Lee") and `who` when checking or leaving. Asked with no name, it answers for
+  everybody in one line each, the one at risk first and named as the next step; asked about one, it gives that
+  person's day and what to do. Still never a medicine or a condition.
+* **A warming centre by name.** Four lists for the cold: Missouri's health department (733 sites across the state,
+  with some across the river in Illinois), Philadelphia, Cook County and DeKalb County, Georgia. On a cold day
+  `somewhere_to_go` names the nearest with its hours and says to ring first; a warming list never answers for the
+  heat, nor a cooling list for the cold.
+* **Smoke on the scale Europe uses.** In Europe the forecast's European Air Quality Index is said instead of the
+  American one, with the EEA's lines: poor (60) for adults and children with breathing problems and adults with heart
+  conditions, very poor (80) for everybody. A number heard in Lyon is now the number on the French forecast.
+
+Sources: [Mahmood and others, 2024](https://arxiv.org/pdf/2403.02421),
+[Missouri warming centers](https://gis.mo.gov/arcgis/rest/services/DHSS/Warming_Center/MapServer/0),
+[Philadelphia warming and cooling sites](https://services.arcgis.com/fLeGjb7u4uXqeF9q/arcgis/rest/services/Warming_Cooling_Sites_PUBLICVIEW/FeatureServer/0),
+[Cook County warming centers](https://gis12.cookcountyil.gov/arcgis/rest/services/CoolingWarmingCenter/MapServer/1),
+[DeKalb County centers](https://services2.arcgis.com/IxVN2oUE9EYLSnPE/ArcGIS/rest/services/WarmingCoolingCenters_public_b2bbf549fb674929abf0a221ada2e66f/FeatureServer/0),
+[Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api),
+[EEA air quality index](https://www.eea.europa.eu/en/about/contact-us/faqs/what-do-the-air-quality-index-values-mean).
+
 ## Evaluating tool selection
+
+**The thirteen tools a host is actually shown now have their own set.** The golden set below tests the full list of
+tools, and that list has no tool for the cooling, the heating, an indoor reading, living alone or the check-in hour,
+because `about_me` exists only in the default list. So what Alexa+ is shown was never what was measured.
+`evals/golden-core.json` is 81 sentences on the default thirteen, with the winter, smoke, disaster and family cases,
+speech noise, indirect and adversarial phrasing and 11 that expect no tool; `npm run eval -- --core` runs it with its own
+baseline. It is checked against the live tool list for free on every run (`test-golden.mjs`) and has not yet been run
+against a model.
 
 The golden set and the saved baseline were run with the full tool set (`SCOPE=all`) and before the sharing,
 "tell me more", `get_help` and shift-planning additions. The new sentences for those are checked against the tool
@@ -1237,8 +1493,8 @@ only remote HTTPS servers and not the local stdio kind.
 ```
 
 Cursor has a soft ceiling of roughly 40 active tools across all connected servers, and
-past it the agent quietly loses access to some. This publishes 18 and Orbita 15, so the
-pair is 33 before anything else is connected. On a host with a ceiling, connect one.
+past it the agent quietly loses access to some. This publishes 13 and Orbita 15, so the
+pair is 28 before anything else is connected. On a host with a ceiling, connect one.
 
 ## Honest limitations
 

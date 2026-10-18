@@ -8,7 +8,7 @@ A tool marked "reads" changes nothing. A tool marked "writes" saves or sends som
 
 Writes.
 
-Tell the add-on about the customer, or read back what it knows: where they are, the medicines they take, the health conditions they have, medical equipment they rely on, whether the cooling at home works, and whether to keep those private. Call this when someone says where they live, names a medicine, a condition or equipment such as home oxygen, says their air conditioning is broken or how hot it is indoors, says they have stopped one, asks what you know about them, asks whether a medicine or their equipment has been recalled, asks to keep their health private, or says forget everything. Several things can be given at once. With nothing given it reads the profile back. It records details about the customer only, never about another person. It is not for the weather itself (use weather_check) and not for who to tell in an emergency (use contact).
+Tell the add-on about the customer, or read back what it knows: where they are, the medicines they take, the health conditions they have, medical equipment they rely on, whether the cooling and the heating at home work, and whether to keep those private. Call this when someone says where they live, names a medicine, a condition or equipment such as home oxygen, says their air conditioning or heating is broken, that they cannot afford to heat or cool, or how hot or cold it is indoors, says they have stopped one, asks what you know about them, asks whether a medicine or their equipment has been recalled, asks to keep their health private, or says forget everything. Several things can be given at once. With nothing given it reads the profile back. It records details about the customer only, never about another person. It is not for the weather itself (use weather_check) and not for who to tell in an emergency (use contact).
 
 | Argument | Values | Needed |
 |---|---|---|
@@ -19,7 +19,12 @@ Tell the add-on about the customer, or read back what it knows: where they are, 
 | `conditions` | array | no |
 | `stopConditions` | array | no |
 | `cooling` | working, broken, none, fan, power_cuts, cost | no |
+| `heating` | working, broken, none, cost, power_cuts, space_heater | no |
 | `livesAlone` | boolean | no |
+| `age` | integer | no |
+| `noMedicines` | boolean | no |
+| `noConditions` | boolean | no |
+| `checkInBy` | integer | no |
 | `topFloor` | boolean | no |
 | `indoorTempF` | number | no |
 | `equipment` | array | no |
@@ -52,6 +57,7 @@ Tell the customer's confirmed contacts, by email and straight away, that they ne
 |---|---|---|
 | `what` | string | no |
 | `status` | need_help, safe | no |
+| `who` | string | no |
 
 ## `going_out_now`
 
@@ -105,6 +111,8 @@ Let a family member or carer ask how this person's day is looking, from their ow
 | `shiftEnd` | integer | no |
 | `code` | string | no |
 | `as` | family, crew | no |
+| `called` | string | no |
+| `who` | string | no |
 
 ## `somewhere_to_go`
 

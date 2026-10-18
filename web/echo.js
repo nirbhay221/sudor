@@ -209,6 +209,9 @@ void start();
  * out is the browser's own (Chrome and Edge hear; most browsers speak), so nothing about the voice leaves
  * the visitor's machine except the words.
  */
+// The conversation so far and the next step the last answer named, sent with each sentence.
+const echoTurns = [];
+let echoNext = null;
 async function sayAnything(words, button) {
   const buttons = [...document.querySelectorAll('.chip, #free button')];
   buttons.forEach((b) => (b.disabled = true));
@@ -216,13 +219,17 @@ async function sayAnything(words, button) {
   el('heard').textContent = words;
   el('answer').textContent = '…';
   try {
-    const res = await fetch('/agent', { method: 'POST', headers: { 'content-type': 'application/json', 'x-sudor-demo': session }, body: JSON.stringify({ say: words }) });
+    const res = await fetch('/agent', { method: 'POST', headers: { 'content-type': 'application/json', 'x-sudor-demo': session }, body: JSON.stringify({ say: words, history: echoTurns, next: echoNext }) });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.detail || `The server said no (HTTP ${res.status}).`);
-    const text = body.result?.content?.[0]?.text ?? body.said ?? '';
+    const text = body.reply || body.result?.content?.[0]?.text || body.said || '';
+    // Kept for the next sentence, as Alexa+ keeps the conversation. See conversation() in standin.ts.
+    echoTurns.push({ role: 'user', text: words }, { role: 'assistant', text });
+    echoTurns.splice(0, Math.max(0, echoTurns.length - 6));
+    echoNext = body.result?.structuredContent?.nextAction ?? null;
     el('answer').textContent = text;
     const by = body.model === 'word rules' ? 'word rules (no model running)' : body.model;
-    el('meta').textContent = body.chose ? `${by} chose ${body.chose.tool}` : `${by} chose no tool`;
+    el('meta').textContent = body.chose ? `${by} chose ${(body.steps ?? [body.chose]).map((s) => s.tool).join(' then ')}` : `${by} chose no tool`;
     showCard(body.result?.structuredContent?.card, body.result?.structuredContent?.enterAt);
     speak(text);
   } catch (err) {

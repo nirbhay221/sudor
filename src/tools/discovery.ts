@@ -26,6 +26,7 @@ import * as spaceweather from '../spaceweather.js';
 import * as shelters from '../shelters.js';
 import {
   say,
+  DISCLAIMER,
 } from './shared.js';
 
 export function register(server: McpServer, personOf: () => string): void {
@@ -48,11 +49,11 @@ export function register(server: McpServer, personOf: () => string): void {
           : '';
       // Three sentences. It used to be 116 words, which nobody asking "what can you do" is waiting for.
       return say(
-        'I tell you whether the heat or the cold outside is a problem for you, given the medicines you take and the ' +
-          'conditions you have. Ask me is it safe outside, when is the best time to go out, or tell me how you feel. ' +
-          "I'm not a doctor, and this isn't medical advice." +
+        'I tell you whether heat, cold or a storm is a problem for you, given your medicines and conditions. ' +
+          'Ask me is it safe outside, when to go out, or tell me how you feel. ' +
+          "I'm not a doctor. This information is not a substitute for professional medical advice." +
           setup,
-        { fullAnswer: true, medicationsKnown: MEDICATIONS.length, conditionsKnown: CONDITIONS.length },
+        { fullAnswer: true, medicationsKnown: MEDICATIONS.length, conditionsKnown: CONDITIONS.length, disclaimer: DISCLAIMER },
       );
     },
   );

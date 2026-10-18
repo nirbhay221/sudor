@@ -63,6 +63,10 @@ export const WEATHER_DOWN =
  */
 // Short, because it is said in nearly every hot answer, and it is the one line that prevents a harm.
 export const MEDICATION_CAUTION = 'Keep taking it unless your doctor says otherwise.';
+/** Amazon's wording for medical information in an add-on, word for word. See policy-requirements. */
+export const DISCLAIMER = 'This information is not a substitute for professional medical advice.';
+/** Said once, the first time a health detail is kept: what it is for, how far it goes, and the disclaimer. */
+export const HEALTH_PURPOSE = "I keep your health details only to tailor heat, cold and storm warnings for you, never tell your contacts what they are, and forget them whenever you say forget everything. " + DISCLAIMER;
 
 export const CATEGORY_WORDS: Record<HeatCategory, string> = {
   none: 'not a heat concern',
@@ -72,13 +76,27 @@ export const CATEGORY_WORDS: Record<HeatCategory, string> = {
   extreme_danger: 'extreme danger',
 };
 
+/** How long to wait before asking the geocoder again when it did not answer. */
+const GEOCODE_RETRIES_MS = [3_000, 20_000, 90_000];
+
 /**
  * A spoken place is looked up in the background, because a geocoding call
  * measured 740 to 1000 ms against a 500 ms budget for the whole turn.
  * Exported so a server restart can finish a lookup that was cut off.
  */
-export function resolveLocation(personId: string, place: string): void {
-  void geocode(place).then((found) => {
+export function resolveLocation(personId: string, place: string, attempt = 0): void {
+  void geocode(place).catch((err) => {
+    // The geocoder did not answer, which is not the same as there being no such place. Try again a little
+    // later and keep saying "still looking"; only after the last try is the person asked to say it again.
+    if (attempt < GEOCODE_RETRIES_MS.length) {
+      const t = setTimeout(() => resolveLocation(personId, place, attempt + 1), GEOCODE_RETRIES_MS[attempt]);
+      t.unref?.();
+      return undefined;
+    }
+    console.error(`[geocode] gave up after ${attempt + 1} tries: ${String(err)}`);
+    return null;
+  }).then((found) => {
+    if (found === undefined) return;
     store.update(personId, (p) => {
       // Someone may have set a different place while this one was being looked up.
       if (p.locationName !== place || p.locationStatus !== 'locating') return;

@@ -24,8 +24,11 @@ import { emailConfigured, sendEmail, canEmailFor, toDemoPhone, DEMO_PHONE } from
 import { consentRequired, reachable, awaiting, newInvite, invitation, alwaysAsk, newEntry } from '../consent.js';
 import * as weather from '../weather.js';
 import { indoorRisk } from '../indoor.js';
+import { coldHomeRisk } from '../indoorcold.js';
+import { helpLine, whoKnows } from '../aid.js';
 import * as impact from '../impact.js';
 import { perCaller } from '../budget.js';
+import { currentCaller } from '../caller.js';
 import * as store from '../store.js';
 import * as recalls from '../recalls.js';
 import * as warnings from '../warnings.js';
@@ -247,10 +250,12 @@ export function register(server: McpServer, personOf: () => string): void {
         shiftEnd: z.number().int().min(1).max(24).optional().describe('Only with check and a crew link: hour the working day ends'),
         code: z.string().optional().describe('The eight digit code, as spoken, only when joining'),
         as: z.enum(['family', 'crew']).optional().describe('crew only when another service is joining on behalf of a work crew; family otherwise'),
+        called: z.string().optional().describe('Only when joining: what the person joining calls the one who gave the code, as said, e.g. "Mum" or "Mr Lee"'),
+        who: z.string().optional().describe('With check or leave, when they look after more than one person: which one, by what they call them, e.g. "Mum"'),
       },
       _meta: { ui: { resourceUri: CARD } },
     },
-    async ({ action, code, as }) => {
+    async ({ action, code, as, called, who }) => {
       const id = personOf();
       if (action === 'invite') {
         if (store.get(id).lat == null) return say('Tell me where you are first, so there is a day to share.', { shared: false });
@@ -272,7 +277,8 @@ export function register(server: McpServer, personOf: () => string): void {
         );
       }
       if (action === 'join') {
-        if (!(as === 'crew' ? crewJoins : joins).allow(id)) return say('Too many codes tried. Wait a while and try again.', { joined: false, reason: 'limit' });
+        // Charged to the caller, not the person: a sandbox id is free to make, a network address is not.
+        if (!(as === 'crew' ? crewJoins : joins).allow(currentCaller(id))) return say('Too many codes tried. Wait a while and try again.', { joined: false, reason: 'limit' });
         // A crew is another server asking for a foreman. It gets a link to keep, not an account. See store.ts.
         if (as === 'crew') {
           const linked = store.joinAsCrew(code ?? '');
@@ -281,7 +287,7 @@ export function register(server: McpServer, personOf: () => string): void {
           }
           return say('Done. This crew can now ask how their working day looks, and nothing about their health.', { joined: true, crewLink: linked.token });
         }
-        const r = store.joinWithCode(id, code ?? '');
+        const r = store.joinWithCode(id, code ?? '', Date.now(), called ?? '');
         if (!r.ok) {
           return say(
             r.why === 'own'
@@ -292,9 +298,17 @@ export function register(server: McpServer, personOf: () => string): void {
             { joined: false, reason: r.why },
           );
         }
-        return say('Done. Ask me how their day is looking, whenever you want to know.', { joined: true });
+        const watching = store.viewedAll(id);
+        const name = watching.find((w) => w.id === r.personId)?.called;
+        return say(
+          watching.length > 1
+            ? `Done. You now check on ${watching.length} people. Ask how ${name ?? 'they'} ${name ? 'is' : 'are'} doing, or how everyone is doing.`
+            : 'Done. Ask me how their day is looking, whenever you want to know.',
+          { joined: true, watching: watching.map((w) => w.called) },
+        );
       }
       if (action === 'leave') {
+        if (who) return say(store.leave(id, who) ? `Done. You are no longer checking on ${who.replace(/^(my|our)\s+/i, '')}.` : `You were not checking on anybody called ${who}.`, { left: true });
         return say(store.leave(id) ? 'Done. You are no longer checking on anybody.' : 'You were not checking on anybody.', { left: true });
       }
       const n = store.stopSharing(id);
@@ -316,10 +330,11 @@ export function register(server: McpServer, personOf: () => string): void {
         crewLink: z.string().optional().describe('Only for a crew service: the link it was given when it joined'),
         shiftStart: z.number().int().min(0).max(23).optional().describe('Hour the working day starts, with a crew link'),
         shiftEnd: z.number().int().min(1).max(24).optional().describe('Hour the working day ends, with a crew link'),
+        who: z.string().optional().describe('Which person, by what the asker calls them, when they check on more than one: "Mum", "Mr Lee". Leave it out to hear about everybody'),
       },
       _meta: { ui: { resourceUri: CARD } },
     },
-    async ({ crewLink, shiftStart, shiftEnd }) => {
+    async ({ crewLink, shiftStart, shiftEnd, who }) => {
       /*
        * A crew asking. What comes back is what a foreman needs to plan the day and nothing else: how hot the
        * shift gets, when the breaks are, when it turns risky for this person, and how much of the heat they
@@ -358,9 +373,43 @@ export function register(server: McpServer, personOf: () => string): void {
           },
         });
       }
-      const target = store.viewedBy(personOf());
-      if (!target) {
+      /*
+       * A carer, a family with two parents, an agency with a round: one account may check on several people, each
+       * of whom gave their own code. Asked about one by name, the answer is that person's, with what to do. Asked
+       * with no name and more than one person, it is one line each, worst first, so the person at risk is heard
+       * before the ones who are fine.
+       */
+      const watching = store.viewedAll(personOf());
+      if (!watching.length) {
         return say('Nobody is sharing their day with you yet. They ask me for a code and read it to you, and then you join with it.', { sharing: false });
+      }
+      const asked = (who ?? '').trim();
+      if (!asked && watching.length > 1) {
+        const rank = { avoid: 0, caution: 1, good: 2 } as const;
+        const lines = watching.map((w) => {
+          const them = store.get(w.id);
+          const s = snapshotFor(them);
+          if (typeof s === 'string') return { called: w.called, status: 'unknown' as const, line: `${w.called}: I can't see the weather there right now.` };
+          const prof = profileOf(them.medications.flatMap((m) => [...m.mechanisms, ...(m.label?.mechanisms ?? [])]), them.conditions, { outings: them.outings, private: true });
+          const hourNow = judgeHour({ local: '', time: s.fetchedAt, tempF: s.tempF, humidityPct: s.humidityPct, uvIndex: s.uvIndex, windMph: s.windMph, isDay: s.isDay, aqi: s.aqi, solarWm2: s.solarWm2, wetBulbF: s.wetBulbF }, prof);
+          const day = planDay(s, prof, { now: new Date() });
+          const homeBad = !them.privacy && ((coldHomeRisk(s, them)?.level === 'danger') || indoorRisk(s, them, them.medications.length > 0 || them.conditions.length > 0)?.level === 'danger');
+          const status = homeBad ? 'avoid' : hourNow.status;
+          const word = homeBad ? 'their home is not safe to stay in today' : status === 'good' ? 'a fine day' : status === 'caution' ? 'a day to take care' : 'a day to stay in';
+          const best = !homeBad && day.best && day.best.status !== 'avoid' && status !== 'good' ? `, best out ${day.best.label}` : '';
+          return { called: w.called, status, line: `${w.called}: ${word}${best}.` };
+        });
+        lines.sort((a, b) => (rank[a.status as keyof typeof rank] ?? -1) - (rank[b.status as keyof typeof rank] ?? -1));
+        const worst = lines.find((l) => l.status === 'avoid');
+        return say(`${lines.map((l) => l.line).join(' ')}${worst ? ` Ask about ${worst.called} for what to do today.` : ''}`, {
+          sharing: true,
+          everyone: lines.map((l) => ({ called: l.called, status: l.status })),
+          ...(worst ? { nextAction: { tool: 'share_my_day', arguments: { action: 'check', who: worst.called } } } : {}),
+        });
+      }
+      const target = store.viewedBy(personOf(), asked || undefined);
+      if (!target) {
+        return say(`You are not checking on anybody called ${asked}. You check on ${watching.map((w) => w.called).join(', ')}.`, { sharing: true, unknown: asked });
       }
       const person = store.get(target);
       const snap = snapshotFor(person);
@@ -386,6 +435,7 @@ export function register(server: McpServer, personOf: () => string): void {
       const risky = now.status !== 'good' || plan.best?.status === 'avoid';
       const vulnerable = person.medications.length > 0 || person.conditions.length > 0;
       const home = !person.privacy ? indoorRisk(snap, person, vulnerable) : null;
+      const chill = !person.privacy && !home ? coldHomeRisk(snap, person) : null;
       const morning = new Date(Date.now() + snap.utcOffsetSeconds * 1000);
       morning.setUTCHours(6, 0, 0, 0);
       const quiet = person.livesAlone && (!person.lastSeenAt || Date.parse(person.lastSeenAt) < morning.getTime() - snap.utcOffsetSeconds * 1000);
@@ -399,12 +449,21 @@ export function register(server: McpServer, personOf: () => string): void {
             ...(person.privacy ? [] : person.conditions.map((id) => conditionById(id)?.carerStep).filter((x): x is string => !!x)),
             'If they are confused, slur their words or faint, that can be heat stroke: call 911.',
           ].filter(Boolean)
-        : [];
+        : (risky && cold) || chill
+          ? [
+              chill?.level === 'danger' ? 'Their home is too cold to stay in tonight: help them get somewhere warm before dark.' : '',
+              quiet ? 'They have not spoken to me since this morning, so ring them or call round.' : 'Ring them or call round today.',
+              'Check the room they spend the day in is at least 68 degrees, the level the National Institute on Aging advises for older adults.',
+              'Make sure they eat, drink something warm, and wear layers and a hat indoors.',
+              ...(person.privacy ? [] : person.conditions.map((id) => conditionById(id)?.carerStep).filter((x): x is string => !!x)),
+              'If they are confused, slurring, fumbling or have stopped shivering, that can be hypothermia: call 911.',
+            ].filter(Boolean)
+          : [];
       if (carer.length) impact.count('carerSteps', personOf());
       return say(`Right now${where} it is ${word}, feeling like ${Math.round(cold ? now.feelsF : now.heatIndexF)}.${best}${carer.length ? ` ${carer.join(' ')}` : ''}`, {
         sharing: true,
         status: now.status,
-        ...(carer.length ? { forCarer: carer, ...(home?.level === 'danger' ? { homeTooHot: true } : {}) } : {}),
+        ...(carer.length ? { forCarer: carer, ...(home?.level === 'danger' ? { homeTooHot: true } : {}), ...(chill?.level === 'danger' ? { homeTooCold: true } : {}) } : {}),
         best: plan.best ? { label: plan.best.label, status: plan.best.status } : null,
         card: {
           kind: 'card',
@@ -446,17 +505,44 @@ export function register(server: McpServer, personOf: () => string): void {
       inputSchema: {
         what: z.string().optional().describe('What is wrong, in their words, e.g. "the power is out and I am cold"'),
         status: z.enum(['need_help', 'safe']).optional().describe('safe when they say tell my family I am safe, I am okay, or we made it; need_help otherwise, which is the default'),
+        who: z.string().optional().describe('One person to tell, when they name one: a name or how they are related, as said, e.g. "Priya" or "my son". Leave it out to tell everybody who agreed'),
       },
     },
-    async ({ what, status }) => {
+    async ({ what, status, who }) => {
       const id = personOf();
       const person = store.get(id);
       const said = clean(what ?? '', 200);
+      /*
+       * "Let my son know." Telling somebody else instead, without saying so, was what this did before: the one
+       * contact on the list was emailed when the person had asked for their son. A name or a relation is matched
+       * against the contacts who agreed; when nobody matches, nobody is told, and the answer says who could be.
+       */
+      const named = clean(who ?? '', 60).toLowerCase().replace(/^(my|our)\s+/, '').trim();
+      const reachableNow = person.contacts.filter(reachable);
+      const matches = named
+        ? reachableNow.filter((c) => c.name.toLowerCase() === named || c.name.toLowerCase().split(/\s+/)[0] === named || (c.relation ?? '').toLowerCase() === named)
+        : reachableNow;
+      if (named && !matches.length) {
+        const listed = person.contacts.find((c) => c.name.toLowerCase() === named || (c.relation ?? '').toLowerCase() === named);
+        const others = reachableNow.map((c) => c.name);
+        const lead = listed
+          ? `${listed.name} has not agreed to be emailed yet, so I cannot tell them.`
+          : `I don't have your ${named} on your list, so I have not told anyone.`;
+        const offer = others.length ? ` I can tell ${andList(others)} instead: say tell ${others.length === 1 ? others[0] : 'everyone'}.` : '';
+        const add = listed ? '' : ` To add your ${named}, say add my ${named}.`;
+        return say(`${lead}${offer}${add}${status === 'safe' ? '' : ' If you are in danger, call 911 yourself now.'}`, {
+          told: [],
+          reason: listed ? 'not_agreed' : 'not_on_list',
+          asked: named,
+          ...(others.length ? { offer: `Tell ${andList(others)}?`, nextAction: { tool: 'get_help', arguments: { ...(what ? { what } : {}), ...(status ? { status } : {}) } } } : { nextAction: { tool: 'contact', arguments: { action: 'add' } } }),
+        });
+      }
+      const only = named ? matches.map((c) => c.name) : undefined;
       // The other message that matters in a disaster: I'm all right. Same people, opposite news.
       if (status === 'safe') {
-        const to = person.contacts.filter(reachable);
+        const to = matches;
         if (!to.length) return say('There is nobody I can tell yet. Tell me who to add, and next time I can let them know you are safe.', { told: [], reason: 'no_contacts' });
-        const result = alertSafe(id, said);
+        const result = alertSafe(id, said, only);
         const who = andList(result.trying.length ? result.trying : to.map((c) => c.name));
         return say(
           result.demo
@@ -471,8 +557,10 @@ export function register(server: McpServer, personOf: () => string): void {
       }
       const hospital = care.sentence(person.lat, person.lon);
       const yours = 'I cannot phone anyone or reach 911 for you. If you are in danger, call 911 yourself now.';
-      const confirmed = person.contacts.filter(reachable);
+      const confirmed = matches;
 
+      // 211 where it exists; elsewhere the council is who opens warm and cool places. See aid.ts.
+      const placeLine = helpLine(person.country) ? 'For somewhere warm or cool to go, call 211.' : `For somewhere warm or cool to go, ring ${whoKnows(person.country)}.`;
       if (!confirmed.length) {
         const waiting = person.contacts.filter((c) => !c.confirmedAt).map((c) => c.name);
         const asked = person.contacts.filter(awaiting).map((c) => c.name);
@@ -483,13 +571,13 @@ export function register(server: McpServer, personOf: () => string): void {
             : '';
         return say(
           `There is nobody I can tell yet${why}. ${yours} ` +
-            `${hospital ? `${hospital} ` : ''}For somewhere warm or cool to go, call 211. ` +
+            `${hospital ? `${hospital} ` : ''}${placeLine} ` +
             'To have somebody told next time, tell me who to add.',
-          { told: [], reason: 'no_contacts', referral: { emergency: '911', local: '211' } },
+          { told: [], reason: 'no_contacts', referral: { emergency: '911', local: helpLine(person.country) ?? whoKnows(person.country) } },
         );
       }
 
-      const sent = alertHelp(id, said);
+      const sent = alertHelp(id, said, only);
       const names = andList(sent.trying);
       const first = sent.demo
         ? `I'm telling ${names || 'your contacts'} that you need help. ${DEMO_PHONE}`
@@ -501,18 +589,18 @@ export function register(server: McpServer, personOf: () => string): void {
       const told = sent.configured && !sent.demo ? sent.trying : [];
       // Email can sit unread for an hour. The host may be able to place a call, and this add-on cannot.
       const ring = `Email can sit unread, so ring ${confirmed[0].name} as well if you can.`;
-      return say(`${first} ${yours} ${ring}${hospital ? ` ${hospital}` : ''} For somewhere warm or cool to go, call 211.`, {
+      return say(`${first} ${yours} ${ring}${hospital ? ` ${hospital}` : ''} ${placeLine}`, {
         told,
         notTold: sent.limited,
         emailConfigured: sent.configured,
         ...(sent.demo ? { demo: true } : {}),
-        referral: { emergency: '911', local: '211' },
+        referral: { emergency: '911', local: helpLine(person.country) ?? whoKnows(person.country) },
         nearestEmergency: care.named(person.lat, person.lon),
         card: {
           kind: 'card',
           title: told.length ? `Told ${names}` : 'Nobody told yet',
           status: { label: told.length ? 'email sent' : 'not sent', tone: told.length ? 'neutral' : 'bad' },
-          lines: ['In danger: call 911 yourself.', hospital, 'Somewhere warm or cool: call 211.'].filter(Boolean),
+          lines: ['In danger: call 911 yourself.', hospital, helpLine(person.country) ? 'Somewhere warm or cool: call 211.' : `Somewhere warm or cool: ${whoKnows(person.country)}.`].filter(Boolean),
         },
       });
     },

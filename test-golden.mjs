@@ -109,5 +109,32 @@ ok('an improvement is reported as fixed', compare(before, worse).fixed.some((f) 
 ok('no baseline is not an error', compare(before, null).hadBaseline === false);
 
 await client.close(); await server.close();
+console.log('\nThe default tool list has its own golden set (evals/golden-core.json)');
+{
+  // What a host is shown when SUDOR_SCOPE is unset: thirteen tools, about_me among them. The set above tests the full
+  // list, which has no tool for the cooling, the heating or a check-in hour at all, so it could never cover them.
+  const before = process.env.SUDOR_SCOPE;
+  process.env.SUDOR_SCOPE = 'core';
+  const coreServer = new McpServer({ name: 't', version: '1' }, { capabilities: { tools: {}, resources: {} } });
+  registerTools(coreServer, () => 'golden-core-test');
+  process.env.SUDOR_SCOPE = before;
+  const coreClient = new Client({ name: 'c', version: '1' }, { capabilities: {} });
+  const [ca, cb] = InMemoryTransport.createLinkedPair();
+  await Promise.all([coreServer.connect(ca), coreClient.connect(cb)]);
+  const coreTools = (await coreClient.listTools()).tools;
+  const core = JSON.parse(readFileSync('./evals/golden-core.json', 'utf8'));
+  const cv = validateGolden(core, coreTools);
+  ok('it is checked against the default list, which is the smaller one', coreTools.length < tools.length && coreTools.some((t) => t.name === 'about_me'), `${coreTools.length} vs ${tools.length}`);
+  ok('every case names a default tool, real parameters and valid enum values', cv.problems.length === 0, cv.problems.join(' | '));
+  ok('every default tool has a case', !cv.problems.some((p) => p.includes('has no golden case')));
+  ok('declining is at least 12% of it', cv.declines / cv.cases >= 0.12, `${cv.declines}/${cv.cases}`);
+  const coreKinds = new Set(core.cases.filter((c) => c.say).map(kindOf));
+  for (const k of ['route', 'decline', 'adversarial', 'asr', 'incomplete', 'colloquial']) ok(`it has ${k} cases`, coreKinds.has(k));
+  const covered = (pattern) => core.cases.some((c) => c.say && pattern.test(JSON.stringify(c.args ?? {})));
+  ok('the heating, the cooling, an indoor reading and the check-in hour are all covered', covered(/"heating"/) && covered(/"cooling"/) && covered(/"indoorTempF"/) && covered(/"checkInBy"/));
+  ok('one named person for get_help is covered', covered(/"who"/));
+  ok('its seed calls are default tools too', core.seedCalls.every((s) => coreTools.some((t) => t.name === s.tool)));
+}
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed ? 1 : 0);

@@ -13,6 +13,11 @@ import { GUIDANCE } from '../domain.js';
 import { sentences } from '../brief.js';
 import { thunderstormAsthma, migrainePressure } from '../weatherhealth.js';
 import { indoorRisk, LIMIT_F } from '../indoor.js';
+import { coldHomeRisk, CHILLY_NIGHT_F } from '../indoorcold.js';
+import { smokeDay } from '../smoke.js';
+import { nextQuestion } from '../setup.js';
+import * as flow from '../flow.js';
+import { hazardOf } from '../hazard.js';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { assess, heatIndexF, photoRisk, type HeatCategory } from '../domain.js';
@@ -49,6 +54,12 @@ import {
   settle,
   officialWarning,
 } from './shared.js';
+
+/** An official smoke or air quality alert already carries the smoke advice, so the forecast line is not said twice. */
+const smokeWarned = (person: store.Person, zone: string): boolean => {
+  const w = officialWarning(person, zone);
+  return !!w && hazardOf(w.event) === 'smoke';
+};
 
 /** The first half of each medicine's heat advice, for the spoken answer. The rest is in GUIDANCE, for "tell me more". */
 const GUIDANCE_SHORT = {
@@ -131,6 +142,19 @@ export function register(server: McpServer, personOf: () => string): void {
         if (!person.medications.length && !person.conditions.length) {
           parts.push('Tell me your medications or health conditions and I can answer for you specifically.');
         }
+        // "Stay in" is only good advice when in is warm. See indoorcold.ts.
+        const home = coldHomeRisk(snap, person);
+        if (home) parts.push(home.line);
+        // Winter smoke is wood smoke and inversions as often as wildfire. See smoke.ts.
+        const coldSmoke = smokeWarned(person, snap.timezone) ? null : smokeDay(snap, person);
+        if (coldSmoke) parts.push(coldSmoke.line);
+        // Nobody has said whether the heating works, and a cold night is coming. Asked once a day at most.
+        const coldToday = new Date().toISOString().slice(0, 10);
+        const lowAhead = Math.min(snap.tempF, ...snap.hourly.slice(0, 24).map((h) => h.tempF).filter(Number.isFinite));
+        const askHeating = !home && !person.heating && person.heatingAskedOn !== coldToday && lowAhead <= CHILLY_NIGHT_F;
+        // The closing question, put the way the heat answer puts its cooling question, so brevity keeps it.
+        const heatingQuestion = 'Staying in only helps if your heating works. Is it working?';
+        if (askHeating) store.update(personOf(), (p) => void (p.heatingAskedOn = coldToday));
 
       // Weather that is a health event in itself, for the people it is one for. See weatherhealth.ts.
       const stormLine = thunderstormAsthma(snap, { asthma: person.conditions.includes('asthma_copd'), hayFever: person.conditions.includes('hay_fever') });
@@ -140,7 +164,11 @@ export function register(server: McpServer, personOf: () => string): void {
         const official = officialWarning(person, snap.timezone);
         if (official) parts.push(official.line);
         return say(parts.join(' '), {
-          ...(official || stormLine ? { mustSay: [official?.line ?? '', stormLine].filter(Boolean) } : {}),
+          ...(official || stormLine || home || coldSmoke ? { mustSay: [official?.line ?? '', stormLine, home?.line ?? '', coldSmoke?.line ?? ''].filter(Boolean) } : {}),
+          ...(coldSmoke ? { smoke: { level: coldSmoke.level, peakAqi: coldSmoke.peakAqi, at: coldSmoke.at } } : {}),
+          ...(home ? { indoorCold: { level: home.level, basis: home.basis, indoorF: home.indoorF ?? null, lowF: home.lowF ?? null } } : {}),
+          ...(home?.level === 'danger' ? { nextAction: { tool: 'somewhere_to_go', arguments: {} } } : {}),
+          ...(askHeating ? { asks: 'heating', offer: heatingQuestion } : {}),
           ...(official ? { warning: official.event } : {}),
           ...(stormLine ? { thunderstormAsthma: true } : {}),
           season: 'cold',
@@ -182,11 +210,26 @@ export function register(server: McpServer, personOf: () => string): void {
       } else {
         parts.push(opening);
         if (verdict.binding) {
-          // The medicine by its name, and only the first half of what it means: the rest is there to be asked for.
-          const med = person.medications.find((m) => m.mechanisms.includes(verdict.binding!));
+          /*
+           * The medicine by its name, and only the first half of what it means: the rest is there to be asked for.
+           *
+           * Which medicine. "The doctor started me on Lasix", then "does that change anything about today", was
+           * answered about the lisinopril already on file, because it was the stronger mechanism, and the new
+           * medicine was never mentioned. A medicine added in the last few minutes is what the question is about,
+           * so it is named first when it does anything in the heat; otherwise the one that drives the risk. A
+           * second medicine that does something different is named after it.
+           */
+          const heatMechs = (m: store.RegisteredMedication) => [...m.mechanisms, ...(m.label?.mechanisms ?? [])].filter((x) => x in MECHANISM_LABEL);
+          const justAdded = flow.trail(personOf()).some((t) => t === 'about_me' || t === 'medication');
+          const newest = justAdded ? [...person.medications].reverse().find((m) => heatMechs(m).length > 0) : undefined;
+          const med = newest ?? person.medications.find((m) => m.mechanisms.includes(verdict.binding!));
+          const leadMech = newest && !heatMechs(newest).includes(verdict.binding) ? heatMechs(newest)[0] : verdict.binding;
           const named = med?.generic ?? 'medication';
-          const consequence = GUIDANCE_SHORT[verdict.binding as keyof typeof GUIDANCE_SHORT] ?? '';
-          parts.push(`Your ${named} ${MECHANISM_LABEL[verdict.binding]}${consequence ? `, so ${consequence}` : ''}.`);
+          const consequence = GUIDANCE_SHORT[leadMech as keyof typeof GUIDANCE_SHORT] ?? '';
+          parts.push(`Your ${named} ${MECHANISM_LABEL[leadMech as keyof typeof MECHANISM_LABEL]}${consequence ? `, so ${consequence}` : ''}.`);
+          const other = person.medications.find((m) => m !== med && heatMechs(m).some((x) => x !== leadMech));
+          const otherMech = other ? heatMechs(other).find((x) => x !== leadMech) : undefined;
+          if (other && otherMech) parts.push(`And your ${other.generic} ${MECHANISM_LABEL[otherMech as keyof typeof MECHANISM_LABEL]}.`);
           parts.push(MEDICATION_CAUTION);
           // A warning that rests on how a drug works, not on studies in the heat, says so. See evidenceFor.
           evidence = med ? evidenceFor(med.drugClass) : null;
@@ -246,6 +289,12 @@ export function register(server: McpServer, personOf: () => string): void {
       const vulnerable = person.medications.length > 0 || person.conditions.length > 0;
       const inside = indoorRisk(snap, person, vulnerable);
       if (inside) parts.push(inside.line);
+      // A mild afternoon can still have a freezing night, and an unheated house follows the night. See indoorcold.ts.
+      const chill = inside ? null : coldHomeRisk(snap, person);
+      if (chill) parts.push(chill.line);
+      // Smoke from the hourly forecast, whether or not a warning was issued. See smoke.ts.
+      const smoke = smokeWarned(person, snap.timezone) ? null : smokeDay(snap, person);
+      if (smoke) parts.push(smoke.line);
       // Nobody has said whether the cooling works, and they have just been told to stay in.
       // Asked once a day at most, and it is the closing question when it is asked.
       const today = new Date().toISOString().slice(0, 10);
@@ -254,13 +303,19 @@ export function register(server: McpServer, personOf: () => string): void {
 
       // The step that finishes the thought, put as one question.
       // One question at a time: when the cooling is being asked about, that is the question.
-      const offer = askCooling ? 'Staying in only helps if your cooling works. Is it working?' : judged.status === 'good' || officialWarning(person, snap.timezone) ? '' : 'Want me to find the safest time to go out today?';
+      // With nothing more urgent to put, the most useful thing not yet known about them. See setup.ts.
+      const calm = !askCooling && judged.status !== 'avoid' && !officialWarning(person, snap.timezone) && inside?.level !== 'danger' && chill?.level !== 'danger' && smoke?.level !== 'danger';
+      const setupQ = calm ? nextQuestion(person) : null;
+      if (setupQ) store.update(personOf(), (p) => void (p.setupAsked = { ...(p.setupAsked ?? {}), [setupQ.key]: new Date().toISOString() }));
+      // The question replaces the general invitation to say more, so the same thing is not asked twice in one answer.
+      if (setupQ) { const i = parts.indexOf('Tell me your medications or health conditions and I can answer for you specifically.'); if (i >= 0) parts.splice(i, 1); }
+      const offer = askCooling ? 'Staying in only helps if your cooling works. Is it working?' : setupQ ? setupQ.ask : judged.status === 'good' || officialWarning(person, snap.timezone) ? '' : 'Want me to find the safest time to go out today?';
       // The line about not stopping a medicine is said whatever else is held back.
       // So is the line about not stopping a medicine: it is the one sentence here that prevents a harm.
       // A run that starts today is already covered by today's answer; one that starts tomorrow or the day after is
       // the warning nobody else gives yet, so it is said.
       const runAhead = run && run.start > localToday ? runLine : '';
-      const mustSay = [parts.includes(MEDICATION_CAUTION) ? MEDICATION_CAUTION : '', inside ? inside.line : '', stormLine, runAhead].filter(Boolean);
+      const mustSay = [parts.includes(MEDICATION_CAUTION) ? MEDICATION_CAUTION : '', inside ? inside.line : '', chill ? chill.line : '', smoke ? smoke.line : '', stormLine, runAhead].filter(Boolean);
       // A hurricane, a tornado or a flood outranks the heat index, and is said whatever else is held back.
       const official = officialWarning(person, snap.timezone);
       if (official) {
@@ -270,11 +325,13 @@ export function register(server: McpServer, personOf: () => string): void {
       return say(parts.join(' '), {
         ...(official ? { warning: official.event } : {}),
         ...(evidence ? { evidence } : {}),
-        ...(inside?.level === 'danger' ? { nextAction: { tool: 'somewhere_to_go', arguments: {} } } : askCooling ? { offer } : offer ? { offer, nextAction: { tool: 'plan_my_day', arguments: {} } } : {}),
+        ...(inside?.level === 'danger' || chill?.level === 'danger' ? { nextAction: { tool: 'somewhere_to_go', arguments: {} } } : askCooling || setupQ ? { offer } : offer ? { offer, nextAction: { tool: 'plan_my_day', arguments: {} } } : {}),
         ...(inside ? { indoor: { level: inside.level, basis: inside.basis, indoorF: inside.indoorF ?? null, highF: inside.highF ?? null, overnightLowF: inside.overnightLowF ?? null } } : {}),
         // What to switch on, for a host that controls devices and can offer to do it. See indoor.ts.
         ...(inside?.control ? { homeControl: inside.control } : {}),
-        ...(askCooling ? { asks: 'cooling' } : {}),
+        ...(smoke ? { smoke: { level: smoke.level, peakAqi: smoke.peakAqi, at: smoke.at } } : {}),
+        ...(chill ? { indoorCold: { level: chill.level, basis: chill.basis, indoorF: chill.indoorF ?? null, lowF: chill.lowF ?? null } } : {}),
+        ...(askCooling ? { asks: 'cooling' } : setupQ ? { asks: setupQ.key } : {}),
         ...(stormLine ? { thunderstormAsthma: true } : {}),
         ...(runLine && run ? { hotRun: run } : {}),
         mustSay,

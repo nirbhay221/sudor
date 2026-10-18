@@ -488,6 +488,13 @@ export function watch(lat: number, lon: number, country?: string | null, town?: 
   void refresh(lat, lon);
 }
 
+/** watch(), awaited. For the scheduled check in sweep.ts, which has to have the answer before it decides. */
+export async function readNow(lat: number, lon: number, country?: string | null, town?: string | null): Promise<void> {
+  if (country) countries.set(key(lat, lon), country.toUpperCase());
+  if (town) towns.set(key(lat, lon), town);
+  await refresh(lat, lon, true);
+}
+
 /** Worst first: a warning outranks a watch, and sooner outranks later. */
 const RANK: Record<string, number> = { Extreme: 4, Severe: 3, Moderate: 2, Minor: 1, Unknown: 0 };
 export function rank(alerts: Alert[]): Alert[] {

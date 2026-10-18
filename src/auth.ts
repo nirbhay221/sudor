@@ -191,11 +191,13 @@ function consentPage(client: Client, f: ConsentFields, error?: string, account =
  input{width:100%;padding:.7rem .8rem;font-size:1rem;border:1px solid #c3c9d3;border-radius:3px;background:#fff}
  button{margin-top:1.25rem;width:100%;padding:.8rem;font-size:1rem;font-weight:600;color:#fff;background:#b85c15;border:0;border-radius:3px;cursor:pointer}
  small{display:block;margin-top:1.5rem;color:#7b8494}
+ label.agree{display:flex;gap:.6rem;align-items:flex-start;text-transform:none;letter-spacing:0;font-size:.95rem;color:#2d333c;line-height:1.45}
+ label.agree input{width:auto;margin-top:.25rem}
  .err{margin:1rem 0 0;padding:.7rem .8rem;border:1px solid #b3261e;border-radius:3px;color:#8c1d18;background:#fdf1f0}
  @media (prefers-contrast: more){input{border-color:#000}small,p{color:#000}}
 </style>
 <h1>Link Sudor</h1>
-<p>${escapeHtml(client.name)} is asking to read your medications and location, and to answer whether today's heat is dangerous for you.</p>
+<p>${escapeHtml(client.name)} is asking to link Sudor, which answers whether today's heat, cold or a disaster warning is dangerous for you.</p>
 ${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ''}
 <form method="post" action="/oauth/authorize">
   <input type="hidden" name="client_id" value="${escapeHtml(f.client_id)}">
@@ -206,6 +208,7 @@ ${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ''}
   <input id="account" name="account" required autocomplete="username" placeholder="e.g. Jordan" value="${escapeHtml(account)}">
   <label for="passphrase">Passphrase</label>
   <input id="passphrase" name="passphrase" type="password" required minlength="${store.MIN_PASSPHRASE}" autocomplete="current-password">
+  <label class="agree" for="consent"><input id="consent" name="consent" type="checkbox" value="yes" required> I agree that Sudor keeps what I tell it about my health (medicines, conditions, medical equipment and age), my home and my town, and uses it only to tailor heat, cold and disaster advice for me, until I say forget everything. It is never sent to my contacts. This is not a substitute for professional medical advice.</label>
   <button type="submit">Link</button>
 </form>
 <small>The first time you link a name, this sets its passphrase. After that it is asked for every time, so nobody else who types your name gets your medications. Your medications stay on this server. Sudor never sees your pharmacy or health records.</small>`;
@@ -372,7 +375,7 @@ export function mountAuth(app: Express): void {
   });
 
   app.post('/oauth/authorize', async (req, res) => {
-    const { client_id, redirect_uri, code_challenge, state, account, passphrase } = req.body ?? {};
+    const { client_id, redirect_uri, code_challenge, state, account, passphrase, consent } = req.body ?? {};
     const client = clients.get(client_id);
     if (!client || !client.redirectUris.includes(redirect_uri) || !code_challenge || !account) {
       res.status(400).send('Invalid authorization request.');
@@ -390,6 +393,10 @@ export function mountAuth(app: Express): void {
       noFraming(res);
       res.status(status).type('html').send(consentPage(client, fields, message, String(account)));
     };
+
+    // Explicit consent to keeping health details, before any is kept. Amazon's policy rejects an add-on that
+    // collects sensitive personal information without it, and the box says what is kept, why, and until when.
+    if (consent !== 'yes') return again(400, 'Please tick the box to agree to how Sudor keeps your details. Without it, nothing is linked.');
 
     // Only a name nobody has claimed counts against the address, and only when the
     // passphrase is one that could actually claim it, so a mistyped form is free.
@@ -421,6 +428,7 @@ export function mountAuth(app: Express): void {
         return again(403, 'That name and passphrase did not match. If you have not linked before, choose a different name.');
     }
 
+    // No code is issued without the box ticked above, so every linked account has agreed.
     const code = secret();
     codes.set(code, {
       clientId: client_id,

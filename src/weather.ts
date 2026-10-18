@@ -38,6 +38,8 @@ export type Hour = {
   isDay: boolean;
   /** US AQI, null when the air quality call did not answer. */
   aqi: number | null;
+  /** European AQI, the scale people in Europe are told, on the same call: 0 to 20 good up to over 100 extremely poor. */
+  eaqi?: number | null;
   /** Downward shortwave radiation, W/m2. Zero at night. The sun's own load. */
   solarWm2: number;
   /** Psychrometric wet bulb, Fahrenheit, as Open-Meteo reports it. */
@@ -66,6 +68,8 @@ export type LocationSnapshot = {
   windMph: number;
   isDay: boolean;
   aqi: number | null;
+  /** European AQI right now. See Hour. */
+  eaqi?: number | null;
   /** Downward shortwave radiation right now, W/m2. */
   solarWm2: number;
   /** Psychrometric wet bulb right now, Fahrenheit. */
@@ -82,9 +86,37 @@ const snapshots = new Map<string, LocationSnapshot>();
 const timers = new Map<string, NodeJS.Timeout>();
 const key = (lat: number, lon: number) => `${lat.toFixed(3)},${lon.toFixed(3)}`;
 
-/** "2026-09-12T15:00" at a UTC offset of -25200 seconds is 22:00 UTC. */
-export function localToUtc(local: string, utcOffsetSeconds: number): string {
-  return new Date(Date.parse(`${local}Z`) - utcOffsetSeconds * 1000).toISOString();
+/** The zone's offset from UTC at one instant, in seconds, or null when the zone is not one Intl knows. */
+function offsetIn(timeZone: string, at: number): number | null {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(new Date(at));
+    const n = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+    return (Date.UTC(n('year'), n('month') - 1, n('day'), n('hour'), n('minute'), n('second')) - Math.floor(at / 1000) * 1000) / 1000;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * "2026-09-12T15:00" at a UTC offset of -25200 seconds is 22:00 UTC.
+ *
+ * Open-Meteo gives one offset for the whole forecast, the one in force now. Across the night the clocks
+ * change, every hour after it was put an hour out, so with the zone known the offset is taken hour by hour.
+ */
+export function localToUtc(local: string, utcOffsetSeconds: number, timeZone?: string): string {
+  const wall = Date.parse(`${local}Z`);
+  let at = wall - utcOffsetSeconds * 1000;
+  if (timeZone && timeZone !== 'GMT' && timeZone !== 'UTC') {
+    // Twice, so an hour on the far side of the change settles on that side's offset.
+    for (let i = 0; i < 2; i++) {
+      const off = offsetIn(timeZone, at);
+      if (off == null) break;
+      at = wall - off * 1000;
+    }
+  }
+  return new Date(at).toISOString();
 }
 
 /** Pure, so the timezone handling is tested without the network. */
@@ -92,16 +124,18 @@ export function parseForecast(lat: number, lon: number, weather: any, air: any, 
   const offset = Number(weather?.utc_offset_seconds ?? 0);
   const aqiAt = new Map<string, number | null>();
   const pollenAt = new Map<string, number | null>();
+  const eaqiAt = new Map<string, number | null>();
   (air?.hourly?.time ?? []).forEach((t: string, i: number) => {
     aqiAt.set(t, air.hourly.us_aqi?.[i] ?? null);
     pollenAt.set(t, air.hourly.grass_pollen?.[i] ?? null);
+    eaqiAt.set(t, air.hourly.european_aqi?.[i] ?? null);
   });
   const h = weather?.hourly ?? {};
   // An hour with no temperature or humidity is left out rather than carried as NaN into a heat index.
   const usable = (i: number) => Number.isFinite(h.temperature_2m?.[i]) && Number.isFinite(h.relative_humidity_2m?.[i]);
   const hourly: Hour[] = (h.time ?? []).map((local: string, i: number) => ({ local, i })).filter((x: { i: number }) => usable(x.i)).map(({ local, i }: { local: string; i: number }) => ({
     local,
-    time: localToUtc(local, offset),
+    time: localToUtc(local, offset, weather?.timezone),
     tempF: h.temperature_2m[i],
     humidityPct: h.relative_humidity_2m[i],
     uvIndex: h.uv_index?.[i] ?? 0,
@@ -110,6 +144,7 @@ export function parseForecast(lat: number, lon: number, weather: any, air: any, 
     solarWm2: h.shortwave_radiation?.[i] ?? 0,
     wetBulbF: h.wet_bulb_temperature_2m?.[i] ?? h.temperature_2m[i],
     aqi: aqiAt.get(local) ?? null,
+    eaqi: eaqiAt.get(local) ?? null,
     weatherCode: Number.isFinite(h.weather_code?.[i]) ? h.weather_code[i] : undefined,
     pressureHpa: Number.isFinite(h.surface_pressure?.[i]) ? h.surface_pressure[i] : undefined,
     grassPollen: pollenAt.get(local) ?? null,
@@ -136,13 +171,24 @@ export function parseForecast(lat: number, lon: number, weather: any, air: any, 
     solarWm2: weather.current.shortwave_radiation ?? 0,
     wetBulbF: weather.current.wet_bulb_temperature_2m ?? weather.current.temperature_2m,
     aqi: air?.current?.us_aqi ?? null,
+    eaqi: air?.current?.european_aqi ?? null,
     hourly,
     daily,
     stale: false,
   };
 }
 
-async function fetchJson(url: string, timeoutMs = 8000): Promise<any> {
+/*
+ * A failed read is tried again soon, not in twenty minutes. On 18 October 2026 Open-Meteo answered in two to nine
+ * seconds and twice with a 503, and somebody who had just said where they live was told "I can't reach the weather
+ * service" for the next twenty minutes, because the only retry was the regular tick. Now a failure is tried again
+ * after 15 seconds, then a minute, then three, and the regular tick carries on after that. The timeout is twelve
+ * seconds, above the slowest answer seen that day, and still off the turn: every read happens in the background.
+ */
+const RETRY_MS = (process.env.SUDOR_WEATHER_RETRY_MS ?? '15000,60000,180000').split(',').map(Number).filter((n) => n > 0);
+const retrying = new Map<string, number>();
+
+async function fetchJson(url: string, timeoutMs = 12_000): Promise<any> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -168,7 +214,7 @@ async function refreshOne(lat: number, lon: number): Promise<void> {
         '&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,weather_code' +
         '&forecast_days=7&forecast_hours=48&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto',
     ),
-    fetchJson(`${AIR}?latitude=${lat}&longitude=${lon}&current=us_aqi&hourly=us_aqi,grass_pollen&forecast_days=2&timezone=auto`),
+    fetchJson(`${AIR}?latitude=${lat}&longitude=${lon}&current=us_aqi,european_aqi&hourly=us_aqi,european_aqi,grass_pollen&forecast_days=2&timezone=auto`),
   ]);
 
   let failure = weather.status === 'rejected' ? String(weather.reason) : '';
@@ -179,11 +225,19 @@ async function refreshOne(lat: number, lon: number): Promise<void> {
       const parsed = parseForecast(lat, lon, weather.value, air.status === 'fulfilled' ? air.value : null);
       if (!Number.isFinite(parsed.tempF) || !Number.isFinite(parsed.humidityPct)) throw new Error('forecast had no current temperature');
       snapshots.set(k, parsed);
+      retrying.delete(k);
       return;
     } catch (err) {
       failure = String(err);
     }
   }
+  // Tried again soon, while it is still being followed, up to three times. See RETRY_MS.
+  const attempt = retrying.get(k) ?? 0;
+  if (attempt < RETRY_MS.length && timers.has(k)) {
+    retrying.set(k, attempt + 1);
+    const t = setTimeout(() => { if (timers.has(k)) void refreshOne(lat, lon); }, RETRY_MS[attempt]);
+    t.unref?.();
+  } else retrying.delete(k);
   // A stale reading you know is stale beats a fresh one that silently failed
   // to update. Keep serving the last good snapshot and say how old it is.
   const error = failure;
@@ -225,6 +279,7 @@ function stopWatching(k: string): void {
   timers.delete(k);
   snapshots.delete(k);
   demoOnly.delete(k);
+  retrying.delete(k);
 }
 
 /** Start (or confirm) a background refresh loop for one location. Idempotent. */
@@ -259,6 +314,9 @@ export function watch(lat: number, lon: number, forAccount = false): void {
 export function unwatch(lat: number, lon: number): void {
   stopWatching(key(lat, lon));
 }
+
+/** Read one place now and wait for it, with no timer left behind. For the scheduled check in sweep.ts. */
+export const readNow = (lat: number, lon: number): Promise<void> => refreshOne(lat, lon);
 
 export function watched(): { accounts: number; sandbox: number } {
   return { accounts: timers.size - demoOnly.size, sandbox: demoOnly.size };

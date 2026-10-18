@@ -464,11 +464,12 @@ export function register(server: McpServer, personOf: () => string): void {
         p.recallWatch.length ? `Watching the recall list only for: ${p.recallWatch.join(', ')}.` : '',
         profile.conditions.length ? `Conditions: ${profile.conditions.map((c) => c.label).join(', ')}.` : 'No conditions.',
         p.cooling ? `Cooling at home: ${p.cooling === 'working' ? 'working' : p.cooling === 'fan' ? 'a fan only' : p.cooling === 'broken' ? 'not working' : p.cooling === 'cost' ? 'working, but too costly to run' : p.cooling === 'power_cuts' ? 'working, with power cuts' : 'none'}.` : '',
+        p.heating ? `Heating at home: ${p.heating === 'working' ? 'working' : p.heating === 'space_heater' ? 'a space heater' : p.heating === 'broken' ? 'not working' : p.heating === 'cost' ? 'working, but too costly to run' : p.heating === 'power_cuts' ? 'working, with power cuts' : 'none'}.` : '',
         p.topFloor ? 'You sleep on the top floor.' : '',
         p.livesAlone ? (p.contacts.length ? 'You live alone, so on a dangerous day your contacts are asked to check on you if I have not heard from you by 2 pm.' : 'You live alone. Add somebody who can check on you on dangerous days.') : '',
         (p.equipment ?? []).length ? `Equipment: ${(p.equipment ?? []).map((k) => OWN[k] ?? k).join(', ')}.` : '',
         p.contacts.length
-          ? `Contacts: ${p.contacts.map((c) => `${c.name}${!c.confirmedAt ? ', not confirmed yet' : awaiting(c) ? ', waiting for them to agree' : ''}`).join('; ')}.`
+          ? `Contacts: ${p.contacts.map((c) => `${c.name}${!c.confirmedAt ? ', not confirmed yet' : awaiting(c) ? (c.invitedAt ? ', waiting for them to agree' : `, not asked to agree yet (say confirm ${c.name} and I will email them)`) : ''}`).join('; ')}.`
           : 'No contacts.',
         `Privacy mode is ${p.privacy ? 'on' : 'off'}.`,
         profile.learnedLimitF != null ? `You felt unwell near heat index ${profile.learnedLimitF}, so that is your limit.` : '',
@@ -521,7 +522,7 @@ export function register(server: McpServer, personOf: () => string): void {
       },
     },
     async ({ on }) => {
-      store.update(personOf(), (p) => void (p.privacy = on));
+      store.update(personOf(), (p) => { p.privacy = on; p.privacyChosen = true; });
       return say(
         on
           ? "Privacy mode is on. I won't name your medications or conditions out loud unless you ask."

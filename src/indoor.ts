@@ -57,6 +57,7 @@
 
 import type { LocationSnapshot } from './weather.js';
 import { pastOlderLimit, sayOlderLimit, vapourPressureMmHg } from './physiology.js';
+import { billHelp } from './aid.js';
 
 /**
  * 'cost' is cooling that works and is not being run because of the bill. In Maricopa County's 2024 report, 88
@@ -182,8 +183,9 @@ export function indoorRisk(
   // Sleeping under the roof is itself a reason to be counted among the people the heat is harder on.
   const found = judge(snap, home, vulnerable || home.topFloor === true, now);
   const roofed = found && home.topFloor ? { ...found, line: found.line + UNDER_ROOF, underRoof: true } : found;
-  const billHelp = roofed && home.cooling === 'cost' && (home.country ?? 'US').toUpperCase() === 'US';
-  return billHelp ? { ...roofed, line: roofed.line + BILL_HELP } : roofed;
+  // The country's own help with the bill, where one was checked. See aid.ts.
+  const help = roofed && home.cooling === 'cost' ? billHelp(home.country, 'cooling') : '';
+  return help && roofed ? { ...roofed, line: roofed.line + help } : roofed;
 }
 
 function judge(

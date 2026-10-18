@@ -84,6 +84,8 @@ const SYSTEM = [
   'the add-on remembers what the customer saved and answers itself when something is missing.',
   'Never ask the customer a question before calling a tool, and never list options for them to choose from. If',
   'a tool fits, call it with what they said; its answer asks for anything it still needs, in their own terms.',
+  'When the customer is answering a question the add-on just asked, even with a bare yes, no or not sure, read it',
+  'against that question and call the tool that records or acts on the answer.',
 ].join('\n');
 
 export type ToolDef = { name: string; description?: string; inputSchema?: Record<string, unknown> };
@@ -111,7 +113,7 @@ const anthropic = () =>
   }));
 
 /** Test seam, so tests never reach the API. */
-let ask: ((utterance: string, tools: ToolDef[]) => Promise<Chosen>) | null = null;
+let ask: ((utterance: string, tools: ToolDef[], history?: Turn[]) => Promise<Chosen>) | null = null;
 export function configureForTest(fn: typeof ask): void {
   ask = fn;
 }
@@ -171,7 +173,7 @@ ${instructions}` : SYSTEM, cache_control: { type: 'ephemeral' } }],
  * ambiguous.
  */
 export async function choose(utterance: string, tools: ToolDef[], instructions = '', history: Turn[] = []): Promise<Chosen> {
-  if (ask) return ask(utterance, tools);
+  if (ask) return ask(utterance, tools, history);
   if (!configured()) throw new Error('not configured');
 
   const started = Date.now();
@@ -268,4 +270,105 @@ export function explainError(err: unknown): string {
   }
   if (err instanceof Anthropic.APIError) return `The stand-in failed with ${err.status}.`;
   return 'The stand-in is unavailable.';
+}
+
+/*
+ * A whole turn, the way Alexa+ takes one.
+ *
+ * choose() picks one tool and stops, which is the right test of the tool descriptions and the wrong picture of
+ * Alexa+. Amazon's design guide says Alexa calls the add-on, reads what comes back, and composes the reply
+ * itself: "You influence Alexa's response through the data you return, not by scripting it directly", and
+ * "treat each tool response as self-contained while assuming Alexa will weave it into the broader conversation".
+ * The hackathon's rules let the Alexa+ experience be simulated "in a web app using their own agentic tools", and
+ * judge whether it is "a complete, coherent product experience". So the stand-in now does what Alexa+ does:
+ *
+ *   1. reads the conversation so far and the sentence, and calls a tool;
+ *   2. reads the result, and either calls the next step the result names, or speaks;
+ *   3. speaks a short reply in its own words from the tool's facts.
+ *
+ * Three limits keep it honest and cheap. At most three tools a turn. After the first, only a tool that changes
+ * nothing (readOnlyHint) is run without the customer: adding a contact or sending an email is never chained,
+ * it is offered. And a reply that drops an emergency number the tool said is replaced by the tool's own words,
+ * because a rewording is not allowed to lose the one line that matters most.
+ *   https://developer.amazon.com/docs/alexaplus/add-ons/mcp-addon-conversation-surface.html
+ *   https://amazonappdev2026.devpost.com/rules
+ */
+export type CallResult = { content?: { type?: string; text?: string }[]; structuredContent?: Record<string, unknown>; isError?: boolean };
+export type Step = { tool: string; args: Record<string, unknown>; result: CallResult };
+export type Turned = { steps: Step[]; reply: string; ms: number; model: string; calls: number; declined?: boolean };
+
+export const MAX_STEPS = 3;
+
+const SPEAK = [
+  'After a tool answers you will see its result, with its structured data.',
+  'Then do one of two things. Call one more tool only when the result names a next step (nextAction) that what the',
+  'customer asked already covers and that only reads; never chain anything that saves, sends or contacts anybody.',
+  'Otherwise speak the answer to the customer, as Alexa would: at most three short sentences in plain words, keeping',
+  'every number, time, place, medicine name and emergency number exactly as the tool gave them, never naming a tool',
+  'or showing data, adding no advice the tool did not give, and ending with the closing question the tool asked, if',
+  'it asked one.',
+].join('\n');
+
+const textOf = (r: CallResult): string => (r.content ?? []).map((c) => c.text ?? '').join(' ').trim();
+const EMERGENCY = /\b(911|999|112|000|108|111|119|192|193|199)\b/g;
+
+/** The rewording may not drop an emergency number the tool said. */
+export function keepSafety(reply: string, steps: Step[]): string {
+  const said = new Set(steps.flatMap((s) => textOf(s.result).match(EMERGENCY) ?? []));
+  const missing = [...said].some((n) => !reply.includes(n));
+  return !reply.trim() || missing ? textOf(steps[steps.length - 1]?.result ?? {}) : reply;
+}
+
+export async function converse(
+  utterance: string,
+  tools: (ToolDef & { annotations?: { readOnlyHint?: boolean } })[],
+  instructions: string,
+  history: Turn[],
+  call: (tool: string, args: Record<string, unknown>) => Promise<CallResult>,
+  spend: () => boolean = () => true,
+): Promise<Turned> {
+  const started = Date.now();
+  // Tests replace the model with a chooser; one step, and the tool's words are the reply.
+  if (ask) {
+    const c = await ask(utterance, tools, history);
+    if (!c.tool) return { steps: [], reply: c.said, ms: Date.now() - started, model: c.model, calls: 1, declined: true };
+    const result = await call(c.tool, c.args);
+    return { steps: [{ tool: c.tool, args: c.args, result }], reply: textOf(result), ms: Date.now() - started, model: c.model, calls: 1 };
+  }
+  if (!configured()) throw new Error('not configured');
+  const readOnly = new Map(tools.map((t) => [t.name, t.annotations?.readOnlyHint === true]));
+  const base = buildRequest(utterance, tools, instructions ? `${instructions}\n\n${SPEAK}` : SPEAK, history);
+  const messages = [...base.messages] as Anthropic.MessageParam[];
+  const steps: Step[] = [];
+  let reply = '';
+  let model = MODEL;
+  let calls = 0;
+  for (let i = 0; i <= MAX_STEPS; i += 1) {
+    // The first call was paid for by the route; every further one is checked against the day's cap.
+    if (i > 0 && !spend()) break;
+    const response = await anthropic().messages.create({ ...base, messages });
+    calls += 1;
+    model = response.model;
+    const uses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
+    const text = response.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map((b) => b.text).join(' ').trim();
+    if (!uses.length || i === MAX_STEPS) { reply = text; break; }
+    const use = uses[0];
+    // Past the first step, only what changes nothing runs without the customer. The rest is left as an offer.
+    if (i > 0 && !readOnly.get(use.name)) break;
+    const args = (use.input as Record<string, unknown>) ?? {};
+    const result = await call(use.name, args);
+    steps.push({ tool: use.name, args, result });
+    messages.push({ role: 'assistant', content: response.content });
+    messages.push({
+      role: 'user',
+      content: uses.map((u, k) => ({
+        type: 'tool_result' as const,
+        tool_use_id: u.id,
+        content: k === 0 ? `${textOf(result)}\n\nstructured: ${JSON.stringify(result.structuredContent ?? {}).slice(0, 4000)}` : 'Not run: one tool at a time.',
+        ...(k === 0 && result.isError ? { is_error: true } : {}),
+      })),
+    });
+  }
+  if (!steps.length) return { steps, reply, ms: Date.now() - started, model, calls, declined: true };
+  return { steps, reply: keepSafety(reply, steps), ms: Date.now() - started, model, calls };
 }

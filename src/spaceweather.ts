@@ -1,5 +1,5 @@
 /**
- * Sudor as an MCP client.
+ * The sun, read straight from NOAA.
  *
  * A severe geomagnetic storm is a power problem before it is anything else.
  * NOAA's own G-scale says a G4 can bring "possible widespread voltage control
@@ -10,102 +10,96 @@
  * oxygen concentrator that needs a socket. What it could not see was a storm
  * coming, because the National Weather Service does not forecast space weather.
  *
- * Orbita does, and it is an MCP server, so Sudor talks to it the way any host
- * would: it opens a Streamable HTTP client, calls the public `storm_status`
- * tool, and reads the NOAA scale out of the answer.
+ * NOAA's Space Weather Prediction Center does, in two public files with no key:
+ * noaa-scales.json, today's G level and the three day outlook, and
+ * noaa-planetary-k-index-forecast.json, Kp in three hour blocks. This reads both
+ * twice an hour. It used to ask another MCP server for the same numbers, which
+ * was one more thing to be down; NOAA is the source either way.
  *
  * Two rules make this safe to do.
  *
- * Nothing personal goes the other way. The call carries no arguments at all, no
- * location, no medicines, no identifier. Orbita learns that somebody asked what
- * the sun is doing, which is already public. Health data never leaves this
- * process, and no amount of convenience is worth changing that.
+ * Nothing personal goes the other way. The requests are two fixed URLs with no
+ * query at all, no location, no medicines, no identifier.
  *
- * And a quiet failure is silence, never an all clear. If Orbita is unreachable,
+ * And a quiet failure is silence, never an all clear. If NOAA is unreachable,
  * or slow, or answers with something unexpected, this reports nothing and Sudor
  * says nothing about space weather. Telling someone on home oxygen that the grid
  * looks fine, because a request timed out, would be the worst thing here.
  */
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { backoff } from './backoff.js';
-import { randomBytes } from 'node:crypto';
 
 export type Outlook = {
   /** NOAA G scale, 0 to 5, the worst of today and the three day outlook. */
   g: number;
   /** When that level is expected: today, or the date from the outlook. */
   when: string;
-  /** The highest Kp in the forecast, when the answer carried one. */
+  /** The highest Kp in the forecast still to come, when the Kp file answered. */
   peakKp: number | null;
   fetchedAt: number;
 };
 
-const URL = process.env.SUDOR_ORBITA_URL ?? '';
-const SANDBOX_ID = randomBytes(16).toString('hex');
+/** Where NOAA's files are. A setting only so the tests can stand in for NOAA. */
+const BASE = process.env.SUDOR_SWPC_BASE ?? 'https://services.swpc.noaa.gov/products';
 const EVERY_MS = 30 * 60 * 1000;
 const STALE_MS = 3 * 60 * 60 * 1000;
 const TIMEOUT_MS = 5000;
 
 let held: Outlook | null = null;
-let ask: () => Promise<Outlook | null> = askOrbita;
+let ask: () => Promise<Outlook | null> = askNoaa;
 
-/** Whether this server has been pointed at an Orbita to ask. */
-export const configured = (): boolean => URL.length > 0 || ask !== askOrbita;
+/** On unless SUDOR_SPACE_WEATHER=off. */
+export const configured = (): boolean => (process.env.SUDOR_SPACE_WEATHER ?? '').toLowerCase() !== 'off' || ask !== askNoaa;
+
+async function getJson(file: string): Promise<unknown> {
+  const res = await fetch(`${BASE}/${file}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+  if (!res.ok) throw new Error(`${file}: HTTP ${res.status}`);
+  return res.json();
+}
+
+const level = (v: unknown): number | null =>
+  v == null || v === '' || !Number.isFinite(Number(v)) ? null : Math.max(0, Math.min(5, Number(v)));
 
 /**
- * One call to Orbita, over MCP, with no arguments and a short fuse.
- *
- * The transport is opened and closed per poll rather than held open. This runs
- * twice an hour, the endpoint is stateless, and a connection that lives for
- * weeks is a connection that fails in ways nobody tests for.
+ * One read of each file, with a short fuse. The scales are the answer; the Kp
+ * peak is extra, so the Kp file failing costs only the peak.
  */
-async function askOrbita(): Promise<Outlook | null> {
-  if (!URL) return null;
-  const client = new Client({ name: 'sudor', version: '0.1.0' }, { capabilities: {} });
-  // Orbita takes either a linked account or a sandbox id. Without one, every call is a 401 the moment
-  // Orbita runs with authentication on, which is how it is deployed, so this link would have gone quiet on
-  // the day both were put live. storm_status reads no farm data, so a sandbox id is all it needs.
-  const transport = new StreamableHTTPClientTransport(new globalThis.URL(`${URL}/mcp`), {
-    requestInit: { headers: { 'x-orbita-demo': SANDBOX_ID } },
-  });
-  const cutOff = setTimeout(() => void transport.close().catch(() => {}), TIMEOUT_MS);
+async function askNoaa(): Promise<Outlook | null> {
   try {
-    await client.connect(transport);
-    const result = (await client.callTool({ name: 'storm_status', arguments: {} })) as {
-      structuredContent?: {
-        scales?: { g?: number; days?: { date?: string; g?: number | null }[] };
-        peak?: { kp?: number } | null;
-      };
-    };
-    const scales = result.structuredContent?.scales;
-    if (!scales) return null;
+    const [scalesRaw, kpRaw] = await Promise.all([
+      getJson('noaa-scales.json'),
+      getJson('noaa-planetary-k-index-forecast.json').catch(() => null),
+    ]);
+    // Key "0" is today, "-1" yesterday, "1" to "3" the outlook.
+    const sc = scalesRaw as Record<string, { DateStamp?: string; G?: { Scale?: string | null } }> | null;
+    if (!sc || typeof sc !== 'object' || !sc['0']) return null;
 
-    const today = Number(scales.g ?? 0);
-    const ahead = (scales.days ?? []).filter((d) => typeof d?.g === 'number');
-    const worstAhead = ahead.reduce<{ date: string; g: number } | null>(
-      (worst, d) => (worst && worst.g >= Number(d.g) ? worst : { date: String(d.date ?? ''), g: Number(d.g) }),
-      null,
-    );
+    const today = level(sc['0'].G?.Scale) ?? 0;
+    const worstAhead = ['1', '2', '3']
+      .map((k) => ({ date: String(sc[k]?.DateStamp ?? ''), g: level(sc[k]?.G?.Scale) }))
+      .filter((d): d is { date: string; g: number } => d.g != null)
+      .reduce<{ date: string; g: number } | null>((worst, d) => (worst && worst.g >= d.g ? worst : d), null);
 
     const g = Math.max(today, worstAhead?.g ?? 0);
     const when = worstAhead && worstAhead.g > today ? worstAhead.date : 'today';
-    const peakKp = typeof result.structuredContent?.peak?.kp === 'number' ? result.structuredContent.peak.kp : null;
+
+    // The Kp file carries the past week too, so the peak comes only from blocks not yet over.
+    let peakKp: number | null = null;
+    if (Array.isArray(kpRaw)) {
+      for (const r of kpRaw as { time_tag?: string; kp?: number | string }[]) {
+        const start = Date.parse(`${String(r?.time_tag ?? '').replace(/Z$/, '')}Z`);
+        const kp = Number(r?.kp);
+        if (!Number.isFinite(start) || r?.kp == null || !Number.isFinite(kp)) continue;
+        if (start + 3 * 3_600_000 > Date.now() && (peakKp == null || kp > peakKp)) peakKp = kp;
+      }
+    }
     return { g, when, peakKp, fetchedAt: Date.now() };
   } catch (err) {
     // Unreachable, slow, or answering something this does not understand. All
     // three mean the same thing to a customer, silence, but an operator reading
     // the log should be able to tell which it was.
-    console.error('[spaceweather] could not reach the space weather server:', err instanceof Error ? err.message : err);
+    console.error('[spaceweather] could not read the NOAA space weather feed:', err instanceof Error ? err.message : err);
     return null;
-  } finally {
-    clearTimeout(cutOff);
-    try {
-      await client.close();
-    } catch {
-      /* already gone */
-    }
   }
 }
 
@@ -155,7 +149,7 @@ export function outlook(): Outlook | null {
 /**
  * What the last successful poll saw, whatever its level, for /health and for
  * probes. outlook() is the one that decides whether it is worth saying; this
- * one just answers whether the link to Orbita is alive.
+ * one just answers whether the NOAA feed is being read.
  */
 export const lastSeen = (): Outlook | null => held;
 
@@ -181,9 +175,9 @@ export function speak(o: Outlook): string {
   );
 }
 
-/** For tests, and for running without an Orbita to ask. */
+/** For tests: a stand-in for NOAA, or null for the real one. */
 export function configureForTest(fake: (() => Promise<Outlook | null>) | null): void {
-  ask = fake ?? askOrbita;
+  ask = fake ?? askNoaa;
   held = null;
 }
 

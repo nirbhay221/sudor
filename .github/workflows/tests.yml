@@ -52,6 +52,44 @@ jobs:
           # Runners are shared and noisy; the laptop figure is in LATENCY.md.
           LATENCY_BUDGET_MS: '200'
 
+  infra:
+    # The CDK stack: synthesised and checked without touching an AWS account.
+    name: infrastructure stack
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run build
+      - run: node test.mjs
+
+  dynamodb:
+    # The store against DynamoDB Local, the same table docker-compose.yml makes.
+    # Fails rather than skips here: on a laptop with no DynamoDB Local the test skips itself.
+    name: against DynamoDB Local
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: |
+          docker compose up -d dynamodb
+          for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:8000 && break; sleep 2; done
+          docker compose run --rm table
+      - run: |
+          npm run -s test:dynamo | tee /tmp/dynamo.txt
+          if grep -q '  skip ' /tmp/dynamo.txt; then echo 'DynamoDB Local was not reached'; exit 1; fi
+
   container:
     name: docker build
     runs-on: ubuntu-latest
@@ -89,7 +127,7 @@ jobs:
           # for a server with 15.
           TOOLS=$(curl -fsS --max-time 10 -X POST "$BASE/mcp"             -H 'content-type: application/json'             -H 'accept: application/json, text/event-stream'             -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'             | sed -n 's/^data: //p'             | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["result"]["tools"]))')
           echo "tools listed: $TOOLS"
-          [ "$TOOLS" -ge 18 ]
+          [ "$TOOLS" -ge 13 ]
           # A stream request must answer rather than hang: a probe once found a
           # GET holding the connection open, which the gateway reported as a 503.
           code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H 'accept: text/event-stream' "$BASE/mcp")

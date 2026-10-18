@@ -2,7 +2,11 @@
 // The model this measures, set before the stand-in loads. The stand-in's own default is Haiku, for the public demo
 // page; this golden set and its baseline are Opus, and a run that reported Opus while asking Haiku scored the wrong host.
 process.env.SUDOR_AGENT_MODEL ??= 'claude-opus-5-5';
-process.env.SUDOR_SCOPE ??= 'all';
+// --core measures the thirteen tools a host is actually shown by default, from evals/golden-core.json; without it,
+// every tool, from evals/golden.json. They keep separate baselines, because the two lists are different tests.
+const CORE = process.argv.includes('--core');
+process.env.SUDOR_SCOPE ??= CORE ? 'core' : 'all';
+const SET = CORE ? '-core' : '';
 /**
  * A golden evaluation of tool selection.
  *
@@ -80,7 +84,7 @@ const opt = (name, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 
-const golden = JSON.parse(readFileSync('./evals/golden.json', 'utf8'));
+const golden = JSON.parse(readFileSync(`./evals/golden${SET}.json`, 'utf8'));
 const cases = golden.cases.filter((c) => typeof c.say === 'string');
 
 const { registerTools } = await import('./dist/tools.js');
@@ -306,15 +310,15 @@ const report = {
   declineAccuracy: declineAcc,
   ...s,
 };
-writeFileSync(join(OUT, 'last-run.json'), JSON.stringify(report, null, 2));
+writeFileSync(join(OUT, `last-run${SET}.json`), JSON.stringify(report, null, 2));
 if (flag('--save-baseline')) {
-  writeFileSync(join(OUT, 'baseline.json'), JSON.stringify(report, null, 2));
-  console.log('\nsaved evals/baseline.json');
+  writeFileSync(join(OUT, `baseline${SET}.json`), JSON.stringify(report, null, 2));
+  console.log('\nsaved evals/baseline' + SET + '.json');
 }
 
 let before = null;
-if (existsSync(join(OUT, 'baseline.json')) && !flag('--save-baseline')) {
-  before = JSON.parse(readFileSync(join(OUT, 'baseline.json'), 'utf8'));
+if (existsSync(join(OUT, `baseline${SET}.json`)) && !flag('--save-baseline')) {
+  before = JSON.parse(readFileSync(join(OUT, `baseline${SET}.json`), 'utf8'));
 }
 const cmp = compare(report, before);
 if (cmp.hadBaseline) {

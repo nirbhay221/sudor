@@ -21,6 +21,12 @@ import * as warnings from './warnings.js';
 import { hazardOf, forFamily } from './hazard.js';
 import * as shelters from './shelters.js';
 import { indoorRisk } from './indoor.js';
+import { coldHomeRisk, coldVulnerable } from './indoorcold.js';
+import { helpLine, whoKnows } from './aid.js';
+
+/** Where the family is told to find a warm or cool place: 211 where it exists, the council everywhere else. See aid.ts. */
+const findPlace = (country: string | undefined, what: string): string =>
+  helpLine(country) ? `For a ${what} near them, call 211.` : `For a ${what} near them, ring ${whoKnows(country)}.`;
 import * as impact from './impact.js';
 
 const recipients = (p: store.Person, reason: store.NotifyReason) =>
@@ -75,9 +81,10 @@ export function alertEmergency(personId: string, description: string): { trying:
  * Nothing about medicines or conditions goes in it. And it is email, which is the only thing this server can
  * send: it does not ring anybody and it does not reach 911, and the spoken answer says so.
  */
-export function alertHelp(personId: string, said: string): { trying: string[]; limited: string[]; configured: boolean; demo?: boolean } {
+export function alertHelp(personId: string, said: string, only?: string[]): { trying: string[]; limited: string[]; configured: boolean; demo?: boolean } {
   const p = store.get(personId);
-  const to = p.contacts.filter(reachable);
+  // One person, when they named one ("let my son know"); everybody who agreed otherwise.
+  const to = p.contacts.filter(reachable).filter((c) => !only || only.includes(c.name));
   const lines: string[] = [];
   lines.push(`Somebody you look after asked Sudor to get help at ${new Date().toUTCString()}${p.locationName ? `, near ${p.locationName}` : ''}.`);
   if (said) lines.push(`What they said: "${said.slice(0, 200)}".`);
@@ -98,7 +105,7 @@ export function alertHelp(personId: string, said: string): { trying: string[]; l
       lines.push(`Nearest open shelter: ${s.name}, ${s.address}, ${s.city}, ${s.state}. ${care.mapLink(s.lat, s.lon)}`);
     }
   }
-  lines.push('For a warming or cooling centre near them, call 211.');
+  lines.push(findPlace(p.country, 'warming or cooling centre'));
   lines.push('You are getting this because you were added as a contact and agreed to it.');
   if (!canEmailFor(personId)) {
     // The public demo sends no email. The same words, and a real link to answer with, go to the phone on the demo page.
@@ -127,9 +134,9 @@ export function alertHelp(personId: string, said: string): { trying: string[]; l
 }
 
 /** "I'm safe." The same people as a call for help, and the opposite news. Urgent, so it is never held behind ordinary mail. */
-export function alertSafe(personId: string, said: string): { trying: string[]; limited: string[]; configured: boolean; demo?: boolean } {
+export function alertSafe(personId: string, said: string, only?: string[]): { trying: string[]; limited: string[]; configured: boolean; demo?: boolean } {
   const p = store.get(personId);
-  const to = p.contacts.filter(reachable);
+  const to = p.contacts.filter(reachable).filter((c) => !only || only.includes(c.name));
   const text =
     `Somebody you look after asked Sudor to tell you they are safe, at ${new Date().toUTCString()}${p.locationName ? `, near ${p.locationName}` : ''}.` +
     (said ? `\n\nWhat they said: "${said.slice(0, 200)}".` : '') +
@@ -150,6 +157,27 @@ export function alertSafe(personId: string, said: string): { trying: string[]; l
 }
 
 /**
+ * Marks an alert as sent, and says whether this run is the one that marked it.
+ *
+ * EventBridge Scheduler delivers at least once, so the scheduled check can run twice for one slot, and both
+ * runs read the table before either has written. The second write is refused on its version, store.ts makes it
+ * again on top of the first, and this change then finds the key already there: that run sends nothing.
+ * On the table before anything is sent, when there is a table. See flush() in store.ts.
+ */
+async function claim(id: string, key: string): Promise<boolean> {
+  let mine = true;
+  store.update(id, (x) => {
+    if (x.alertsSent.includes(key)) {
+      mine = false;
+      return;
+    }
+    x.alertsSent = [...x.alertsSent.slice(-29), key];
+  });
+  await store.flush();
+  return mine;
+}
+
+/**
  * A warning where somebody lives, told to their family once.
  *
  * The family of somebody under a hurricane warning usually finds out from the news, and then cannot tell
@@ -167,9 +195,10 @@ export async function checkWarningAlerts(): Promise<Delivery[]> {
     if (!top) continue;
     const key = `warning:${top.id}`.slice(0, 120);
     if (p.alertsSent.includes(key)) continue;
-    store.update(id, (x) => void (x.alertsSent = [...x.alertsSent.slice(-29), key]));
+    if (!(await claim(id, key))) continue;
     for (const c of to) {
-      if (c.phone) void sendText({ to: c.phone, sender: id, reason: 'warning', text: `Sudor: ${forFamily(top, p.locationName)}` });
+      // Awaited here, unlike the texts a tool sends mid-turn: this runs in Lambda too, which stops when the check returns.
+      if (c.phone) await sendText({ to: c.phone, sender: id, reason: 'warning', text: `Sudor: ${forFamily(top, p.locationName)}` });
       attempted.push(
         await sendEmail({
           to: c.email,
@@ -190,8 +219,9 @@ export async function checkWarningAlerts(): Promise<Delivery[]> {
  * In the 1995 Chicago heat wave the people who died were, above all, the ones nobody saw: living alone more
  * than doubled the odds of dying (odds ratio 2.3), and not leaving home each day multiplied them by 6.7
  * (Semenza and others, NEJM 1996). Having friends or group contact nearby protected people. So for somebody
- * who has said they live alone, on a day whose heat is in the danger range for them, if they have not spoken
- * to Sudor since the morning by 2 pm their time, the contacts who agreed to hear about bad days are emailed
+ * who has said they live alone, on a day that is dangerous for them (the heat or the cold outside, a home too hot
+ * or too cold to stay in, or an official warning in force), if they have not spoken to Sudor since the morning by
+ * 2 pm their time, or by the hour they chose, the contacts who agreed to hear about bad days are emailed
  * once: check on them. Nothing about health is in it.
  */
 export const CHECK_HOUR = 14;
@@ -204,18 +234,32 @@ export async function checkOnAlone(now = new Date()): Promise<Delivery[]> {
     const snap = weather.current(p.lat, p.lon);
     if (!snap || !snap.hourly.length) continue;
     const local = new Date(now.getTime() + snap.utcOffsetSeconds * 1000);
-    if (local.getUTCHours() < CHECK_HOUR) continue;
+    // Their own time if they gave one ("check on me if you haven't heard from me by eleven"), else two.
+    if (local.getUTCHours() < (p.checkInHour ?? CHECK_HOUR)) continue;
     const date = local.toISOString().slice(0, 10);
     const key = `alone:${date}`;
     if (p.alertsSent.includes(key)) continue;
     // Heard from since six this morning, their time, is heard from.
     const morning = Date.parse(`${date}T06:00:00Z`) - snap.utcOffsetSeconds * 1000;
     if (p.lastSeenAt && Date.parse(p.lastSeenAt) >= morning) continue;
-    const profile = profileOf(p.medications.flatMap((m) => [...m.mechanisms, ...(m.label?.mechanisms ?? [])]), p.conditions, { outings: p.outings, private: true });
+    // What makes today dangerous for them, if anything: the day outside, the home, or an official warning.
+    const profile = profileOf(p.medications.flatMap((m) => [...m.mechanisms, ...(m.label?.mechanisms ?? [])]), p.conditions, { outings: p.outings, private: true, coldSensitive: coldVulnerable(p) });
     const plan = planDay(snap, profile, { now, day: 'today' });
-    if (!plan.best || plan.best.status !== 'avoid') continue;
-    store.update(id, (x) => void (x.alertsSent = [...x.alertsSent.slice(-29), key]));
+    const vulnerable = p.medications.length > 0 || p.conditions.length > 0;
+    const warning = warnings.rank(warnings.current(p.lat, p.lon) ?? []).find((a) => /warning|emergency/i.test(a.event) && hazardOf(a.event) !== 'other');
+    const why = warning
+      ? `There is ${/^[aeiou]/i.test(warning.event) ? 'an' : 'a'} ${warning.event} where they live`
+      : coldHomeRisk(snap, p, now)?.level === 'danger'
+        ? 'Their home is too cold to stay in today'
+        : indoorRisk(snap, p, vulnerable, now)?.level === 'danger'
+          ? 'Their home is too hot to stay in today'
+          : plan.best?.status === 'avoid'
+            ? plan.best.coldestFeelsF <= 50 ? "Today's cold is in the dangerous range for them" : "Today's heat is in the dangerous range for them"
+            : '';
+    if (!why) continue;
+    if (!(await claim(id, key))) continue;
     for (const c of to) {
+      if (c.phone) await sendText({ to: c.phone, sender: id, reason: 'warning', text: `Sudor: please check on them today. ${why}, they live alone, and they have not spoken to Sudor since this morning.` });
       attempted.push(
         await sendEmail({
           to: c.email,
@@ -223,8 +267,7 @@ export async function checkOnAlone(now = new Date()): Promise<Delivery[]> {
           reason: 'hot_day',
           subject: 'Please check on them today',
           text:
-            `Today's heat is in the dangerous range for the person you look after${p.locationName ? `, near ${p.locationName}` : ''}, ` +
-            'they live alone, and they have not spoken to Sudor since this morning. Please ring them or call round.\n\n' +
+            `${why}${p.locationName ? `, near ${p.locationName}` : ''}. They live alone, and they have not spoken to Sudor since this morning. Please ring them or call round.\n\n` +
             'You are getting this because you were added as a contact for dangerous days and agreed to it.' +
             stopFooter(c),
         }),
@@ -275,7 +318,7 @@ export async function checkHotHome(now = new Date(), only?: string): Promise<Del
     const date = local.toISOString().slice(0, 10);
     const key = `hot_home:${date}`;
     if (p.alertsSent.includes(key)) continue;
-    store.update(id, (x) => void (x.alertsSent = [...x.alertsSent.slice(-29), key]));
+    if (!(await claim(id, key))) continue;
     impact.count('familyTold', id);
     const why =
       risk.basis === 'reported'
@@ -290,7 +333,61 @@ export async function checkHotHome(now = new Date(), only?: string): Promise<Del
           subject: 'Their home is too hot to stay in today',
           text:
             `The home of the person you look after${p.locationName ? `, near ${p.locationName}` : ''} is too hot to stay in today. ${why}\n\n` +
-            'Please help them get somewhere with working cooling, or call round. For a cooling centre near them, call 211.\n\n' +
+            `Please help them get somewhere with working cooling, or call round. ${findPlace(p.country, 'cooling centre')}\n\n` +
+            'You are getting this because you were added as a contact for dangerous days and agreed to it.' +
+            stopFooter(c),
+        }),
+      );
+    }
+  }
+  return attempted;
+}
+
+/**
+ * The winter half of checkHotHome: a home that cannot stay warm.
+ *
+ * When what the person has said adds up to the danger level in indoorcold.ts (a reading of 55 or less, 64 or
+ * less for somebody the cold is hard on, or heating that is out with a freezing night ahead), the contacts who
+ * agreed to hear about dangerous days are emailed once that day, with nothing about their health in it. A
+ * forecast is acted on from the afternoon, so there is daylight left to get somewhere warm; a reading they gave
+ * is acted on whenever it comes.
+ */
+const AFTERNOON_HOUR = 13;
+export async function checkColdHome(now = new Date(), only?: string): Promise<Delivery[]> {
+  const attempted: Delivery[] = [];
+  for (const [id, p] of store.allEntries()) {
+    if (only && id !== only) continue;
+    if (!canEmailFor(id) || p.lat == null || p.lon == null) continue;
+    const to = recipients(p, 'hot_day');
+    if (!to.length) continue;
+    const snap = weather.current(p.lat, p.lon);
+    if (!snap || !snap.hourly.length || Number.isNaN(snap.tempF)) continue;
+    const local = new Date(now.getTime() + snap.utcOffsetSeconds * 1000);
+    const reported = p.indoor && now.getTime() - Date.parse(p.indoor.at) < 3 * 3_600_000;
+    if (!reported && local.getUTCHours() < AFTERNOON_HOUR) continue;
+    // A hot home is checkHotHome's; a reading that is hot is never read here as cold.
+    if (reported && p.indoor!.f >= 70) continue;
+    const risk = coldHomeRisk(snap, p, now);
+    if (risk?.level !== 'danger') continue;
+    const date = local.toISOString().slice(0, 10);
+    const key = `cold_home:${date}`;
+    if (p.alertsSent.includes(key)) continue;
+    if (!(await claim(id, key))) continue;
+    impact.count('familyTold', id);
+    const why =
+      risk.basis === 'reported'
+        ? `They told Sudor it is ${risk.indoorF} degrees inside, which is too cold to stay in.`
+        : `${p.heating === 'none' ? 'They have no heating' : p.heating === 'cost' ? 'They are not running their heating' : p.heating === 'power_cuts' ? 'Their power keeps cutting out' : 'Their heating is not working'}, and it goes down to ${risk.lowF} outside tonight, so the home will get colder than is safe.`;
+    for (const c of to) {
+      attempted.push(
+        await sendEmail({
+          to: c.email,
+          sender: id,
+          reason: 'hot_day',
+          subject: 'Their home is too cold to stay in tonight',
+          text:
+            `The home of the person you look after${p.locationName ? `, near ${p.locationName}` : ''} is too cold to stay in. ${why}\n\n` +
+            `Please help them get somewhere warm before dark, or call round. Hypothermia indoors comes on slowly and is easy to miss. ${findPlace(p.country, 'warming centre')}\n\n` +
             'You are getting this because you were added as a contact for dangerous days and agreed to it.' +
             stopFooter(c),
         }),
@@ -318,14 +415,14 @@ export async function checkHotDayAlerts(now = new Date()): Promise<Delivery[]> {
     // Private, always. The plan's own words go into the email, and they name the reason: "with multiple
     // sclerosis", "because your medication blocks your sweating". A contact agreed to hear that tomorrow is a
     // stay-inside day. Nobody agreed to have a diagnosis sent to them.
-    const profile = profileOf(p.medications.flatMap((m) => [...m.mechanisms, ...(m.label?.mechanisms ?? [])]), p.conditions, { outings: p.outings, private: true });
+    const profile = profileOf(p.medications.flatMap((m) => [...m.mechanisms, ...(m.label?.mechanisms ?? [])]), p.conditions, { outings: p.outings, private: true, coldSensitive: coldVulnerable(p) });
     const plan = planDay(snap, profile, { now, day: 'tomorrow' });
     if (!plan.best || plan.best.status !== 'avoid') continue;
 
     const key = `hot_day:${plan.date}`;
     if (p.alertsSent.includes(key)) continue;
     // Marked before sending, so a slow or failing send can never turn into repeated emails.
-    store.update(id, (x) => void (x.alertsSent = [...x.alertsSent.slice(-29), key]));
+    if (!(await claim(id, key))) continue;
 
     for (const c of to) {
       attempted.push(

@@ -97,12 +97,22 @@ try {
   const wrongRedirect = await fetch(authorizeUrl({ redirect_uri: 'https://evil.example/steal' }), { redirect: 'manual' });
   check('an unregistered redirect_uri never redirects', wrongRedirect.status === 400, String(wrongRedirect.status));
 
-  const consent = await fetch(`${BASE}/oauth/authorize`, {
+  const unticked = await fetch(`${BASE}/oauth/authorize`, {
     method: 'POST', redirect: 'manual',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: reg.client_id, redirect_uri: redirectUri, code_challenge: challenge,
       state: 'xyz', account: 'Red River', passphrase: 'correct horse battery',
+    }),
+  });
+  check('without the consent box ticked, nothing is linked', unticked.status === 400 && !unticked.headers.get('location'), String(unticked.status));
+
+  const consent = await fetch(`${BASE}/oauth/authorize`, {
+    method: 'POST', redirect: 'manual',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: reg.client_id, redirect_uri: redirectUri, code_challenge: challenge,
+      state: 'xyz', account: 'Red River', passphrase: 'correct horse battery', consent: 'yes',
     }),
   });
   const back = new URL(consent.headers.get('location') ?? 'https://x.invalid');
@@ -124,7 +134,7 @@ try {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: reg.client_id, redirect_uri: redirectUri, code_challenge: challenge,
-      state: 'xyz', account: 'Red River', passphrase: 'correct horse battery',
+      state: 'xyz', account: 'Red River', passphrase: 'correct horse battery', consent: 'yes',
     }),
   });
   const code2 = new URL(consent2.headers.get('location')).searchParams.get('code');

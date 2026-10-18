@@ -74,10 +74,8 @@ const c2 = new Client({ name: 'readme', version: '0.1.0' }, { capabilities: {} }
 const [a2, b2] = InMemoryTransport.createLinkedPair();
 await Promise.all([all.connect(a2), c2.connect(b2)]);
 const every = new Set([...(await c2.listTools()).tools.map((t) => t.name), ...tools]);
-// Orbita's own tool, named where Sudor asks Orbita about storms.
-const ORBITA_TOOLS = ['storm_status'];
 const looksLikeTool = (n) => /^(weather|plan|going|warning|somewhere|storm|get|log|share|check|about|tell|what|medicine|my|set|register|should|sun|contact)_/.test(n);
-const notTools = named.filter((n) => looksLikeTool(n) && !every.has(n) && !ORBITA_TOOLS.includes(n));
+const notTools = named.filter((n) => looksLikeTool(n) && !every.has(n));
 check('every tool name in backticks is a real tool', notTools.length === 0, notTools.join());
 const paths = [...new Set([...readme.matchAll(/`((?:src|evals|skills|scripts|strands|deploy|web|ui)\/[A-Za-z0-9_./-]+\.(?:ts|mjs|json|md|html|txt|sh))`/g)].map((m) => m[1]))];
 // A path in the Agent Skill's table is inside the skill's own folder.

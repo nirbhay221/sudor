@@ -24,7 +24,7 @@ export type Delivery = {
   to: string;
   subject: string;
   reason: string;
-  status: 'sent' | 'not_configured' | 'failed' | 'limited';
+  status: 'sent' | 'not_configured' | 'failed' | 'limited' | 'unverified';
   detail?: string;
 };
 type Transport = (email: Email, from: string) => Promise<void>;
@@ -150,7 +150,11 @@ export async function sendEmail(email: Email): Promise<Delivery> {
     await transport(email, from);
     return record({ ...base, status: 'sent' });
   } catch (err) {
-    return record({ ...base, status: 'failed', detail: err instanceof Error ? err.message : String(err) });
+    const detail = err instanceof Error ? err.message : String(err);
+    // In the SES sandbox an address nobody has verified is refused. That is the account's setting, not a broken
+    // send, so it is kept apart from failures and does not make the scheduled check report itself failed.
+    const unverified = (err as { name?: string })?.name === 'MessageRejected' && /not verified/i.test(detail);
+    return record({ ...base, status: unverified ? 'unverified' : 'failed', detail });
   }
 }
 

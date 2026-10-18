@@ -56,6 +56,8 @@ export type CoolingCentre = {
   pets: boolean | null;
   source: string;
   milesAway?: number;
+  /** A warming centre, for the cold, rather than a cooling one. See WARMING below. */
+  warm?: boolean;
 };
 
 type Attrs = Record<string, unknown>;
@@ -119,6 +121,73 @@ const phlHours = (v: unknown): string | null => {
 };
 /** Places that are cooling but outdoors in the sun, by the kind a list gives them. */
 const OUTDOOR_KIND = /spray|splash|wading|wadding|pool|beach|fountain|misting|park|outdoor/i;
+
+/*
+ * WARMING. The same thing for the cold: the libraries, churches and halls a county opens on a freezing night, read
+ * the same way. Missouri's health department keeps a statewide warming centre layer, with some Illinois sites
+ * across the river, updated through the colder months; Philadelphia's list marks each site as warming, cooling or
+ * both; Cook County keeps a warming centre layer that is empty out of season and filled when one opens; DeKalb
+ * County, Georgia, marks its libraries and centres the same way. A centre is offered for the cold only from these.
+ *   https://gis.mo.gov/arcgis/rest/services/DHSS/Warming_Center/MapServer/0
+ *   https://services.arcgis.com/fLeGjb7u4uXqeF9q/arcgis/rest/services/Warming_Cooling_Sites_PUBLICVIEW/FeatureServer/0
+ *   https://gis12.cookcountyil.gov/arcgis/rest/services/CoolingWarmingCenter/MapServer/1
+ *   https://services2.arcgis.com/IxVN2oUE9EYLSnPE/ArcGIS/rest/services/WarmingCoolingCenters_public_b2bbf549fb674929abf0a221ada2e66f/FeatureServer/0
+ */
+const WARMING: Source[] = [
+  {
+    name: 'Missouri DHSS warming centers',
+    url: 'https://gis.mo.gov/arcgis/rest/services/DHSS/Warming_Center/MapServer/0',
+    read: (a, g) => {
+      const p = pointOf(g, a);
+      if (!p) return null;
+      return {
+        name: text(a.FACILITY), address: [text(a.ADDRESS), text(a.CITY)].filter(Boolean).join(', '), kind: 'warming centre', ...p,
+        hours: tidy(a.HOURS_OF_OPERATION).split(/\n/)[0] || null, phone: text(a.PHONE) || null, openTo: null,
+        accessible: a.ADA_ACCESS == null ? null : yes(a.ADA_ACCESS), pets: null, source: 'Missouri Department of Health and Senior Services', warm: true,
+      };
+    },
+  },
+  {
+    name: 'Philadelphia warming sites',
+    url: 'https://services.arcgis.com/fLeGjb7u4uXqeF9q/arcgis/rest/services/Warming_Cooling_Sites_PUBLICVIEW/FeatureServer/0',
+    read: (a, g) => {
+      if (!yes(a.warming_site) || !/^open$/i.test(text(a.site_status))) return null;
+      const p = pointOf(g, a);
+      if (!p) return null;
+      return {
+        name: text(a.site_name), address: `${text(a.site_address)}, Philadelphia`, kind: 'warming centre', ...p,
+        hours: phlHours(a.site_hours), phone: null, openTo: null,
+        accessible: a.handicap_accessible == null ? null : yes(a.handicap_accessible), pets: null, source: 'City of Philadelphia', warm: true,
+      };
+    },
+  },
+  {
+    name: 'Cook County warming centers',
+    url: 'https://gis12.cookcountyil.gov/arcgis/rest/services/CoolingWarmingCenter/MapServer/1',
+    read: (a, g) => {
+      const p = pointOf(g, a);
+      if (!p) return null;
+      return {
+        name: text(a.Name), address: [text(a.StreetAddress), text(a.City)].filter(Boolean).join(', '), kind: 'warming centre', ...p,
+        hours: tidy(a.Hours_of_Operation) || null, phone: text(a.ContactPhone) || null, openTo: null,
+        accessible: a.Accessible == null ? null : yes(a.Accessible), pets: a.PetsAllowed == null ? null : yes(a.PetsAllowed), source: 'Cook County Emergency Management', warm: true,
+      };
+    },
+  },
+  {
+    name: 'DeKalb County warming centers',
+    url: 'https://services2.arcgis.com/IxVN2oUE9EYLSnPE/ArcGIS/rest/services/WarmingCoolingCenters_public_b2bbf549fb674929abf0a221ada2e66f/FeatureServer/0',
+    read: (a, g) => {
+      if (!yes(a.warming) || (a.publicview != null && !yes(a.publicview))) return null;
+      const p = pointOf(g, a);
+      if (!p) return null;
+      return {
+        name: text(a.name), address: text(a.fulladdr), kind: 'warming centre', ...p,
+        hours: tidy(a.operhours) || null, phone: text(a.phone) || null, openTo: null, accessible: null, pets: null, source: 'DeKalb County, Georgia', warm: true,
+      };
+    },
+  },
+];
 
 const SOURCES: Source[] = [
   {
@@ -486,6 +555,7 @@ const SOURCES: Source[] = [
       };
     },
   },
+  ...WARMING,
 ];
 
 const EVERY_MS = 30 * 60 * 1000;
@@ -564,6 +634,10 @@ export async function start(): Promise<void> {
 
 /** Where the lists reach: a person outside every one of them is told nothing about cooling centres from here. */
 const COVERS: { name: string; lat: [number, number]; lon: [number, number] }[] = [
+  { name: 'Missouri DHSS warming centers', lat: [35.9, 40.7], lon: [-95.8, -88.9] },
+  { name: 'Philadelphia warming sites', lat: [39.86, 40.14], lon: [-75.29, -74.95] },
+  { name: 'Cook County warming centers', lat: [41.46, 42.16], lon: [-88.27, -87.52] },
+  { name: 'DeKalb County warming centers', lat: [33.6, 33.98], lon: [-84.36, -84.02] },
   { name: 'Maricopa County Heat Relief Network', lat: [32.4, 34.1], lon: [-113.4, -111.0] },
   { name: 'NYC Emergency Management cooling centers', lat: [40.45, 40.95], lon: [-74.3, -73.65] },
   { name: 'New York State Department of Health cooling centers 2026', lat: [40.45, 45.1], lon: [-79.8, -71.8] },
@@ -593,8 +667,10 @@ const COVERS: { name: string; lat: [number, number]; lon: [number, number] }[] =
  * Open centres within reach, nearest first. Null when this place is covered by a list that could not be read
  * (say "I could not check"); undefined when no list here covers it at all (say nothing, and fall back to 211).
  */
-export function near(lat: number, lon: number, withinMiles = 10): CoolingCentre[] | null | undefined {
-  const covering = COVERS.filter((c) => lat >= c.lat[0] && lat <= c.lat[1] && lon >= c.lon[0] && lon <= c.lon[1]);
+export function near(lat: number, lon: number, withinMiles = 10, want: 'cool' | 'warm' = 'cool'): CoolingCentre[] | null | undefined {
+  // A warming list only answers for the cold, and a cooling list only for the heat.
+  const warmList = (name: string) => WARMING.some((w) => w.name === name);
+  const covering = COVERS.filter((c) => lat >= c.lat[0] && lat <= c.lat[1] && lon >= c.lon[0] && lon <= c.lon[1] && warmList(c.name) === (want === 'warm'));
   if (!covering.length) return undefined;
   const lists = covering.map((c) => held.get(c.name)).filter((h) => h && Date.now() - h.checkedAt <= STALE_MS);
   if (!lists.length) return null;
@@ -617,7 +693,7 @@ export function near(lat: number, lon: number, withinMiles = 10): CoolingCentre[
 export function sentence(c: CoolingCentre): string {
   const miles = c.milesAway ?? 0;
   const away = miles < 1 ? 'less than a mile away' : `about ${Math.round(miles)} ${Math.round(miles) === 1 ? 'mile' : 'miles'} away`;
-  const kind = /respite/.test(c.kind) ? 'respite centre' : 'cooling centre';
+  const kind = c.warm ? 'warming centre' : /respite/.test(c.kind) ? 'respite centre' : 'cooling centre';
   const where = `${c.name.replace(/\s+$/, '')}${c.address ? `, at ${c.address}` : ''}, ${away}`;
   // "Open" only when the list says today's hours; otherwise its hours are read out, so a closed day is heard.
   if (c.today) return `The nearest ${kind} open today is ${where}, from ${c.today.open} to ${c.today.close}.`;

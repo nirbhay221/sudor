@@ -22,10 +22,12 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as profile from './tools/profile.js';
 import * as contact from './tools/contact.js';
 import { shorten, more, inScope, sentences } from './brief.js';
-import { say, CARD as CARD_URI } from './tools/shared.js';
+import { say, CARD as CARD_URI, HEALTH_PURPOSE } from './tools/shared.js';
 import { takeReplies } from './consent.js';
 import * as attention from './attention.js';
-import { checkHotHome } from './alerts.js';
+import { checkHotHome, checkColdHome } from './alerts.js';
+import * as indoorCold from './indoorcold.js';
+import { billHelp } from './aid.js';
 import * as impact from './impact.js';
 import { canEmailFor } from './notify.js';
 import * as flow from './flow.js';
@@ -225,8 +227,8 @@ export function registerTools(server: McpServer, personOf: () => string): void {
         annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
         description:
           'Tell the add-on about the customer, or read back what it knows: where they are, the medicines they take, ' +
-          'the health conditions they have, medical equipment they rely on, whether the cooling at home works, and whether to keep those private. Call ' +
-          'this when someone says where they live, names a medicine, a condition or equipment such as home oxygen, says their air conditioning is broken or how hot it is indoors, says they have stopped one, asks what you know about them, asks whether a medicine or their equipment has been recalled, asks to ' +
+          'the health conditions they have, medical equipment they rely on, whether the cooling and the heating at home work, and whether to keep those private. Call ' +
+          'this when someone says where they live, names a medicine, a condition or equipment such as home oxygen, says their air conditioning or heating is broken, that they cannot afford to heat or cool, or how hot or cold it is indoors, says they have stopped one, asks what you know about them, asks whether a medicine or their equipment has been recalled, asks to ' +
           'keep their health private, or says forget everything. Several things can be given at once. With nothing ' +
           'given it reads the profile back. It records details about the customer only, never about another person. It is not for the weather itself (use weather_check) and not for who to ' +
           'tell in an emergency (use contact).',
@@ -238,9 +240,14 @@ export function registerTools(server: McpServer, personOf: () => string): void {
           conditions: z.array(z.string()).max(8).optional().describe('Health conditions they have, to add, the way they say it'),
           stopConditions: z.array(z.string()).max(8).optional().describe('Conditions to remove'),
           cooling: z.enum(['working', 'broken', 'none', 'fan', 'power_cuts', 'cost']).optional().describe('The cooling at home, when they say: working, broken (it is there and not working), cost (it works but they cannot afford to run it, or keep it off for the bill), none, power_cuts when the power keeps going off (load shedding), or fan when a fan is all they have'),
+          heating: z.enum(['working', 'broken', 'none', 'cost', 'power_cuts', 'space_heater']).optional().describe('The heating at home, when they say: working, broken (the furnace or boiler is out), cost (it works but they cannot afford to run it, or keep it low for the bill), none, power_cuts when the power keeps going off, or space_heater when a portable heater is all they have'),
           livesAlone: z.boolean().optional().describe('true when they say they live alone, false when somebody lives with them'),
+          age: z.number().int().min(1).max(120).optional().describe('Their own age in years, when they say it: "I am seventy four" is 74. Never a child\'s age'),
+          noMedicines: z.boolean().optional().describe('true when they say they take no medicines at all'),
+          noConditions: z.boolean().optional().describe('true when they say they have no health conditions'),
+          checkInBy: z.number().int().min(6).max(20).optional().describe('The hour, 24 hour clock, by which their family should be asked to check if they have not spoken to the add-on on a dangerous day, when they say so: "check on me if you have not heard from me by eleven" is 11'),
           topFloor: z.boolean().optional().describe('true when they say they live or sleep on the top floor, in an attic room or right under the roof; false when they say they have moved downstairs'),
-          indoorTempF: z.number().min(40).max(130).optional().describe('The temperature inside their home in Fahrenheit, when they read it out'),
+          indoorTempF: z.number().min(30).max(130).optional().describe('The temperature inside their home in Fahrenheit, when they read it out, hot or cold'),
           equipment: z.array(z.string()).max(6).optional().describe('Medical equipment they rely on at home, to add, as spoken: oxygen concentrator, CPAP, home dialysis, insulin pump, powered wheelchair'),
           stopEquipment: z.array(z.string()).max(6).optional().describe('Equipment they no longer use, to remove'),
           privacy: z.boolean().optional().describe('true to keep health details out of spoken answers, false to speak openly again'),
@@ -249,7 +256,7 @@ export function registerTools(server: McpServer, personOf: () => string): void {
         },
       },
       async (input: unknown) => {
-        const a = (input ?? {}) as { confirmPlace?: boolean; place?: string; medicines?: string[]; stopMedicines?: string[]; conditions?: string[]; stopConditions?: string[]; equipment?: string[]; stopEquipment?: string[]; cooling?: indoor.Cooling; indoorTempF?: number; topFloor?: boolean; livesAlone?: boolean; privacy?: boolean; recalls?: boolean; forget?: boolean };
+        const a = (input ?? {}) as { confirmPlace?: boolean; place?: string; medicines?: string[]; stopMedicines?: string[]; conditions?: string[]; stopConditions?: string[]; equipment?: string[]; stopEquipment?: string[]; cooling?: indoor.Cooling; heating?: indoorCold.Heating; indoorTempF?: number; topFloor?: boolean; livesAlone?: boolean; checkInBy?: number; age?: number; noMedicines?: boolean; noConditions?: boolean; privacy?: boolean; recalls?: boolean; forget?: boolean };
         const call = (tool: string, args: Record<string, unknown>) => impl.get(tool)!(args) as Promise<Part>;
         if (a.forget) return call('my_profile', { action: 'forget' });
         // Recalls are asked about what they take and use, so they are asked here. See MERGED_AWAY.
@@ -301,10 +308,11 @@ export function registerTools(server: McpServer, personOf: () => string): void {
         const ROUTINE = ' If your Echo has a temperature sensor, ask Alexa for a routine that tells you when this room passes 79 degrees and turns on your fan if it is on a smart plug.';
         // The cooling at home, and what the thermometer indoors reads. Both are only ever what they said.
         let goSomewhere = false;
-        if (a.cooling || typeof a.indoorTempF === 'number' || typeof a.topFloor === 'boolean') {
+        if (a.cooling || a.heating || typeof a.indoorTempF === 'number' || typeof a.topFloor === 'boolean') {
           const me = personOf();
           store.update(me, (p) => {
             if (a.cooling) p.cooling = a.cooling;
+            if (a.heating) p.heating = a.heating;
             if (typeof a.topFloor === 'boolean') p.topFloor = a.topFloor;
             if (typeof a.indoorTempF === 'number') p.indoor = { f: a.indoorTempF, at: new Date().toISOString() };
           });
@@ -312,14 +320,24 @@ export function registerTools(server: McpServer, personOf: () => string): void {
           const snap = p.lat != null && p.lon != null ? weather.current(p.lat, p.lon) : null;
           const vulnerable = p.medications.length > 0 || p.conditions.length > 0;
           const risk = snap ? indoor.indoorRisk(snap, p, vulnerable) : null;
-          goSomewhere = risk?.level === 'danger';
+          // The winter half: a home that cannot stay warm. Judged only when the heat question has nothing to say.
+          const chill = !risk && snap ? indoorCold.coldHomeRisk(snap, p) : null;
+          goSomewhere = risk?.level === 'danger' || chill?.level === 'danger';
           // A home too hot to stay in is the moment the family should hear, once a day. See checkHotHome.
           const family = goSomewhere ? p.contacts.filter((c) => reachable(c) && c.notifyOn.includes('hot_day')).map((c) => c.name) : [];
-          if (family.length && canEmailFor(me)) void checkHotHome(new Date(), me).catch((err) => console.error('[alerts]', err));
-          const telling = family.length && canEmailFor(me) ? ` I am letting ${family.length === 1 ? family[0] : `${family.slice(0, -1).join(', ')} and ${family.at(-1)}`} know your home is too hot today.` : '';
+          if (family.length && canEmailFor(me)) void (chill ? checkColdHome(new Date(), me) : checkHotHome(new Date(), me)).catch((err) => console.error('[alerts]', err));
+          const telling = family.length && canEmailFor(me) ? ` I am letting ${family.length === 1 ? family[0] : `${family.slice(0, -1).join(', ')} and ${family.at(-1)}`} know your home is too ${chill ? 'cold' : 'hot'} today.` : '';
           said.push(
             risk
               ? risk.line + telling
+              : chill
+                ? chill.line + telling
+              : a.heating === 'working'
+                ? 'Good. I will take it that indoors is the warm place for you.'
+                : a.heating === 'space_heater'
+                  ? `Noted. In the cold I will remind you how to use it safely.${indoorCold.SPACE_HEATER}`
+                  : a.heating
+                    ? 'Noted. On a cold night I will not tell you to stay in without saying where else to go.' + (a.heating === 'cost' ? billHelp(p.country, 'heating') : '')
               : a.cooling === 'working'
                 ? 'Good. I will take it that indoors is the cool place for you.'
                 : a.cooling
@@ -328,7 +346,30 @@ export function registerTools(server: McpServer, personOf: () => string): void {
                     ? (a.topFloor ? 'Noted. The top floor is the hottest part of a building, so on a hot day without cooling I will say so.' : 'Noted.')
                   : `Noted, ${Math.round(a.indoorTempF!)} degrees indoors. That is all right for now.`,
           );
-          did.push({ tool: 'home', cooling: p.cooling ?? null, ...(risk ? { indoor: risk.level, basis: risk.basis } : {}), ...(risk?.control ? { homeControl: risk.control } : {}) });
+          did.push({ tool: 'home', cooling: p.cooling ?? null, heating: p.heating ?? null, ...(risk ? { indoor: risk.level, basis: risk.basis } : {}), ...(chill ? { indoorCold: chill.level, basis: chill.basis } : {}), ...(risk?.control ? { homeControl: risk.control } : {}) });
+        }
+        // Age, and a plain no to the medicines or conditions question. See setup.ts.
+        // Sudor is for adults, and Amazon's policy forbids collecting children's information, so an age under 18 is
+        // not kept. A young child in the home is still a condition they can add for themselves.
+        if (typeof a.age === 'number' && a.age < 18) {
+          said.push("Sudor is made for adults, so I won't keep an age under 18. A grown-up can set it up for themselves.");
+          did.push({ tool: 'home', age: null, kept: false });
+        }
+        else if (typeof a.age === 'number') {
+          store.update(personOf(), (p) => void (p.age = a.age));
+          if (a.age >= 65 && !store.get(personOf()).conditions.includes('older_adult')) await step('health_condition', { action: 'add', condition: 'over 65' });
+          else { said.push('Noted.'); did.push({ tool: 'home', age: a.age }); }
+        }
+        if (a.noMedicines || a.noConditions) {
+          store.update(personOf(), (p) => { if (a.noMedicines) p.noMedicines = true; if (a.noConditions) p.noConditions = true; });
+          said.push('Noted. If that changes, just tell me.');
+          did.push({ tool: 'home', noMedicines: !!a.noMedicines, noConditions: !!a.noConditions });
+        }
+        if (typeof a.checkInBy === 'number') {
+          store.update(personOf(), (p) => void (p.checkInHour = a.checkInBy));
+          const at = a.checkInBy === 12 ? 'noon' : a.checkInBy < 12 ? `${a.checkInBy} in the morning` : a.checkInBy >= 17 ? `${a.checkInBy - 12} in the evening` : `${a.checkInBy - 12} in the afternoon`;
+          said.push(`Noted. On a dangerous day, if I have not heard from you by ${at}, the people who agreed will be asked to check on you.`);
+          did.push({ tool: 'home', checkInHour: a.checkInBy });
         }
         if (typeof a.livesAlone === 'boolean') {
           store.update(personOf(), (p) => void (p.livesAlone = a.livesAlone));
@@ -345,6 +386,17 @@ export function registerTools(server: McpServer, personOf: () => string): void {
         if (typeof a.privacy === 'boolean') await step('set_privacy', { on: a.privacy });
         if (!did.length) return call('my_profile', { action: 'show' });
         const added = !!a.place || !!a.medicines?.length || !!a.conditions?.length;
+        /*
+         * The first time a health detail is kept, they are told once what it is for and that it is not medical
+         * advice. They agreed on the linking page; this says it again by voice, where they are, in two sentences.
+         * Amazon: sensitive information needs a clear purpose and consent, and medical information carries this
+         * disclaimer. https://developer.amazon.com/en-US/docs/alexa/alexaplus/add-ons/policy-requirements.html
+         */
+        const firstHealth = did.findIndex((d) => (d.tool === 'medication' && d.recognized === true) || d.tool === 'health_condition' || (d.tool === 'equipment' && d.recognized === true) || (d.tool === 'home' && typeof d.age === 'number'));
+        if (firstHealth >= 0 && !store.get(personOf()).healthConsentAt) {
+          store.update(personOf(), (p) => void (p.healthConsentAt = new Date().toISOString()));
+          did[firstHealth].disclosed = true;
+        }
         /*
          * Saving details is confirmed in one sentence: "Got it: Phoenix, furosemide and metoprolol, heart disease."
          * Each medicine and condition used to be read back with its own advice, 81 words for one sentence of
@@ -369,10 +421,14 @@ export function registerTools(server: McpServer, personOf: () => string): void {
           else if (locating) plainAdds.unshift(String(d.place ?? ''));
           else keep.push(text);
         });
-        if (plainAdds.filter(Boolean).length >= 2) {
+        const rewritten = plainAdds.filter(Boolean).length >= 2;
+        if (rewritten) {
           said.length = 0;
           said.push(`Got it: ${andWords(plainAdds.filter(Boolean))}.${readAs.length ? ` ${andWords(readAs)}.` : ''} I'll use them in every answer.`, ...keep);
         }
+        // The purpose line goes right after what was kept, before any question, so the question is still said last.
+        const disclosedAt = did.findIndex((d) => d.disclosed);
+        if (disclosedAt >= 0) { const at = rewritten ? 0 : disclosedAt; said[at] = `${said[at] ?? ''} ${HEALTH_PURPOSE}`.trim(); }
         // Several things at once repeat the same closing sentence, once each. It is said once, at the end.
         const sentencesSaid = said.filter(Boolean).flatMap((t) => sentences(t));
         const once = sentencesSaid.filter((x, i) => sentencesSaid.lastIndexOf(x) === i);

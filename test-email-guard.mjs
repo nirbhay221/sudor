@@ -135,6 +135,21 @@ console.log('\nEvery call site of sendEmail is behind the guard');
   check('no file calls sendEmail without referring to canEmailFor', offenders.length === 0, offenders.join(', '));
 }
 
+{
+  // The SES sandbox refuses an address nobody has verified. That is the account's setting, not a broken send,
+  // so it must not count as failed, or the scheduled check would report itself failed every run.
+  const refuse = (name, message) => async () => { const e = new Error(message); e.name = name; throw e; };
+  notify.configureForTest({ from: 'sudor@example.org', transport: refuse('MessageRejected', 'Email address is not verified. The following identities failed the check in region US-EAST-1: someone@example.net') });
+  const d1 = await notify.sendEmail({ to: 'unverified-1@example.net', subject: 's', text: 't', reason: 'test' });
+  check('a sandbox refusal is unverified, not failed', d1.status === 'unverified', d1.status);
+  notify.configureForTest({ from: 'sudor@example.org', transport: refuse('MessageRejected', 'Email address is blacklisted.') });
+  const d2 = await notify.sendEmail({ to: 'unverified-2@example.net', subject: 's', text: 't', reason: 'test' });
+  check('any other refusal is still failed', d2.status === 'failed', d2.status);
+  notify.configureForTest({ from: 'sudor@example.org', transport: refuse('ThrottlingException', 'Rate exceeded') });
+  const d3 = await notify.sendEmail({ to: 'unverified-3@example.net', subject: 's', text: 't', reason: 'test' });
+  check('a throttled send is still failed', d3.status === 'failed', d3.status);
+}
+
 rmSync(DIR, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

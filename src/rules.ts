@@ -42,7 +42,36 @@ const RULES: Rule[] = [
   { when: /\b(hot|heat|cold|weather|outside|safe|go(ing)? out|temperature|sun|uv|freez)\b/i, tool: 'weather_check' },
 ];
 
-export function chooseByWords(utterance: string, tools: ToolDef[]): Chosen {
+/*
+ * A bare answer to the question just asked. Every setup question ends on a yes or no, and "no" on its own matches
+ * no rule: it only means something against the question before it, which is how Alexa+ reads it. The page sends
+ * the turns so far and the next step the last answer named; a yes takes that step, and the answers below are read
+ * against the question's own words.
+ */
+const YES = /^\s*(yes|yeah|yep|yup|sure|ok(ay)?|please( do)?|go ahead|do it|i do|i have|that'?s right|correct)\b/i;
+const NO = /^\s*(no|nope|nah|none|not really|i don'?t|i do not|never)\b/i;
+const UNSURE = /\b(not sure|don'?t know|no idea|unsure|no clue)\b/i;
+type Bare = { tool: string; args: Record<string, unknown> } | null;
+const BARE: [RegExp, (said: string, question: string) => Bare][] = [
+  [/Do you take any medicines\?$/, (s) => (NO.test(s) ? { tool: 'about_me', args: { noMedicines: true } } : null)],
+  [/Do you have any health conditions\?$/, (s) => (NO.test(s) ? { tool: 'about_me', args: { noConditions: true } } : null)],
+  [/Do you live on your own\?$/, (s) => (YES.test(s) ? { tool: 'about_me', args: { livesAlone: true } } : NO.test(s) ? { tool: 'about_me', args: { livesAlone: false } } : null)],
+  [/Should I say the names\?$/, (s) => (YES.test(s) ? { tool: 'about_me', args: { privacy: false } } : NO.test(s) ? { tool: 'about_me', args: { privacy: true } } : null)],
+  [/Is it working\?$/, (s) => (YES.test(s) ? { tool: 'about_me', args: { cooling: 'working' } } : NO.test(s) ? { tool: 'about_me', args: { cooling: 'broken' } } : null)],
+  [/how old are you\?$/, (s) => { const n = Number(/\b(\d{1,3})\b/.exec(s)?.[1]); return n ? { tool: 'about_me', args: { age: n } } : null; }],
+];
+
+export function bareAnswer(utterance: string, history: { role: string; text: string }[] = [], next?: { tool?: unknown; arguments?: unknown } | null): Bare {
+  const last = [...history].reverse().find((t) => t.role === 'assistant')?.text.trim() ?? '';
+  if (!last) return null;
+  for (const [asked, read] of BARE) if (asked.test(last)) { const hit = read(utterance, last); if (hit) return hit; }
+  if (YES.test(utterance) && next && typeof next.tool === 'string') return { tool: next.tool, args: next.arguments && typeof next.arguments === 'object' ? (next.arguments as Record<string, unknown>) : {} };
+  return null;
+}
+
+export function chooseByWords(utterance: string, tools: ToolDef[], history: { role: string; text: string }[] = [], next?: { tool?: unknown; arguments?: unknown } | null): Chosen {
+  const bare = bareAnswer(utterance, history, next);
+  if (bare && tools.some((t) => t.name === bare.tool)) return { tool: bare.tool, args: bare.args, said: '', ms: 0, model: 'word rules' } as Chosen;
   const started = Date.now();
   const listed = new Set(tools.map((t) => t.name));
   for (const r of RULES) {

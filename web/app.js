@@ -412,6 +412,10 @@ if (standInForm) {
   const go = el('standin-go');
 
   const write = (html) => { out.innerHTML = html; };
+  // The conversation so far, sent with each sentence. See conversation() in standin.ts.
+  const turns = [];
+  // The next step the last answer named, so a bare "yes" can take it. See bareAnswer() in rules.ts.
+  let next = null;
   const esc = (v) =>
     String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -430,7 +434,7 @@ if (standInForm) {
         // The identity matters: without it the stand-in ran as one shared profile,
         // so a medication one visitor added was visible to the next.
         headers: { 'content-type': 'application/json', 'x-sudor-demo': session },
-        body: JSON.stringify({ say }),
+        body: JSON.stringify({ say, history: turns, next }),
       });
       const body = await res.json();
       const roundTrip = Date.now() - started;
@@ -454,15 +458,20 @@ if (standInForm) {
         return;
       }
 
-      const text = body.result?.content?.[0]?.text ?? '(no text)';
+      const text = body.reply || body.result?.content?.[0]?.text || '(no text)';
+      next = body.result?.structuredContent?.nextAction ?? null;
+      const chain = (body.steps ?? []).map((s) => s.tool).join(' then ');
       write(
-        `<p class="chose">Chose <strong>${esc(body.chose.tool)}</strong> with ` +
+        `<p class="chose">Chose <strong>${esc(chain || body.chose.tool)}</strong> with ` +
         `<code>${esc(JSON.stringify(body.chose.args))}</code></p>` +
         `<p class="answer">${esc(text)}</p>` +
         `<p class="muted">${esc(body.model)}  |  ${body.ms} ms to decide  |  ${roundTrip} ms total  |  ` +
         `${esc(body.standIn)}</p>`
       );
       // The answer is the thing worth hearing, not the tool name.
+      // Kept for the next sentence, as Alexa+ keeps the conversation: "no" means something after a question.
+      turns.push({ role: 'user', text: say }, { role: 'assistant', text });
+      turns.splice(0, Math.max(0, turns.length - 6));
       offerSpeech(out, text);
     } catch (err) {
       write(`<p class="bad">${esc(String(err))}</p>`);

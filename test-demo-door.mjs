@@ -119,7 +119,7 @@ try {
     const linked = await fetch(`${a.base}/oauth/authorize`, {
       method: 'POST',
       redirect: 'manual',
-      body: new URLSearchParams({ client_id: CLIENT, redirect_uri: REDIRECT, code_challenge: challenge, state: 's', account: 'jordan', passphrase: PASS }),
+      body: new URLSearchParams({ client_id: CLIENT, redirect_uri: REDIRECT, code_challenge: challenge, state: 's', account: 'jordan', passphrase: PASS, consent: 'yes' }),
     });
     const code = new URL(linked.headers.get('location') ?? 'http://x/?').searchParams.get('code');
     check('the account linked', linked.status === 302 && !!code, String(linked.status));

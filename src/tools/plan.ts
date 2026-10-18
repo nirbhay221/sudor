@@ -225,8 +225,14 @@ export function register(server: McpServer, personOf: () => string): void {
        * where they are, cold first aid answers.
        */
       const snap = person.lat != null && person.lon != null ? weather.current(person.lat, person.lon) : null;
-      const isCold =
-        snap && !Number.isNaN(snap.tempF) && coldCategory(windChillF(snap.tempF, snap.windMph)) !== 'none';
+      const coldOutside = !!snap && !Number.isNaN(snap.tempF) && coldCategory(windChillF(snap.tempF, snap.windMph)) !== 'none';
+      // Words that only the cold explains, unless the same breath says heat. "Numb and shivering" on a hot day is a
+      // person in a cold room or out of a cold pool, never heat stroke, and it was answered as heat stroke.
+      const said = (symptoms ?? '').toLowerCase();
+      const coldWords = /shiver|numb|frostbit|freezing|can'?t get warm|cannot get warm|hypotherm|so cold|too cold|ice cold/.test(said) && !/hot|sweat|overheat|heat/.test(said);
+      // A cold home they read out in the last three hours is the cold too. See indoorcold.ts.
+      const coldInside = !!person.indoor && person.indoor.f <= 64 && Date.now() - Date.parse(person.indoor.at) < 3 * 3_600_000;
+      const isCold = coldOutside || coldWords || coldInside;
 
       if (isCold) {
         const matched = matchColdFirstAid(symptoms ?? '');

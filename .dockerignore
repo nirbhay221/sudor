@@ -8,3 +8,7 @@ deploy/
 test*.mjs
 probe.mjs
 FRICTION.md
+**/node_modules/
+infra/
+cdk.out/
+strands/

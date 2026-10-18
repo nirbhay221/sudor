@@ -1,0 +1,20 @@
+{
+  "name": "sudor-infra",
+  "private": true,
+  "type": "module",
+  "description": "Sudor's AWS resources as code: the people table, the scheduled alert check, and its alarm.",
+  "scripts": {
+    "build": "tsc",
+    "synth": "npm run build && cdk synth",
+    "test": "npm run build && node test.mjs",
+    "deploy": "npm run build && cdk deploy"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.273.0",
+    "constructs": "10.8.1"
+  },
+  "devDependencies": {
+    "aws-cdk": "2.1144.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -292,7 +292,8 @@ console.log('\nMore cities and provinces: cooling centres, read in each publishe
   check('Milwaukee: the library, and not the splash pad beside it', names(43.039, -87.92).join() === 'Central Library', names(43.039, -87.92).join());
   const york = cooling.near(39.955, -76.72)[0];
   check('York County: a senior centre is for older adults, with its phone written to be read', york?.openTo === 'older adults' && york.phone === '717-848-3610' && /Monday to Friday 9 am to 3 pm/.test(cooling.sentence(york)), york && cooling.sentence(york));
-  check('a place none of the twenty-three lists reaches is still "not covered", never "none open"', cooling.near(41.88, -87.63) === undefined && cooling.sourceNames().length === 23, String(cooling.sourceNames().length));
+  check('a place none of the twenty-three cooling lists reaches is still "not covered", never "none open"', cooling.near(41.88, -87.63) === undefined && cooling.sourceNames().length === 27, String(cooling.sourceNames().length));
+  check('...while Chicago is reached by a warming list, which only answers for the cold', cooling.near(41.88, -87.63, 10, 'warm') !== undefined);
   globalThis.fetch = before;
   cooling.configureForTest(async () => []);
 }

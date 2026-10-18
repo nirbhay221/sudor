@@ -59,6 +59,19 @@ from="$(get /sudor/email-from)"
 ak="$(get /sudor/anthropic-key)"
 [ -n "$ak" ] && printf 'SUDOR_ANTHROPIC_KEY=%s\n' "$ak" >>"$out"
 
+# The server's public address, for the consent, stop and reply links in every email and for the OAuth
+# metadata. Without it there is no link to send, so a contact cannot agree or stop, and the hardening drop-in
+# was where it was meant to be set by hand, which on the live host it never was.
+pub="$(get /sudor/public-url)"
+[ -n "$pub" ] && printf 'SUDOR_PUBLIC_URL=%s\n' "$pub" >>"$out"
+
+# Where people are kept, and who sends the scheduled alerts. "dynamodb" means the table from infra/, with
+# the Lambda there sending the alerts; absent means the file and this server's own timers, as before.
+# Switching is this parameter and a restart, after scripts/copy-to-table.mjs has copied the file over.
+if [ "$(get /sudor/store)" = "dynamodb" ]; then
+  printf 'SUDOR_STORE=dynamodb\nSUDOR_ALERTS=scheduler\n' >>"$out"
+fi
+
 # Urgent text messages to family, through Amazon SNS. Off unless this parameter says on. See src/texts.ts.
 [ "$(get /sudor/sms)" = "on" ] && printf 'SUDOR_SMS=on\n' >>"$out"
 

@@ -27,6 +27,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { table, tableOn } from './table.js';
 
 export const EVENTS = ['warned', 'sentAway', 'followedUp', 'wentLooking', 'familyTold', 'carerSteps', 'outingFine', 'outingUnwell'] as const;
 export type Event = (typeof EVENTS)[number];
@@ -64,11 +65,36 @@ function save(): void {
   pending.unref?.();
 }
 
+/*
+ * The scheduled alert check runs in Lambda, whose files are gone when it stops, so a family told from there
+ * would never reach /impact. There the counts go onto the people table instead, one item per side and day
+ * (`impact:real:2026-10-17`) with a number per measure, and the server adds them to its own when asked.
+ * Those items have no record in them, so the store never mistakes one for a person.
+ */
+let onTable = false;
+const inFlight: Promise<void>[] = [];
+const itemFor = (side: 'real' | 'demo', day: string) => `impact:${side}:${day}`;
+
+/** For the Lambda: count onto the table rather than into a file that will not outlive the run. */
+export function countOnTable(on: boolean): void {
+  onTable = on;
+}
+
+/** Wait for counts on their way to the table. A count that fails is logged, never a failed check. */
+export async function flush(): Promise<void> {
+  await Promise.allSettled(inFlight.splice(0));
+}
+
 /** One more of this, today. `who` is used only to tell a demo visitor from an account, and is not kept. */
 export function count(event: Event, who: string, now = new Date()): void {
+  const day = now.toISOString().slice(0, 10);
+  if (onTable) {
+    const ttl = Math.floor(now.getTime() / 1000) + KEEP_DAYS * 86_400;
+    inFlight.push(table().add(itemFor(who.startsWith('demo:') ? 'demo' : 'real', day), event, ttl).catch((err) => console.error('[impact] could not count on the table:', err instanceof Error ? err.message : err)));
+    return;
+  }
   const b = load();
   const side = who.startsWith('demo:') ? b.demo : b.real;
-  const day = now.toISOString().slice(0, 10);
   side[day] = { ...side[day], [event]: (side[day]?.[event] ?? 0) + 1 };
   const days = Object.keys(side).sort();
   for (const old of days.slice(0, Math.max(0, days.length - KEEP_DAYS))) delete side[old];
@@ -87,6 +113,44 @@ export function summary(days = 30, now = new Date()): Record<'real' | 'demo', Re
   return { real: total(b.real), demo: total(b.demo) };
 }
 
+/**
+ * What the table said, kept for a few minutes.
+ *
+ * /impact is public and answers without a token, and a year of days is eight hundred items read per request.
+ * Read on every request, a script asking in a loop is a DynamoDB bill; kept for five minutes, it is one read
+ * per distinct question in that time, and the counts only move when an alert goes out.
+ */
+const READ_CACHE_MS = 5 * 60_000;
+const readCache = new Map<string, { at: number; held: Record<string, Record<string, number>> }>();
+
+/** summary(), with what the scheduled check counted on the table added in. The file's alone when the table is off or cannot be read. */
+export async function summaryWithTable(days = 30, now = new Date()): Promise<ReturnType<typeof summary>> {
+  const local = summary(days, now);
+  if (!tableOn()) return local;
+  const dates = Array.from({ length: days + 1 }, (_, i) => new Date(now.getTime() - i * 86_400_000).toISOString().slice(0, 10));
+  let held: Record<string, Record<string, number>>;
+  const k = `${days}|${dates[0]}`;
+  const cached = readCache.get(k);
+  try {
+    if (cached && Date.now() - cached.at < READ_CACHE_MS) held = cached.held;
+    else {
+      held = await table().counters(dates.flatMap((d) => [itemFor('real', d), itemFor('demo', d)]));
+      readCache.set(k, { at: Date.now(), held });
+      if (readCache.size > 50) readCache.delete(readCache.keys().next().value as string);
+    }
+  } catch (err) {
+    console.error('[impact] could not read the counts on the table:', err instanceof Error ? err.message : err);
+    return local;
+  }
+  for (const side of ['real', 'demo'] as const) {
+    const t = local[side];
+    for (const d of dates) for (const e of EVENTS) t[e] += held[itemFor(side, d)]?.[e] ?? 0;
+    t.lookedAfterSentAway = t.sentAway ? Math.round((t.wentLooking / t.sentAway) * 100) / 100 : null;
+  }
+  return local;
+}
+
 export function resetForTest(): void {
   book = { real: {}, demo: {} };
+  readCache.clear();
 }

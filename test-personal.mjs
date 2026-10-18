@@ -203,7 +203,7 @@ check('while a place is still being looked up, it says so rather than failing', 
 store.update('tester', (p) => { p.locationStatus = 'not_found'; });
 check('a place that could not be found asks for city and state, city and country, or zip', /city and the state, or the city and the country, or a US zip code/.test((await handlers.weather_check({})).content[0].text));
 const help = await handlers.what_can_you_do({});
-check('what can you do says plainly it is not medical advice', /isn't medical advice/.test(help.content[0].text));
+check('what can you do says plainly it is not medical advice', /not a substitute for professional medical advice/.test(help.content[0].text));
 check('every tool that links a panel uses the nested _meta.ui.resourceUri',
   Object.values(configs).filter((c) => c._meta).every((c) => c._meta.ui?.resourceUri .startsWith('ui://sudor/') && !('ui.resourceUri' in c._meta)));
 rmSync('./data/test-tools.json', { force: true });

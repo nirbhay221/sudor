@@ -43,7 +43,7 @@ const link = async (name, passphrase) => {
   const verifier = randomBytes(48).toString('base64url');
   const res = await fetch(`${base}/oauth/authorize`, {
     method: 'POST', redirect: 'manual',
-    body: new URLSearchParams({ client_id: clientId, redirect_uri: REDIRECT, code_challenge: auth.pkceS256(verifier), state: 's', account: name, passphrase }),
+    body: new URLSearchParams({ client_id: clientId, redirect_uri: REDIRECT, code_challenge: auth.pkceS256(verifier), state: 's', account: name, passphrase, consent: 'yes' }),
   });
   return { res, code: res.headers.get('location') ? new URL(res.headers.get('location')).searchParams.get('code') : null, html: res.status < 300 ? '' : await res.text() };
 };

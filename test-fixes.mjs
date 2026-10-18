@@ -529,7 +529,9 @@ console.log('\nFound by using it as a stranger');
   const who = await connect('acct:walk');
   const three = await who('about_me', { medicines: ['furosemide', 'metoprolol', 'semaglutide'] });
   check('three medicines at once do not say the same closing sentence three times', (three.said.match(/I'll factor that into your heat check/g) ?? []).length <= 1, three.said);
-  check('...confirmed in one short sentence, not read back one by one', three.said.split(/\s+/).length <= 20, three.said);
+  // The one-time line on what health details are for (the first save only, see tools.ts) is not counted.
+  const confirmed = three.said.replace(/ ?I keep your health details[^]*medical advice\./, '');
+  check('...confirmed in one short sentence, not read back one by one', confirmed.split(/\s+/).length <= 20, three.said);
   check('...and each one is still named', /furosemide/.test(three.said) && /metoprolol/.test(three.said) && /semaglutide/.test(three.said));
   const geo = await import('./dist/geocode.js');
   const looking = await who('about_me', { place: 'Nowhere Special, Florida', medicines: ['lisinopril'] });
@@ -780,7 +782,11 @@ console.log('\nA text, for the messages that cannot wait');
 {
   const texts = await import('./dist/texts.js');
   const alerts = await import('./dist/alerts.js');
-  check('a US number in any shape becomes +1 and ten digits', texts.phoneOf('(602) 555-0100') === '+16025550100' && texts.phoneOf('1 602 555 0100') === '+16025550100' && texts.phoneOf('+44 20 7946 0958') === '+442079460958');
+  check('a US number in any shape becomes +1 and ten digits', texts.phoneOf('(602) 555-0100') === '+16025550100' && texts.phoneOf('1 602 555 0100') === '+16025550100');
+  // Outside +1 only where switched on. See smsCountries in texts.ts.
+  process.env.SUDOR_SMS_COUNTRY_CODES = '1,44';
+  check('a number elsewhere keeps its own country code, where texts there are on', texts.phoneOf('+44 20 7946 0958') === '+442079460958');
+  delete process.env.SUDOR_SMS_COUNTRY_CODES;
   check('something that is not a number is not stored', texts.phoneOf('call me maybe') === null && texts.phoneOf('12345') === null);
   check('off unless switched on', !texts.textsOn());
   const sentTexts = [];
