@@ -83,7 +83,12 @@ export function register(server: McpServer, personOf: () => string): void {
         if (shiftEnd <= shiftStart) {
           return say('I can only plan a shift that starts and ends on the same day. Tell me the start and the end, like 7 in the morning to 3 in the afternoon.', { planned: false, reason: 'overnight' });
         }
-        const shift = planShift(snap, profile, { now: new Date(), day, fromHour: shiftStart, untilHour: shiftEnd, heatWork: store.get(personOf()).heatWork });
+        // Said in the evening, "I work seven to five" is about the next shift: today's is over, and planning it
+        // answered "I don't have the forecast for 7 am to 5 pm today". With no day said, a shift already ended is tomorrow's.
+        const hourThere = new Date(Date.now() + snap.utcOffsetSeconds * 1000).getUTCHours();
+        // A model often passes "today" for it anyway, so an ended shift is tomorrow's whatever day came with it.
+        const shiftDay = hourThere >= shiftEnd ? 'tomorrow' : day;
+        const shift = planShift(snap, profile, { now: new Date(), day: shiftDay, fromHour: shiftStart, untilHour: shiftEnd, heatWork: store.get(personOf()).heatWork });
         // Without the hours, and without the sentence, which is already the answer itself.
         const { hours: _hours, spoken: _spoken, ...summary } = shift;
         return say(shift.spoken, { shift: summary, place: person.locationName, timezone: snap.timezone, sources: ['https://www.osha.gov/heat-exposure/rulemaking'] });

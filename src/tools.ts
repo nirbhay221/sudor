@@ -193,7 +193,16 @@ export function registerTools(server: McpServer, personOf: () => string): void {
     // Last of all: the emergency number that works where this person is, in place of 911. See world.ts.
     const wrapped = async (...args: unknown[]) => {
       const result = (await answer(...args)) as { content?: { type: string; text?: string }[]; structuredContent?: Record<string, unknown> };
-      const country = store.get(personOf()).country;
+      const who = store.get(personOf());
+      const country = who.country;
+      // Nowhere known yet: "My mother just fainted", from somebody in São Paulo, was told to call 911. Until there
+      // is a place, the number is said with the words that make it right anywhere.
+      if (who.lat == null && !country && result?.content) {
+        return {
+          ...result,
+          content: result.content.map((c) => (typeof c.text === 'string' ? { ...c, text: (/[Cc]all 911\b/.test(c.text) ? c.text.replace(/([Cc]all) 911\b/, '$1 911, or your local emergency number,') : c.text.replace(/\b911\b/, '911, or your local emergency number,')).replace(/number, ([.!?])/, 'number$1') } : c)),
+        };
+      }
       if (world.inUS(country) || !result?.content) return result;
       return {
         ...result,
@@ -258,6 +267,16 @@ export function registerTools(server: McpServer, personOf: () => string): void {
       async (input: unknown) => {
         const a = (input ?? {}) as { confirmPlace?: boolean; place?: string; medicines?: string[]; stopMedicines?: string[]; conditions?: string[]; stopConditions?: string[]; equipment?: string[]; stopEquipment?: string[]; cooling?: indoor.Cooling; heating?: indoorCold.Heating; indoorTempF?: number; topFloor?: boolean; livesAlone?: boolean; checkInBy?: number; age?: number; noMedicines?: boolean; noConditions?: boolean; privacy?: boolean; recalls?: boolean; forget?: boolean };
         const call = (tool: string, args: Record<string, unknown>) => impl.get(tool)!(args) as Promise<Part>;
+        // "None" is an answer, not a medicine or a condition called "none". A model can pass it either way, and it
+        // was kept as a condition named "none". Blank names are dropped too.
+        const NONE = /^\s*(none|no|nothing|nil|n\/?a|no (medicines?|medications?|conditions?|pills)|i don'?t( take any| have any)?)\s*\.?\s*$/i;
+        for (const [list, flag] of [['medicines', 'noMedicines'], ['conditions', 'noConditions']] as const) {
+          const said = a[list];
+          if (!Array.isArray(said)) continue;
+          const kept = said.filter((x) => typeof x === 'string' && x.trim() && !NONE.test(x));
+          if (said.some((x) => typeof x === 'string' && NONE.test(x)) && !kept.length) a[flag] = true;
+          a[list] = kept.length ? kept : undefined;
+        }
         if (a.forget) return call('my_profile', { action: 'forget' });
         // Recalls are asked about what they take and use, so they are asked here. See MERGED_AWAY.
         if (a.recalls) return call('medicine_recalls', {});

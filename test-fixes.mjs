@@ -257,6 +257,20 @@ console.log('\nA place in another country is not answered with the American town
   check('"Lyon" alone still finds the town', geo.pickPlace('Lyon', rows)?.name === 'Lyon');
   const world = [...rows, { name: 'Lyon', admin1: 'Auvergne-Rhône-Alpes', country: 'France', latitude: 45.75, longitude: 4.85, country_code: 'FR', timezone: 'Europe/Paris' }];
   check('"Lyon, France" is now found, in France', geo.pickPlace('Lyon, France', world)?.country === 'FR' && geo.pickPlace('Lyon, France', world)?.lat === 45.75);
+  // Town, region, country, as people write a Canadian or Brazilian address. All of it after the first comma was
+  // read as one country name and found nothing (found in a live sweep).
+  const sorriso = [{ name: 'Sorriso', admin1: 'Mato Grosso', country: 'Brazil', country_code: 'BR', latitude: -12.55, longitude: -55.71 }, { name: 'Sorriso', admin1: 'Lombardy', country: 'Italy', country_code: 'IT', latitude: 45.6, longitude: 9.9 }];
+  check('"Sorriso, Mato Grosso, Brazil" is found, in Mato Grosso', geo.pickPlace('Sorriso, Mato Grosso, Brazil', sorriso)?.lat === -12.55);
+  check('"Toronto, Ontario, Canada" reads Canada as the country and Ontario as the region', JSON.stringify(geo.splitQuery('Toronto, Ontario, Canada')) === JSON.stringify({ name: 'Toronto', state: null, elsewhere: true, country: 'Canada', region: 'Ontario' }));
+  check('"Austin, Texas, USA" is still Texas', geo.splitQuery('Austin, Texas, USA').state === 'Texas');
+  check('"Melbourne, Victoria, Australia" keeps every letter of Australia', geo.splitQuery('Melbourne, Victoria, Australia').country === 'Australia');
+  check('"Germany" is DE, not the retired East German code that shares its name', geo.countryCodeOf('Germany') === 'DE' && geo.countryCodeOf('Vietnam') === 'VN');
+  // Found with the model: "I'm in Delhi" was Delhi, New York, and "Paris" was Paris, Texas.
+  const delhiNY = { name: 'Delhi', admin1: 'New York', country_code: 'US', latitude: 42.27, longitude: -74.91, population: 2900 };
+  const delhi = { name: 'Delhi', country: 'India', country_code: 'IN', latitude: 28.65, longitude: 77.23, population: 11000000 };
+  check('a small US town gives way to a world city of the same name', geo.worldCityInstead(delhiNY, [delhi])?.country_code === 'IN');
+  check('...but a big US city does not', geo.worldCityInstead({ ...delhiNY, population: 1600000 }, [delhi]) === null);
+  check('...nor does a US town when the city abroad is not a big one', geo.worldCityInstead(delhiNY, [{ ...delhi, population: 500000 }]) === null);
   check('...and by its region or its code', geo.pickPlace('Lyon, FR', world)?.country === 'FR' && geo.pickPlace('Lyon, Auvergne-Rhône-Alpes', world)?.country === 'FR');
   check('"Lyon" alone is still the American one, because Alexa+ is sold there', geo.pickPlace('Lyon', world)?.country === 'US');
   check('a name with no American town goes abroad', geo.pickPlace('Pune', [{ name: 'Pune', admin1: 'Maharashtra', country: 'India', latitude: 18.5, longitude: 73.85, country_code: 'IN' }])?.country === 'IN');

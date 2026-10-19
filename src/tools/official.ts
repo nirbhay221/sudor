@@ -91,7 +91,7 @@ export function register(server: McpServer, personOf: () => string): void {
       if (checked != null && checked > 60) {
         return say(
           `I last reached the weather service ${checked} minutes ago, so I can't tell you what is in force for ${place} right now. ` +
-            'Ask me again in a few minutes, and check weather.gov if you need to know now.',
+            'Ask me again in a few minutes, and check your national weather service if you need to know now.',
           { checked: false, checkedMinutesAgo: checked },
         );
       }

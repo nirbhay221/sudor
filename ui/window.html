@@ -182,17 +182,22 @@
       if (m.method && handlers[m.method]) handlers[m.method](m.params || {});
     });
     return {
-      request(method, params) {
+      request(method, params, wait = 10000) {
         return new Promise((resolve, reject) => {
           const id = nextId++;
           pending.set(id, { resolve, reject });
           post({ id, method, params });
           setTimeout(() => {
             if (pending.delete(id)) reject(new Error(method + ' timed out'));
-          }, 10000);
+          }, wait);
         });
       },
       notify(method, params) { post({ method, params }); },
+      // ui/initialize, asked again every second until a host answers. A host page whose script starts after this
+      // view has loaded misses the first ask, and this view then sat on its example forever: both demo pages did.
+      start(params, tries = 10) {
+        return this.request('ui/initialize', params, 1000).catch((err) => (tries > 1 ? this.start(params, tries - 1) : Promise.reject(err)));
+      },
       on(method, fn) { handlers[method] = fn; },
     };
   })();
@@ -219,7 +224,7 @@
 
   if (window.parent && window.parent !== window) {
     bridge
-      .request('ui/initialize', {
+      .start({
         protocolVersion: '2026-01-26',
         appInfo: { name: 'sudor-window', version: '0.2.0' },
         appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] },

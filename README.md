@@ -66,7 +66,7 @@ Nothing here is mocked for the demo. Where something stands in for a thing we co
 
 | Part | Status |
 |---|---|
-| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,509 automated checks, run on every push |
+| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,529 automated checks, run on every push |
 | Agent Skill | **Real**: `skills/sudor-heat-safety`, to the open Agent Skills format, passing the format's own validator. Installable as a folder, and readable from the server as `skill://` resources |
 | Strands agent | **Real**: `strands/agent.mjs`, on AWS's Strands Agents SDK. It reads the skill from the server and follows each next step. The chain, the yes before a write and the step cap are checked with a scripted model at no cost; the path through Claude needs a key and is not in the automated checks |
 | Weather, UV, air quality | **Real, live**: Open-Meteo, worldwide |
@@ -101,7 +101,7 @@ This file is long because the reasoning is the work. If you are evaluating the p
 | Where it is wrong, or cannot know | [Honest limitations](#honest-limitations) |
 
 Free sources, no API keys for the data. Every tool call is answered from memory; nothing external is called
-inside a turn. `npm test` runs 2,509 checks.
+inside a turn. `npm test` runs 2,529 checks.
 
 ## The problem
 
@@ -690,7 +690,7 @@ in trouble right now, confusion, fainting, hot dry skin, reach for the tool that
 rather than the one that plans a day.
 
 It is not Alexa, and that disclaimer travels in the response payload rather than living here. The model is
-Claude Sonnet 5.5, with a daily cap of 25 calls (Haiku 4.5 answered one turn in five with a question instead of a tool in the conversation tests, so it was replaced); the server's own instructions, which tell a host what this
+Claude Sonnet 5.5, with a daily cap of 150 calls (Haiku 4.5 answered one turn in five with a question instead of a tool in the conversation tests, so it was replaced); the server's own instructions, which tell a host what this
 person has already saved (as counts, never names), are passed to it exactly as a host receives them. With no
 key, or once the cap is reached, plain word rules choose the tool instead (`src/rules.ts`), as another entry in
 this hackathon, Recall Check, does, and the screen says which chose. The demo page takes typed or spoken words;
@@ -966,12 +966,12 @@ Moving a running server over is `node scripts/copy-to-table.mjs` once on the hos
 every record in and changes nothing if run twice, then the `/sudor/store` parameter set to
 `dynamodb` and a restart. The file is kept, so going back is the parameter and a restart.
 
-`npm test` runs everything, 2,509 checks. It is also what CI runs on every push, on Node 20 and 22,
+`npm test` runs everything, 2,529 checks. It is also what CI runs on every push, on Node 20 and 22,
 with the live suite in its own job so an outage at a weather service is never mistaken for a
 regression here.
 
 ```bash
-npm run test:unit           # 2,211 checks, no live data
+npm run test:unit           # 2,231 checks, no live data
 npm run test:live           # 298 checks, against a running server and the real forecast
 
 node test.mjs               # heat index formula, categories, medications, how the lines read aloud

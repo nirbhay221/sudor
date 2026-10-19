@@ -33,7 +33,7 @@ const STAND_IN_NOTE =
  * because that is what Polly bills, and a cache hit is free, so the same six canned
  * answers replayed all day cost six syntheses.
  */
-const agentDaily = dailyCap(Number(process.env.SUDOR_AGENT_DAILY_MAX ?? 25));
+const agentDaily = dailyCap(Number(process.env.SUDOR_AGENT_DAILY_MAX ?? 150));
 const speakDaily = dailyCap(Number(process.env.SUDOR_SPEAK_DAILY_CHARS ?? 100_000));
 /** For /health: what is left of today's spend on each. */
 export const budgetStatus = () => ({ agent: agentDaily.status(), speechCharacters: speakDaily.status() });

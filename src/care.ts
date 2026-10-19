@@ -66,7 +66,9 @@ const CMS = 'https://data.cms.gov/provider-data/api/1/datastore/query/xubh-q36u/
  * military hospitals are left out, and a mapped hospital whose own name says it is one is never offered.
  */
 const GENERAL = /^(acute care hospitals|critical access hospitals|rural emergency hospitals?)$/i;
-const NOT_FOR_EVERYONE = /psychiatr|behaviou?ral|mental health|rehab|detox|recovery|hospice|long.?term|veterans?|\bva\b|children|pediatric|surgical|surgery|specialty|women'?s|eye|orthop|cancer|dialysis|animal|veterinar/i;
+// Outside the US the map also tags businesses that only share a hospital's name: in Manchester, "The Christie
+// Charity Trading Limited", a cancer hospital's charity company, came back as the nearest emergency department.
+const NOT_FOR_EVERYONE =/psychiatr|behaviou?ral|mental health|rehab|detox|recovery|hospice|long.?term|veterans?|\bva\b|children|pediatric|surgical|surgery|specialty|women'?s|eye|orthop|cancer|dialysis|animal|veterinar|charity|trading|\blimited\b|\bltd\b|\bplc\b|\bshop\b|pharmacy|chemist|dental|dentist|laborator|imaging|radiolog|physiotherap|optic/i;
 
 const title = (s: string) => s.toLowerCase().replace(/(^|[ -])([a-z])/g, (_m, a: string, b: string) => `${a}${b.toUpperCase()}`);
 
@@ -318,7 +320,14 @@ export function nearestEmergency(lat: number | null, lon: number | null): Place 
     .filter((p) => p.emergency !== false)
     .map((p) => ({ ...p, milesAway: milesBetween(lat, lon, p.lat, p.lon) }))
     .sort((x, y) => x.milesAway - y.milesAway);
-  return ranked.find((p) => p.emergency === true) ?? ranked[0] ?? null;
+  const tagged = ranked.find((p) => p.emergency === true);
+  const nearest = ranked[0] ?? null;
+  // In the United States a yes is checked against Medicare's list. Elsewhere it is only the map's own tag, and the
+  // map tags the wrong places: around Manchester it tagged a charity company and a private hospital 22 miles out,
+  // and not the Royal Infirmary 1.4 miles away. So outside the list, a tagged hospital is preferred only when it
+  // is about as near as the nearest one; otherwise the nearest is named as a hospital, promising no department.
+  if (held.listed.length || !tagged || !nearest) return tagged ?? nearest;
+  return tagged.milesAway <= nearest.milesAway + 2 ? tagged : { ...nearest, emergency: null };
 }
 
 /** A phone number said so it can be dialled: digit by digit, in groups. */

@@ -25,6 +25,7 @@ export type GeoResult = {
   timezone?: string;
   country_code?: string;
   country?: string;
+  population?: number;
 };
 
 const STATES: Record<string, string> = {
@@ -54,10 +55,18 @@ function stateFrom(word: string): string | null {
 }
 
 /** "Phoenix, AZ", "Phoenix Arizona", "Kansas City, Missouri", "85004". */
-export function splitQuery(query: string): { name: string; state: string | null; elsewhere?: boolean; country?: string } {
+export function splitQuery(query: string): { name: string; state: string | null; elsewhere?: boolean; country?: string; region?: string } {
   const q = query.trim().replace(/\s+/g, ' ');
   if (/^\d{5}$/.test(q)) return { name: q, state: null };
   if (q.includes(',')) {
+    // Town, region, country: "Toronto, Ontario, Canada", "Sorriso, Mato Grosso, Brazil". Read the last part as
+    // the country and the middle as the region; all of it together named no country, so nothing was found.
+    const parts = q.split(',').map((x) => x.replace(/\b(usa|us|u\.s\.a?\.?|united states( of america)?)\b/gi, '').trim()).filter(Boolean);
+    if (parts.length >= 3) {
+      const st = stateFrom(parts[1]) ?? stateFrom(parts[parts.length - 1]);
+      if (st) return { name: parts[0], state: st };
+      if (countryCodeOf(parts[parts.length - 1])) return { name: parts[0], state: null, elsewhere: true, country: parts[parts.length - 1], region: parts[1] };
+    }
     const [name, ...rest] = q.split(',');
     const said = rest.join(' ').replace(/\b(usa|us|u\.s\.a?\.?|united states( of america)?)\b/gi, '').trim();
     // Something was said after the comma and it is not a state: "Lyon, France". This is a different place,
@@ -95,6 +104,9 @@ export const countryName = (code?: string | null): string | null => {
     return null;
   }
 };
+// Retired codes share a name with today's: DD reads "Germany" and comes before DE, so "Hannover, Germany" was
+// searched in East Germany and found nothing. The same for Serbia, Vietnam, Yemen, Myanmar and a few more.
+const RETIRED = new Set(['AN', 'BU', 'CS', 'DD', 'DY', 'FX', 'HV', 'NH', 'RH', 'SU', 'TP', 'UK', 'VD', 'YD', 'YU', 'ZR']);
 let byName: Map<string, string> | null = null;
 /** "France", "Puerto Rico", "UK", "IN" to a country code, or null when it is not a country. */
 export function countryCodeOf(said: string): string | null {
@@ -107,15 +119,29 @@ export function countryCodeOf(said: string): string | null {
     for (const a of A) for (const b of A) {
       const n = countryName(a + b);
       // The first code for a name: FX ("Metropolitan France") also reads "France".
-      if (n && !/unknown/i.test(n) && !byName.has(n.toLowerCase())) byName.set(n.toLowerCase(), a + b);
+      if (n && !RETIRED.has(a + b) && !/unknown/i.test(n) && !byName.has(n.toLowerCase())) byName.set(n.toLowerCase(), a + b);
     }
   }
   return byName.get(w) ?? null;
 }
 
+/**
+ * A small American town does not beat a world city of the same name. "I'm in Paris" was Paris, Texas, and "I'm in
+ * Delhi" was Delhi, New York (found with the model). A US match under 100,000 people gives way to a city of a million
+ * or more elsewhere, twenty times its size. Phoenix and Springfield stay American; "Lyon" stays Lyon, Mississippi,
+ * because Lyon, France is under a million and "Lyon, France" finds it.
+ */
+export function worldCityInstead(us: GeoResult | undefined, world: GeoResult[]): GeoResult | null {
+  const usPop = us?.population ?? 0;
+  if (usPop >= 100_000) return null;
+  const top = world.find((r) => r.country_code && r.country_code !== 'US');
+  const pop = top?.population ?? 0;
+  return top && pop >= 1_000_000 && pop > 20 * usPop ? top : null;
+}
+
 /** Pick the right result: the named state if one was said, otherwise the first (most prominent) US match. */
 export function pickPlace(query: string, results: GeoResult[]): Place | null {
-  const { state, elsewhere, country } = splitQuery(query);
+  const { state, elsewhere, country, region } = splitQuery(query);
   const of = (hit: GeoResult): Place => ({
     name: hit.name,
     state: (hit.country_code ?? 'US') === 'US' ? hit.admin1 ?? null : null,
@@ -129,7 +155,8 @@ export function pickPlace(query: string, results: GeoResult[]): Place | null {
     // "Lyon, France", "Munich, Bavaria", "Pune, IN": the country, the region, or its two letter code.
     const want = (country ?? '').toLowerCase().replace(/^the /, '');
     const code = countryCodeOf(want);
-    const hit = (code ? results.find((r) => r.country_code === code) : undefined) ??
+    const inRegion = region ? results.find((r) => (!code || r.country_code === code) && (r.admin1 ?? '').toLowerCase() === region.toLowerCase()) : undefined;
+    const hit = inRegion ?? (code ? results.find((r) => r.country_code === code) : undefined) ??
       results.find((r) => [r.country, r.admin1, r.country_code].some((v) => (v ?? '').toLowerCase() === want)) ??
       results.find((r) => [r.country, r.admin1].some((v) => !!v && v.toLowerCase().includes(want)));
     return hit ? of(hit) : null;
@@ -172,9 +199,16 @@ export async function geocode(query: string, timeoutMs = 8000): Promise<Place | 
       const code = countryCodeOf(country ?? '');
       return pickPlace(query, await search(code)) ?? (code ? pickPlace(query, await search(null)) : null);
     }
-    const inUS = pickPlace(query, await search('US'));
-    if (inUS || state) return inUS;
-    return pickPlace(query, await search(null));
+    const usRows = await search('US');
+    const inUS = pickPlace(query, usRows);
+    if (state) return inUS;
+    const world = await search(null);
+    if (inUS) {
+      const usRow = usRows.find((r) => r.latitude === inUS.lat && r.longitude === inUS.lon);
+      const instead = worldCityInstead(usRow, world);
+      return instead ? pickPlace(`${instead.name}, ${instead.country ?? countryName(instead.country_code) ?? instead.country_code}`, [instead]) : inUS;
+    }
+    return pickPlace(query, world);
   } finally {
     clearTimeout(timer);
   }

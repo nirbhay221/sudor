@@ -56,7 +56,8 @@ export const NO_LOCATION =
 /** Certification requires an actionable next step on every error, not a bare failure. */
 export const WEATHER_DOWN =
   "I can't reach the weather service right now, so I won't guess at today's heat. It refreshes every twenty minutes, " +
-  'so ask again shortly, or check weather.gov if you need an answer now.';
+  // Said in all twelve countries, so it names no one country's service: weather.gov was offered to people in Manchester.
+  'so ask again shortly, or check your national weather service if you need an answer now.';
 /**
  * Said whenever a medication is named as the risk. Stopping a heart or blood
  * pressure medicine because of a hot day can do more harm than the heat.

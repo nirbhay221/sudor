@@ -95,7 +95,7 @@ const ID = 'demo:0123456789abcdef0123456789abcdef';
   check('the page has lines to say', lines.length >= 12, String(lines.length));
   check('every line names a tool a customer gets by default', lines.every((l) => names.includes(l.tool)), lines.filter((l) => !names.includes(l.tool)).map((l) => l.tool).join(','));
   const html = readFileSync('./web/echo.html', 'utf8');
-  check('the page says it is a stand-in and that no assistant model runs on it', /stand-in for an Echo Show/.test(html) && /No assistant model runs on this page/.test(html));
+  check('the page says it is a stand-in, and which part a model runs', /stand-in for an Echo Show/.test(html) && /No assistant model runs on the fixed lines/.test(html) && /a model picks the tool/.test(html));
   check('the phone says the demo never sends email', /never sends email/.test(html));
   check('the answer is announced to a screen reader', /id="answer" aria-live="polite"/.test(html));
 }

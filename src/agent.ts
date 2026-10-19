@@ -304,7 +304,9 @@ const SPEAK = [
   'Then do one of two things. Call one more tool only when the result names a next step (nextAction) that what the',
   'customer asked already covers and that only reads; never chain anything that saves, sends or contacts anybody.',
   'Otherwise speak the answer to the customer, as Alexa would: at most three short sentences in plain words, keeping',
-  'every number, time, place, medicine name and emergency number exactly as the tool gave them, never naming a tool',
+  'every number, time, place, medicine name and emergency number exactly as the tool gave them, and the reason it gives',
+  'for this customer in its own words ("because your medication blocks your sweating", "near the magnetic equator"),',
+  'never naming a tool',
   'or showing data, adding no advice the tool did not give, and ending with the closing question the tool asked, if',
   'it asked one.',
 ].join('\n');
@@ -317,6 +319,40 @@ export function keepSafety(reply: string, steps: Step[]): string {
   const said = new Set(steps.flatMap((s) => textOf(s.result).match(EMERGENCY) ?? []));
   const missing = [...said].some((n) => !reply.includes(n));
   return !reply.trim() || missing ? textOf(steps[steps.length - 1]?.result ?? {}) : reply;
+}
+
+/**
+ * The rewording may not drop the reason the answer is about this customer.
+ *
+ * Found in a live test: "the best time tomorrow, because your medication blocks your sweating, is 6 to 10 am" came
+ * back from the model as "the best time is 6 to 10 am", which is the whole product lost in one clause. The rules in
+ * SPEAK ask for it; this makes sure. A "because your ..." clause, a sentence that starts "Your ...", or the line about
+ * what is not the sun, said by the tool and missing from the reply, is added back in the tool's own words.
+ */
+export function keepReason(reply: string, steps: Step[]): string {
+  const said = textOf(steps[steps.length - 1]?.result ?? {});
+  if (!said || !reply.trim()) return reply;
+  const lower = reply.toLowerCase();
+  const add: string[] = [];
+  for (const m of said.matchAll(/\bbecause (your [^,.;]+)/gi)) {
+    const noun = /your (\w+)/i.exec(m[1])?.[1]?.toLowerCase();
+    if (noun && !lower.includes(`your ${noun}`)) add.push(`That is because ${m[1].trim()}.`);
+  }
+  for (const m of said.matchAll(/(?:^|[.!?]\s+)(Your [^.!?]+[.!?])/g)) {
+    const noun = /^Your (\w+)/.exec(m[1])?.[1]?.toLowerCase();
+    if (noun && !lower.includes(`your ${noun}`)) add.push(m[1].trim());
+  }
+  for (const m of said.matchAll(/(One thing that is not the sun: [^.!?]+[.!?])/g)) {
+    // Kept in other words counts: the reply may say what it is without the words 'not the sun'.
+    const gist = m[1].split(':')[1]?.trim().toLowerCase().split(' ').slice(0, 6).join(' ') ?? '';
+    if (!/not the sun/i.test(reply) && !(gist && lower.includes(gist))) add.push(m[1].trim());
+  }
+  if (!add.length) return reply;
+  // Before a closing question, so the reply still ends by asking it.
+  const text = reply.trim();
+  const ask = /[^.!?]*\?$/.exec(text);
+  const reasons = [...new Set(add)].join(' ');
+  return ask && ask.index > 0 ? `${text.slice(0, ask.index).trim()} ${reasons} ${ask[0].trim()}` : `${text} ${reasons}`;
 }
 
 export async function converse(
@@ -370,5 +406,5 @@ export async function converse(
     });
   }
   if (!steps.length) return { steps, reply, ms: Date.now() - started, model, calls, declined: true };
-  return { steps, reply: keepSafety(reply, steps), ms: Date.now() - started, model, calls };
+  return { steps, reply: keepReason(keepSafety(reply, steps), steps), ms: Date.now() - started, model, calls };
 }

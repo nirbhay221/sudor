@@ -31,6 +31,8 @@ export type SetupKey = 'medicines' | 'aloud' | 'conditions' | 'age' | 'alone';
 type Person = {
   lat: number | null;
   medications: unknown[];
+  /** Medicines named but not in the heat list, kept to watch for recalls. They were still given. */
+  recallWatch?: string[];
   conditions: string[];
   livesAlone?: boolean;
   age?: number;
@@ -59,7 +61,8 @@ export function nextQuestion(p: Person, now = Date.now()): { key: SetupKey; ask:
     return !!at && now - Date.parse(at) < WEEK_MS;
   };
   const open: SetupKey[] = [];
-  if (!p.medications.length && !p.noMedicines) open.push('medicines');
+  // Somebody who named a medicine has answered, even when it is one the heat list does not hold, like insulin.
+  if (!p.medications.length && !p.recallWatch?.length && !p.noMedicines) open.push('medicines');
   // Asked once there are names to say, unless they have already asked for privacy.
   if (p.medications.length && !p.privacyChosen && !p.privacy) open.push('aloud');
   if (!p.conditions.length && !p.noConditions) open.push('conditions');

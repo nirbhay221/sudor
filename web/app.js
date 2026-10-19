@@ -227,7 +227,11 @@ function updateLatencyStat() {
   el('stat-latency').innerHTML = `${median} <small>ms median</small>`;
 }
 
+// Set once the browser's own profile exists. A click that came first was answered for nobody.
+let ready = null;
+
 async function run(tool, args, button) {
+  if (ready) await ready;
   if (button) { button.disabled = true; button.setAttribute('aria-pressed', 'true'); }
   document.querySelectorAll('.request[aria-pressed="true"]').forEach((b) => {
     if (b !== button) b.setAttribute('aria-pressed', 'false');
@@ -390,7 +394,8 @@ el('reset-demo').addEventListener('click', () => {
 });
 
 buildRequests();
-await ensureProfile();
+ready = ensureProfile();
+await ready;
 await refreshNow();
 
 /*

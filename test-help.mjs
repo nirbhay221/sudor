@@ -155,6 +155,16 @@ console.log('\nThe federal list, which knows who has an emergency department');
   check('...so the sentence names Alaska Regional, not the nearer psychiatric hospital', /nearest emergency department is Alaska Regional Hospital/.test(care.sentence(61.2, -149.8)), care.sentence(61.2, -149.8));
   care.seedForTest(61.2, -149.8, care.confirm([{ name: 'Mercy Behavioral Health Hospital', address: null, city: null, phone: null, lat: 61.2, lon: -149.8, emergency: null }], []));
   check('with no list to check against, a behavioural health hospital is still never offered', care.sentence(61.2, -149.8) === '');
+  care.seedForTest(53.43, -2.23, care.confirm([{ name: 'The Christie Charity Trading Limited', address: 'Oak Road', city: 'Manchester', phone: null, lat: 53.43, lon: -2.23, emergency: true }], []));
+  check('a company that shares a hospital name is never offered, even when the map tags it', care.sentence(53.43, -2.23) === '', care.sentence(53.43, -2.23));
+  // Manchester as the map returned it: the Royal Infirmary untagged at 1.4 miles, a private hospital tagged at 22.
+  care.seedForTest(53.4808, -2.2426, [
+    { name: 'Manchester Royal Infirmary', address: 'Oxford Road', city: 'Manchester', phone: null, lat: 53.4627, lon: -2.2257, emergency: null },
+    { name: 'Huddersfield Private Hospital', address: 'Birkby Lodge Road', city: 'Huddersfield', phone: null, lat: 53.6603, lon: -1.7946, emergency: true },
+  ]);
+  const mcr = care.sentence(53.4808, -2.2426);
+  check('outside the federal list, a tagged hospital 22 miles away does not beat the infirmary 1.4 miles away', /^The nearest hospital is Manchester Royal Infirmary/.test(mcr), mcr);
+  check('...and it is called a hospital, not promised as an emergency department', !/emergency department/.test(mcr), mcr);
   check('something that is not a list is no hospitals', care.parseListed(null).length === 0 && care.parseListed({}).length === 0);
   check('a town and a state are read from the place name', JSON.stringify(care.townOf('Minneapolis, Minnesota')) === '{"city":"MINNEAPOLIS","state":"MN"}' && care.townOf('Phoenix, AZ').state === 'AZ');
   check('a place with no state is not sent to a US list', care.townOf('Minneapolis') === null && care.townOf('Lyon, France') === null && care.townOf(null) === null);

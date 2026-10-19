@@ -206,7 +206,9 @@ export function register(server: McpServer, personOf: () => string): void {
       const combo = COMBINATIONS[cleanName(name)] ?? (namedExactly(name) ? null : await rxclass.ingredients(name));
       if (combo || !classifyMedication(name)) {
         const country = store.get(id).country ?? null;
-        const intl = combo ? name.toLowerCase().trim() : usName(name);
+        let intl = combo ? name.toLowerCase().trim() : usName(name);
+        // German drops the final e: Furosemid, Amlodipin, Hydrochlorothiazid. Read as the name the table holds.
+        if (!combo && intl === name.toLowerCase().trim() && !classifyMedication(intl) && classifyMedication(`${intl}e`)) intl = `${intl}e`;
         let brand: ReturnType<typeof ingredientsOf> = combo
           ? { brand: cleanName(name), ingredients: combo, country: 'US' }
           : intl === name.toLowerCase().trim() ? ingredientsOf(name, country) : null;
@@ -215,7 +217,14 @@ export function register(server: McpServer, personOf: () => string): void {
           const es = await lookupSpain(name);
           if (es) brand = { brand: name.toLowerCase().trim(), ingredients: es, country: 'ES' };
         }
-        // The same brand name is a different medicine in different countries. Asked, never guessed.
+        // The same brand name is a different medicine in different countries. Asked, never guessed. But the
+        // countries' names for one drug are compared first, in US spelling and without accents: Doliprane was
+        // "a different medicine" because India's list says acetaminophen and France's says paracétamol.
+        if (brand?.ambiguous?.length) {
+          const same = (xs: string[]) => xs.map((x) => usName(x.normalize('NFD').replace(/[̀-ͯ]/g, ''))).sort().join('+');
+          const readings = new Set(brand.ambiguous.map((a) => same(a.ingredients)));
+          if (readings.size === 1) brand = { ...brand, ingredients: [...new Set(brand.ambiguous[0].ingredients.map((x) => usName(x.normalize('NFD').replace(/[̀-ͯ]/g, ''))))], ambiguous: undefined };
+        }
         if (brand?.ambiguous?.length) {
           const COUNTRY: Record<string, string> = { IN: 'India', CA: 'Canada', FR: 'France', BR: 'Brazil', IT: 'Italy', ES: 'Spain' };
           // Countries that mean the same thing by it are said together: "ramipril in France and Italy".
