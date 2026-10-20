@@ -586,13 +586,15 @@ export function register(server: McpServer, personOf: () => string): void {
           : sent.trying.length
             ? `I'm emailing ${names} now that you need help${person.locationName ? ', with where you are' : ''}.`
             : `I have already emailed ${andList(sent.limited)} several times this hour, so I have not sent another.`;
-      const told = sent.configured && !sent.demo ? sent.trying : [];
+      // On this page the message really does reach them, on the phone beside the screen. Reported as "told nobody, email
+      // not configured", the model read it out as "Priya has not been told" after the sentence said she had.
+      const told = sent.demo ? sent.trying : sent.configured ? sent.trying : [];
       // Email can sit unread for an hour. The host may be able to place a call, and this add-on cannot.
       const ring = `Email can sit unread, so ring ${confirmed[0].name} as well if you can.`;
       return say(`${first} ${yours} ${ring}${hospital ? ` ${hospital}` : ''} ${placeLine}`, {
         told,
         notTold: sent.limited,
-        emailConfigured: sent.configured,
+        ...(sent.demo ? {} : { emailConfigured: sent.configured }),
         ...(sent.demo ? { demo: true } : {}),
         referral: { emergency: '911', local: helpLine(person.country) ?? whoKnows(person.country) },
         nearestEmergency: care.named(person.lat, person.lon),

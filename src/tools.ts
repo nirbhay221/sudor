@@ -22,7 +22,8 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as profile from './tools/profile.js';
 import * as contact from './tools/contact.js';
 import { shorten, more, inScope, sentences } from './brief.js';
-import { say, CARD as CARD_URI, HEALTH_PURPOSE } from './tools/shared.js';
+import { say, CARD as CARD_URI, HEALTH_PURPOSE, settle, nowHour, profileFor } from './tools/shared.js';
+import { judgeHour } from './personal.js';
 import { takeReplies } from './consent.js';
 import * as attention from './attention.js';
 import { checkHotHome, checkColdHome } from './alerts.js';
@@ -42,6 +43,7 @@ import * as refuge from './tools/refuge.js';
 import * as official from './tools/official.js';
 import * as skin from './tools/skin.js';
 import * as discovery from './tools/discovery.js';
+import * as week from './tools/week.js';
 
 // Re-exported because server.ts imports it from here, and moving it to
 // shared.ts should not make every caller learn the new layout.
@@ -128,6 +130,15 @@ export function registerTools(server: McpServer, personOf: () => string): void {
       // Any word from them is a check-in. See checkOnAlone in alerts.ts.
       if (!id.startsWith('demo:')) store.update(id, (p) => void (p.lastSeenAt = new Date().toISOString()));
       type R = { content?: { type: string; text?: string }[]; structuredContent?: Record<string, unknown>; isError?: boolean };
+      // "I'm in Fairbanks, the power's out, where can I go?" came as one call to somewhere_to_go with the town in it,
+      // and was answered "I don't know where you are yet". A place said with it, and none saved, is saved first.
+      if (name === 'somewhere_to_go') {
+        const said = (args[0] as { place?: string } | undefined)?.place?.trim();
+        if (said && store.get(id).lat == null) {
+          await impl.get('register_location')?.({ place: said });
+          await settle(id, 3500);
+        }
+      }
       // Checking on somebody is asked through the sharing tool. See MERGED_AWAY.
       const run = name === 'share_my_day' && (args[0] as { action?: string } | undefined)?.action === 'check' ? impl.get('check_on') ?? cb : cb;
       let result = shorten((await run(...args)) as Parameters<typeof shorten>[0], id, { readOnly }) as R;
@@ -224,6 +235,7 @@ export function registerTools(server: McpServer, personOf: () => string): void {
   refuge.register(server, personOf);
   official.register(server, personOf);
   skin.register(server, personOf);
+  week.register(server, personOf);
   discovery.register(server, personOf);
 
   if (merged) {
@@ -452,7 +464,33 @@ export function registerTools(server: McpServer, personOf: () => string): void {
         const sentencesSaid = said.filter(Boolean).flatMap((t) => sentences(t));
         const once = sentencesSaid.filter((x, i) => sentencesSaid.lastIndexOf(x) === i);
         // While the town is still being looked up there is no weather to ask about yet, so nothing is pointed at.
-        const locating = did.some((d) => d.status === 'locating');
+        let locating = did.some((d) => d.status === 'locating');
+        /*
+         * "I live in Sun City West, Arizona" was answered "Looking up Sun City West now. Ask me about the heat in a moment",
+         * with nothing about the weather, and somebody trying it read that as the add-on doing nothing. The lookup and the
+         * first forecast usually land in a second or two, so the answer waits a little for them and then says what it is
+         * like there now. When they are slower than that, it is said the old way and the background carries on.
+         */
+        if (locating) {
+          await settle(personOf(), 3500);
+          const me = store.get(personOf());
+          const snap = me.lat != null && me.lon != null && me.locationStatus === 'ready' ? weather.current(me.lat, me.lon) : null;
+          if (snap && Number.isFinite(snap.tempF)) {
+            const feels = Math.round(judgeHour(nowHour(snap), profileFor(me)).feelsF);
+            const lookingAt = once.findIndex((x) => /^Looking up .* now.$/.test(x));
+            if (lookingAt >= 0) once[lookingAt] = `Got it: ${me.locationName}.`;
+            const askAt = once.findIndex((x) => /^Ask me about the heat in a moment.$/.test(x));
+            if (askAt >= 0) once.splice(askAt, 1);
+            once.push(`It feels like ${feels} degrees there right now. Ask me whether it's safe for you to go out.`);
+            locating = false;
+          } else if (me.locationStatus === 'not_found') {
+            const lookingAt = once.findIndex((x) => /^Looking up .* now.$/.test(x));
+            if (lookingAt >= 0) once[lookingAt] = `I couldn't find ${me.locationName}. Tell me the city and the state, or the city and the country, or a US zip code.`;
+            const askAt = once.findIndex((x) => /^Ask me about the heat in a moment.$/.test(x));
+            if (askAt >= 0) once.splice(askAt, 1);
+            // Still no place, so the weather is not the next step: locating stays set and nothing is pointed at.
+          }
+        }
         // A place change waiting on a yes: that yes is the next step, not the weather.
         const asking = did.find((d) => d.status === 'confirm') as { nextAction?: unknown } | undefined;
         if (asking?.nextAction) return say(once.join(' '), { did, nextAction: asking.nextAction });

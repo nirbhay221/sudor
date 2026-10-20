@@ -95,7 +95,7 @@ seedDay(33.45, -112.07, 110);
 
 console.log('\nConnected through Strands\' MCP client');
 const sudor = await sudorFor('acct:strands');
-check('the tools are the server\'s default set', sudor.tools.length === 13 && sudor.tools.some((t) => t.name === 'weather_check'), String(sudor.tools.length));
+check('the tools are the server\'s default set', sudor.tools.length === 17 && sudor.tools.some((t) => t.name === 'weather_check'), String(sudor.tools.length));
 check('the skill was read from the server, not from a file', /^---\nname: sudor-heat-safety\n/.test(sudor.skill) && SKILL_URI === 'skill://sudor-heat-safety/SKILL.md');
 check('the server\'s instructions came with it', /already saved a place/.test(sudor.instructions));
 const prompt = systemPrompt(sudor);

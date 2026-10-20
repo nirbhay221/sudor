@@ -92,6 +92,10 @@ const SPOKEN = {
   check_on: {},
   get_help: { what: 'the power is out and I am cold' },
   tell_me_more: {},
+  plan_my_week: { activity: 'gardening', workStart: 9, workEnd: 17 },
+  heat_patterns: { period: 'week' },
+  doctor_plan: { action: 'add', says: 'on hot days take my water pill in the morning' },
+  my_trips: { action: 'list' },
 };
 
 /** Nothing can be answered for a person until there is a person and a place. */

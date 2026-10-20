@@ -144,7 +144,7 @@ console.log('\nThe family, told once that the home is too cold');
   sent.length = 0;
   await checkColdHome();
   check('broken heating and a 10 degree night emails the contact who agreed', sent.length === 1 && sent[0].to === 'sam@example.org', JSON.stringify(sent.map((e) => e.subject)));
-  check('...saying the home is too cold, before dark, with nothing about health', /too cold to stay in/.test(sent[0]?.text ?? '') && /before dark/.test(sent[0]?.text ?? '') && !/older|65|age/i.test(sent[0]?.text ?? ''), sent[0]?.text);
+  check('...saying the home is too cold, before dark, with nothing about health', /too cold to stay in/.test(sent[0]?.text ?? '') && /before dark/.test(sent[0]?.text ?? '') && !/\bolder\b|\b65\b|\bage\b/i.test(sent[0]?.text ?? ''), sent[0]?.text);
   await checkColdHome();
   check('once a day', sent.length === 1, String(sent.length));
   seedDay(30, 10, 9);

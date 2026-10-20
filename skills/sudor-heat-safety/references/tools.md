@@ -47,6 +47,20 @@ Manage the family members or caregivers who get emailed when it matters: if sign
 | `relation` | string | no |
 | `when` | emergency, hot_day, both | no |
 
+## `doctor_plan`
+
+Writes.
+
+Keeps what this customer's own doctor or pharmacist told them to do on hot or cold days, in their words, such as "on hot days take my water pill in the morning" or "drink an extra litre when it is over 90", and repeats it on those days. action add saves one, list reads them back, today says whether today is a day it applies, remove deletes one. It never suggests changing, skipping or stopping a medicine itself: only the clinician decides that. Call this when they say what their doctor told them for hot or cold weather, or ask what it was.
+
+| Argument | Values | Needed |
+|---|---|---|
+| `action` | add, list, today, remove | yes |
+| `says` | string | no |
+| `medicine` | string | no |
+| `when` | hot_days, cold_days, always | no |
+| `privately` | boolean | no |
+
 ## `get_help`
 
 Writes.
@@ -70,6 +84,17 @@ Precautions for going out right now when it cannot wait, in the heat or in the c
 | `step` | integer | no |
 | `privatePrecautions` | boolean | no |
 
+## `heat_patterns`
+
+Reads.
+
+Looks back over the last week, month or year where this customer lives and counts the days that were too hot, or too cold, for them to be out, given their own medicines and conditions: how many, the worst day, when the hot season started and ended, the worst month, and how often they told us they felt unwell. Call this for how the last week or month has been, how many hot days there were, when the hot season usually starts, or patterns over the year. It looks back; for days ahead use plan_my_week.
+
+| Argument | Values | Needed |
+|---|---|---|
+| `period` | week, month, year | no |
+| `date` | string | no |
+
 ## `log_outing`
 
 Writes.
@@ -81,6 +106,19 @@ Record how the customer felt after being out in the heat, fine or unwell. Feelin
 | `felt` | fine, unwell | yes |
 | `minutes` | integer | no |
 | `note` | string | no |
+
+## `my_trips`
+
+Writes.
+
+Trips and holidays this customer tells us about: where and which dates. action add saves one and checks it, check judges the days of a trip against their own medicines (from the forecast once it reaches the dates, otherwise from the same dates last year), list reads upcoming and past trips with how the past ones went, remove deletes one. Call this when they say they are going away, on holiday or travelling, or ask whether a trip will be too hot or cold.
+
+| Argument | Values | Needed |
+|---|---|---|
+| `action` | add, check, list, remove | yes |
+| `place` | string | no |
+| `from` | string | no |
+| `to` | string | no |
 
 ## `plan_my_day`
 
@@ -96,6 +134,21 @@ Plan a day around the heat or the cold for this customer: the best window for go
 | `shiftStart` | integer | no |
 | `shiftEnd` | integer | no |
 | `startedWork` | new, returning, settled | no |
+
+## `plan_my_week`
+
+Reads.
+
+The seven days ahead for this customer, judged against their own medicines and conditions: which days have hours to stay in, which need care, which are fine, and the best day for something they want to do. Pass workStart and workEnd when they say their working hours, and it says which days their trip to or from work falls in stay-in hours, so they can work from home that day. Call this for this week, the next few days, a weekday by name past tomorrow, or working from home. For today or tomorrow alone use plan_my_day.
+
+| Argument | Values | Needed |
+|---|---|---|
+| `activity` | string | no |
+| `minutes` | integer | no |
+| `workStart` | integer | no |
+| `workEnd` | integer | no |
+| `workDays` | array | no |
+| `date` | string | no |
 
 ## `share_my_day`
 
@@ -118,9 +171,11 @@ Let a family member or carer ask how this person's day is looking, from their ow
 
 Reads.
 
-Find somewhere the customer can go when their home is too cold or too hot to stay in, usually after a power cut: open shelters from the federal shelter system near their address, whether each has a generator, step-free access or takes pets, and the 211 line for local warming and cooling centres. Call this when they say they have no heat, no power, no air conditioning, that the house is freezing or boiling, or ask where they can go. It is for finding a place; for advice on getting ready before a power cut use storm_prep.
+Find somewhere the customer can go when their home is too cold or too hot to stay in, usually after a power cut: open shelters from the federal shelter system near their address, whether each has a generator, step-free access or takes pets, and the 211 line for local warming and cooling centres. Call this when they say they have no heat, no power, no air conditioning, that the house is freezing or boiling, or ask where they can go. It is for finding a place; for advice on getting ready before a power cut use storm_prep. Pass place when they name where they are in the same breath, "I am in Fairbanks and the power is out".
 
-No arguments.
+| Argument | Values | Needed |
+|---|---|---|
+| `place` | string | no |
 
 ## `storm_prep`
 

@@ -76,7 +76,7 @@ async function callTool(name, args = {}) {
   const raw = await res.text();
 
   if (res.status === 401) {
-    throw new Error('This server has account linking switched on, so the demo page cannot call it directly.');
+    throw new Error('This server has account linking switched on, so this page cannot call it directly.');
   }
   const line = raw.split('\n').find((l) => l.startsWith('data: '));
   let json;
@@ -319,7 +319,7 @@ function buildRequests() {
 const PROFILE_NOTE =
   `Stand-in profile, not a real person: ${SEED.location.place}, taking ${SEED.medications.join(' and ')}, living ` +
   `with ${SEED.conditions.join(' and ')}. Use your own location and the weather half becomes real for you. ` +
-  'The medicines stay a stand-in, because nobody should type their prescriptions into a demo.';
+  'The medicines stay a stand-in, because nobody should type their prescriptions into a web page.';
 
 /** Replace the stand-in place with the visitor's real coordinates. */
 async function useMyLocation() {
@@ -360,7 +360,7 @@ async function ensureProfile() {
     // after the profile does.
     setTimeout(() => { void refreshNow(); }, 2500);
   } catch (err) {
-    note.textContent = `Could not set up the demo profile. ${err.message}`;
+    note.textContent = `Could not set up the stand-in profile. ${err.message}`;
   }
 }
 
@@ -374,10 +374,10 @@ async function refreshNow(tries = 0) {
       // A first visit asks a moment before the forecast for the demo address has arrived. The boxes used to stay
       // on "checking" for good, under the server's "ask me again in a moment"; this asks again instead.
       if (tries < 10) {
-        el('stats-note').textContent = 'Fetching the live forecast for the demo address…';
+        el('stats-note').textContent = 'Fetching the live forecast for the stand-in address…';
         setTimeout(() => void refreshNow(tries + 1), 3000);
       } else {
-        el('stats-note').textContent = 'The live forecast is slow to arrive. The demo below still works.';
+        el('stats-note').textContent = 'The live forecast is slow to arrive. The examples below still work.';
       }
       return;
     }

@@ -118,6 +118,13 @@ export type Person = {
    * Most outdoor workers who die of heat are in their first two weeks. See acclimatization in personal.ts.
    */
   heatWork?: { kind: 'new' | 'returning'; since: string } | null;
+  /**
+   * What their own doctor or pharmacist told them to do on hot or cold days, in their words. Repeated back on
+   * those days and never changed or added to: a change to a medicine is the clinician's to make. See doctor_plan.
+   */
+  doctorPlans?: { says: string; medicine: string | null; when: 'hot_days' | 'cold_days' | 'always'; at: string }[];
+  /** Trips they told Sudor about, kept after they are over so the next one can be compared. See my_trips. */
+  trips?: { place: string; lat: number; lon: number; country: string; from: string; to: string; at: string; seen?: { worst: 'good' | 'caution' | 'avoid'; peakHeatIndexF: number; stayDays: number } }[];
   /** Crews this person shares their working day with. Only a hash of each link is kept. */
   crewLinks?: { hash: string; at: string }[];
   /** An address waiting to be typed: a hash of the link, and who it is for. See the typed entry in consent.ts. */

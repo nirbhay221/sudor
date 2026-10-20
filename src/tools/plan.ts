@@ -234,7 +234,7 @@ export function register(server: McpServer, personOf: () => string): void {
       // Words that only the cold explains, unless the same breath says heat. "Numb and shivering" on a hot day is a
       // person in a cold room or out of a cold pool, never heat stroke, and it was answered as heat stroke.
       const said = (symptoms ?? '').toLowerCase();
-      const coldWords = /shiver|numb|frostbit|freezing|can'?t get warm|cannot get warm|hypotherm|so cold|too cold|ice cold/.test(said) && !/hot|sweat|overheat|heat/.test(said);
+      const coldWords = /shiver|numb|frostbit|freezing|can'?t get warm|cannot get warm|hypotherm|so cold|too cold|ice cold/.test(said) && !/\bhot\b|sweat|overheat|\bheat\b/.test(said);
       // A cold home they read out in the last three hours is the cold too. See indoorcold.ts.
       const coldInside = !!person.indoor && person.indoor.f <= 64 && Date.now() - Date.parse(person.indoor.at) < 3 * 3_600_000;
       const isCold = coldOutside || coldWords || coldInside;

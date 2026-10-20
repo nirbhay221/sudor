@@ -273,7 +273,7 @@ export function register(server: McpServer, personOf: () => string): void {
           oxygen: (person.equipment ?? []).includes('oxygen_concentrator'),
           mobility: (person.equipment ?? []).includes('wheelchair') || person.conditions.includes('older_adult'),
           heatSensitive: person.medications.length > 0 || person.conditions.some((c) => c !== 'older_adult'),
-          state: /Florida|, FL/.test(person.locationName ?? '') ? ('FL' as const) : /Texas|, TX/.test(person.locationName ?? '') ? ('TX' as const) : null,
+          state: /\bFlorida\b|, FL\b/.test(person.locationName ?? '') ? ('FL' as const) : /\bTexas\b|, TX\b/.test(person.locationName ?? '') ? ('TX' as const) : null,
           us: (person.country ?? 'US').toUpperCase() === 'US',
           country: person.country ?? 'US',
           conditions: person.conditions,

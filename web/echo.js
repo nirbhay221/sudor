@@ -85,27 +85,104 @@ function trace(what, detail) {
 }
 
 // When the question is about: now, or tomorrow. Sudor reads live weather and the forecast, not past days.
+/*
+ * When the question is about. null is now; otherwise tomorrow, one day (any day back to 1940, or up to six days
+ * ahead), or a stretch: the week ahead, or the last week, month or year. It used to be now or tomorrow and nothing
+ * else, and there was no way to ask about last Tuesday or the week ahead from the controls.
+ */
 let when = null;
-function forWhen(tool, args) {
-  if (when !== 'tomorrow') return [tool, args];
-  if (tool === 'plan_my_day') return [tool, { ...args, day: 'tomorrow' }];
-  if (tool === 'weather_check' || tool === 'going_out_now') return ['plan_my_day', { day: 'tomorrow' }];
-  return [tool, args];
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const todayYmd = () => ymd(new Date());
+const dayWords = (date) => {
+  const d = new Date(`${date}T12:00:00`);
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}) });
+};
+const PERIOD_WORDS = { 'next-week': 'the week ahead', week: 'the last 7 days', month: 'the last 30 days', year: 'the last year' };
+function whenLabel() {
+  if (!when) return '';
+  if (when.kind === 'tomorrow') return 'tomorrow';
+  if (when.kind === 'period') return PERIOD_WORDS[when.period];
+  return dayWords(when.date);
 }
-const whenNote = () => (when === 'tomorrow' ? ' (tomorrow)' : '');
-const whenWords = (words) => (when === 'tomorrow' ? `${words} I mean tomorrow.` : words);
+function forWhen(tool, args) {
+  if (!when) return [tool, args];
+  const dayTools = ['plan_my_day', 'weather_check', 'going_out_now'];
+  if (when.kind === 'tomorrow') {
+    if (tool === 'plan_my_day') return [tool, { ...args, day: 'tomorrow' }];
+    if (tool === 'weather_check' || tool === 'going_out_now') return ['plan_my_day', { day: 'tomorrow' }];
+    return [tool, args];
+  }
+  if (!dayTools.includes(tool)) return [tool, args];
+  const keep = tool === 'plan_my_day' ? { ...(args.activity ? { activity: args.activity } : {}), ...(args.minutes ? { minutes: args.minutes } : {}) } : {};
+  if (when.kind === 'period') return when.period === 'next-week' ? ['plan_my_week', keep] : ['heat_patterns', { period: when.period }];
+  const today = todayYmd();
+  if (when.date === today) return [tool, args];
+  return when.date > today ? ['plan_my_week', { ...keep, date: when.date }] : ['heat_patterns', { date: when.date }];
+}
+
+// A day named in the words wins over the date button. "Is it safe today?" with Tomorrow pressed used to go out as
+// "Is it safe today? I mean tomorrow.", two days in one question. A calendar date in a scripted line, or any day
+// word in a typed one, is sent as it was said, and the button only fills in when the words name no day.
+const CALENDAR = /\b((jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.? \d{1,2}|\d{1,2} (jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*|(19|20)\d\d|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2})\b/i;
+const DAY_WORD = /\b(today|tonight|tomorrow|yesterday|this (morning|afternoon|evening|weekend)|next (week|month|\w+day)|(mon|tues|wednes|thurs|fri|satur|sun)day)\b/i;
+const namesADay = (words) => CALENDAR.test(words) || DAY_WORD.test(words);
+const whenNote = (words) => (when && !namesADay(words) ? ` (${whenLabel()})` : '');
+const whenWords = (words) => {
+  if (!when || namesADay(words)) return words;
+  if (when.kind === 'tomorrow') return `${words} I mean tomorrow.`;
+  if (when.kind === 'period') return when.period === 'next-week' ? `${words} I mean over the week ahead.` : `${words} I mean over ${PERIOD_WORDS[when.period]}.`;
+  return `${words} I mean on ${dayWords(when.date)}.`;
+};
 
 function setUpWhen() {
   const now = el('when-now');
   const next = el('when-tomorrow');
+  const pick = el('when-pick');
+  const panel = el('when-panel');
+  const dateBox = el('when-date');
+  const readout = el('when-readout');
   if (!now || !next) return;
-  const show = (tomorrow) => {
-    now.setAttribute('aria-pressed', String(!tomorrow));
-    next.setAttribute('aria-pressed', String(tomorrow));
-    when = tomorrow ? 'tomorrow' : null;
+  const presets = panel ? [...panel.querySelectorAll('.preset')] : [];
+  const pressed = (which) => {
+    now.setAttribute('aria-pressed', String(which === 'now'));
+    next.setAttribute('aria-pressed', String(which === 'tomorrow'));
+    pick?.setAttribute('aria-pressed', String(which === 'pick'));
+    if (panel) panel.hidden = which !== 'pick';
   };
-  now.addEventListener('click', () => show(false));
-  next.addEventListener('click', () => show(true));
+  const tell = () => {
+    if (!readout) return;
+    if (!when || when.kind === 'tomorrow') { readout.textContent = 'Pick a choice above, or a day.'; return; }
+    if (when.kind === 'period') { readout.textContent = when.period === 'next-week' ? 'Asking about the week ahead: which days are fine, careful or stay-in for you.' : `Looking back over ${PERIOD_WORDS[when.period]}: the days that were too hot or too cold for you.`; return; }
+    const today = todayYmd();
+    readout.textContent = when.date === today ? 'Asking about today.' : when.date > today ? `Planning ${dayWords(when.date)}: the best hours and the ones to avoid, for you.` : `Looking back at ${dayWords(when.date)}: how hot or cold it got, and the hours that were too much for you.`;
+  };
+  if (dateBox) {
+    dateBox.min = '1940-01-01';
+    const max = new Date(); max.setDate(max.getDate() + 6);
+    dateBox.max = ymd(max);
+    dateBox.addEventListener('change', () => {
+      presets.forEach((p) => p.setAttribute('aria-pressed', 'false'));
+      when = dateBox.value ? { kind: 'day', date: dateBox.value } : null;
+      tell();
+    });
+  }
+  for (const p of presets) {
+    p.addEventListener('click', () => {
+      presets.forEach((o) => o.setAttribute('aria-pressed', String(o === p)));
+      if (dateBox) dateBox.value = '';
+      when = { kind: 'period', period: p.dataset.period };
+      tell();
+    });
+  }
+  now.addEventListener('click', () => { pressed('now'); when = null; });
+  next.addEventListener('click', () => { pressed('tomorrow'); when = { kind: 'tomorrow' }; });
+  pick?.addEventListener('click', () => {
+    pressed('pick');
+    presets.forEach((o) => o.setAttribute('aria-pressed', String(o.dataset.period === 'next-week')));
+    if (dateBox) dateBox.value = '';
+    when = { kind: 'period', period: 'next-week' };
+    tell();
+  });
 }
 setUpWhen();
 
@@ -154,10 +231,10 @@ async function say(line, button) {
   buttons.forEach((b) => (b.disabled = true));
   goLive();
   el('heard').classList.remove('idle');
-  el('heard').textContent = when === 'tomorrow' ? line.say.replace(/right now|today/i, 'tomorrow') : line.say;
+  el('heard').textContent = !when ? line.say : when.kind === 'tomorrow' ? line.say.replace(/\bright now\b|\btoday\b/i, 'tomorrow') : `${line.say.replace(/\bright now\b|\btoday\b/i, 'then')} (${whenLabel()})`;
   el('answer').textContent = '…';
   try {
-    const [tool, args] = forWhen(line.tool, line.args ?? {});
+    const [tool, args] = CALENDAR.test(line.say) ? [line.tool, line.args ?? {}] : forWhen(line.tool, line.args ?? {});
     const r = await callTool(tool, args);
     el('answer').textContent = r.text;
     el('meta').textContent = `${tool} answered in ${r.ms} ms`;
@@ -288,7 +365,7 @@ async function sayAnything(words, button) {
   buttons.forEach((b) => (b.disabled = true));
   goLive();
   el('heard').classList.remove('idle');
-  el('heard').textContent = words + whenNote();
+  el('heard').textContent = words + whenNote(words);
   el('answer').textContent = '…';
   const sent = whenWords(words);
   try {

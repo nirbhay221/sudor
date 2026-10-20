@@ -596,6 +596,107 @@
     {
       "say": "is it safe to just use a fan today",
       "tool": "weather_check"
+    },
+    {
+      "_comment": "The longer view: the week ahead, the weeks gone, the doctor's own plan, and trips."
+    },
+    {
+      "say": "plan my week around the heat",
+      "tool": "plan_my_week"
+    },
+    {
+      "say": "which days this week can I garden",
+      "tool": "plan_my_week",
+      "args": {
+        "activity": "gardening"
+      }
+    },
+    {
+      "say": "I work nine to five, should I work from home any day this week",
+      "tool": "plan_my_week",
+      "args": {
+        "workStart": 9,
+        "workEnd": 17
+      }
+    },
+    {
+      "say": "is Thursday going to be too hot for me",
+      "tool": "plan_my_week",
+      "alsoOk": [
+        "plan_my_day"
+      ],
+      "why": "Thursday may be tomorrow; past tomorrow it is the week."
+    },
+    {
+      "say": "how many hot days did I have this month",
+      "tool": "heat_patterns",
+      "args": {
+        "period": "month"
+      }
+    },
+    {
+      "say": "how was last week for me",
+      "tool": "heat_patterns",
+      "args": {
+        "period": "week"
+      }
+    },
+    {
+      "say": "when does the hot season usually start here",
+      "tool": "heat_patterns",
+      "args": {
+        "period": "year"
+      }
+    },
+    {
+      "say": "my doctor said on hot days to take my water pill in the morning",
+      "tool": "doctor_plan",
+      "args": {
+        "action": "add"
+      }
+    },
+    {
+      "say": "what did my doctor tell me to do on hot days",
+      "tool": "doctor_plan",
+      "args": {
+        "action": "list"
+      }
+    },
+    {
+      "say": "does my doctor's hot day plan apply today",
+      "tool": "doctor_plan",
+      "args": {
+        "action": "today"
+      }
+    },
+    {
+      "say": "I'm going to Las Vegas from December 20 to 25",
+      "tool": "my_trips",
+      "args": {
+        "action": "add"
+      }
+    },
+    {
+      "say": "will my trip be too hot for me",
+      "tool": "my_trips",
+      "args": {
+        "action": "check"
+      }
+    },
+    {
+      "say": "what trips do I have coming up",
+      "tool": "my_trips",
+      "args": {
+        "action": "list"
+      }
+    },
+    {
+      "say": "book me a flight to Las Vegas",
+      "tool": null
+    },
+    {
+      "say": "how much is a hotel in Cancun",
+      "tool": null
     }
   ]
 }

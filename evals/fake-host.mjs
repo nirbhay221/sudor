@@ -46,5 +46,6 @@ agent.configureForTest(async (utterance, tools) => {
   if (mode === 'inventor' && c.tool === null) out.tool = other(tools, c.tool);
   if (out.tool) fillRequired(out.tool, out.args, tools);
   if (mode === 'broken' && c.tool === 'medication') out.args = { action: 'not_a_real_action', name: 'x' };
+  if (mode === 'broken' && c.tool === 'doctor_plan') out.args = { action: 'not_a_real_action' };
   return out;
 });

@@ -31,7 +31,7 @@
           "args": {}
         },
         {
-          "say": "Tell my daughter Priya if I need help.",
+          "say": "Tell my daughter Priya at priya@example.com if I need help.",
           "tool": "contact",
           "args": {
             "action": "add",

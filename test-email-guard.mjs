@@ -59,7 +59,7 @@ console.log('\nThe predicate itself');
   check('a linked account may', notify.canEmailFor('acct:jordan') === true);
   check('local development may', notify.canEmailFor('local-dev') === true);
   check('a name merely containing "demo" is not a sandbox', notify.canEmailFor('acct:demo:fake') === true);
-  check('the refusal is a plain sentence', /public demo/.test(notify.DEMO_NO_EMAIL) && !/Error|at /.test(notify.DEMO_NO_EMAIL));
+  check('the refusal is a plain sentence', /public page/.test(notify.DEMO_NO_EMAIL) && !/Error|at /.test(notify.DEMO_NO_EMAIL));
 }
 
 console.log('\nAn emergency from a sandbox emails nobody, with attacker text in it');

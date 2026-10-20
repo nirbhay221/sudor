@@ -42,6 +42,10 @@ that follow.
 | I am back and felt fine, I felt faint out there | `log_outing` |
 | Go on, why, the rest | `tell_me_more` |
 | What can you do | `what_can_you_do` |
+| This week, which days can I garden, should I work from home on Thursday | `plan_my_week` |
+| How many hot days this month, when does the hot season start here | `heat_patterns` |
+| My doctor said on hot days to take my water pill in the morning, what did my doctor say | `doctor_plan` |
+| I am going to Las Vegas on the 20th, will my trip be too hot | `my_trips` |
 
 Arguments and the full wording of each tool are in [references/tools.md](references/tools.md).
 

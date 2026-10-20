@@ -209,7 +209,7 @@ export function toDemoPhone(personId: string, message: Omit<PhoneMessage, 'at'>)
 export const demoPhone = (personId: string): PhoneMessage[] => [...(phones.get(personId) ?? [])];
 
 /** Said in place of "I'm emailing them" to a sandbox visitor. */
-export const DEMO_PHONE = 'In this demo that goes to the phone on this page, not to a real inbox.';
+export const DEMO_PHONE = 'It is on their phone, shown on this page.';
 
 /** What is said to a sandbox visitor who tries. Spoken aloud, so plain words. */
-export const DEMO_NO_EMAIL = 'Email is turned off in the public demo, so I have not sent anything. A linked account can use it.';
+export const DEMO_NO_EMAIL = 'Email is turned off on this public page, so I have not sent anything. A linked account can use it.';

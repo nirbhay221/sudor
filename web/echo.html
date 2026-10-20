@@ -62,7 +62,21 @@
       <span id="when-label" class="when-label">When</span>
       <button type="button" class="seg" id="when-now" aria-pressed="true">Now</button>
       <button type="button" class="seg" id="when-tomorrow" aria-pressed="false">Tomorrow</button>
-      <span class="when-note">Live weather, and tomorrow's forecast.</span>
+      <button type="button" class="seg" id="when-pick" aria-pressed="false" aria-controls="when-panel">Another time</button>
+      <button type="button" class="restart" id="reset"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.34-5.66M4 4v4h4"/></svg>Start again</button>
+      <div class="when-panel" id="when-panel" hidden>
+        <div class="presets" role="group" aria-label="Quick choices">
+          <button type="button" class="preset" data-period="next-week">The week ahead</button>
+          <button type="button" class="preset" data-period="week">Last 7 days</button>
+          <button type="button" class="preset" data-period="month">Last 30 days</button>
+          <button type="button" class="preset" data-period="year">Last year</button>
+        </div>
+        <div class="when-fields">
+          <label class="when-field"><span>Or a day</span><input type="date" id="when-date"></label>
+        </div>
+        <p class="when-readout" id="when-readout" aria-live="polite"></p>
+      </div>
+      <span class="when-note">Now is today, this moment. Another time plans a day up to six days ahead, or looks back at any day since 1940.</span>
     </div>
     <p class="hint">A model reads this server's tool list and picks a tool, as Alexa+ would. When no model is running, simple word rules pick instead, and the screen says which.</p>
   </section>
@@ -74,7 +88,7 @@
         <div class="thread-head"><span class="avatar" aria-hidden="true">P</span><div><h2 id="phone-title">Priya's phone</h2><p>Messages from Sudor</p></div></div>
         <ol class="inbox" id="inbox" aria-live="polite"></ol>
         <p class="empty" id="empty">Nothing yet. Add Priya and ask for help.</p>
-        <p class="note">The public demo never sends email. What a contact would be sent appears here instead, word for word, and the buttons are the real links.</p>
+        <p class="note">This page never sends real email. What a contact would be sent appears here instead, word for word, and the buttons are the real links.</p>
       </div>
     </section>
 
@@ -93,9 +107,10 @@
 </details>
 
 <footer class="foot">
-  <p>Your profile here is private to this browser and expires on its own. <button type="button" class="link" id="reset">Start again</button></p>
+  <p>Your profile here is private to this browser and expires on its own. Start again clears it.</p>
 </footer>
 
 <script src="/echo.js" type="module"></script>
+<script src="/heat.js" type="module"></script>
 </body>
 </html>

@@ -229,3 +229,26 @@ button { font: inherit; cursor: pointer; }
   .free { border-radius: 24px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* Start again sits with the controls it resets, not in the footer, where people did not find it. */
+.restart { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 9999px; padding: 6px 14px; font: inherit; font-size: 14px; cursor: pointer; transition: border-color .15s, background .15s; }
+.restart:hover { border-color: var(--soft); background: var(--surface); }
+.restart:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.restart svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The heat behind everything (heat.js). Content sits above it; the canvas never takes a click. */
+.sky { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+body > header, body > main, body > details, body > footer { position: relative; z-index: 1; }
+
+/* Another time: quick choices, a day, and the choice said back in words. */
+.when-panel { flex-basis: 100%; display: grid; gap: 12px; margin-top: 4px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.when-panel[hidden] { display: none; }
+.presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.preset { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 9999px; padding: 6px 12px; font: inherit; font-size: 14px; cursor: pointer; }
+.preset:hover { border-color: var(--soft); }
+.preset[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.preset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.when-fields { display: flex; flex-wrap: wrap; gap: 12px; }
+.when-field { display: grid; gap: 4px; font-size: 12px; color: var(--soft); }
+.when-field span { font: 500 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+.when-readout { margin: 0; font-size: 14px; color: var(--ink-2); }

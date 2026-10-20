@@ -61,6 +61,8 @@ const CARD_HTML = resolve('./ui/card.html');
  * tell the model what is known for this person, not only what each tool does.
  */
 /** The main language of each Alexa+ country that is not English-speaking. */
+/** Hosts know the date; so does the stand-in, or "December 20 to 27" is guessed into last year. */
+const today = () => ` Today is ${new Date().toISOString().slice(0, 10)}. A date said without a year is the next one to come, unless they are asking about something that has already happened.`;
 const LANGUAGE: Record<string, string> = { DE: 'German', AT: 'German', FR: 'French', ES: 'Spanish', MX: 'Spanish', IT: 'Italian', BR: 'Portuguese', IN: 'Hindi or English' };
 
 function instructionsFor(personId: string): string {
@@ -87,12 +89,14 @@ function instructionsFor(personId: string): string {
   // customer's language. So the host is told which language this person most likely speaks, from their country,
   // and to keep the parts that must not drift exactly as given.
   const lang = LANGUAGE[(p.country ?? 'US').toUpperCase()];
+  // Their own words decide the language. "My mother just fainted", said in English from Sao Paulo, was answered in
+  // Portuguese because the country was the first thing the model was told.
   const say = lang
-    ? ` This customer lives where ${lang} is spoken: unless they speak to you in English, give the answer in ${lang}, translating it faithfully, and keep every number, every medicine name and the emergency number exactly as given.`
+    ? ` Answer in the language the customer used in their last message: English when they wrote English. Only when they speak ${lang} to you, answer in ${lang}, translating faithfully and keeping every number, every medicine name and the emergency number exactly as given.`
     : '';
   return known.length
-    ? `${base}${say} This customer has already saved ${known.join(', ')}. Use what is saved: do not ask for it again.`
-    : `${base}${say} This customer has not saved anything yet; a tool will say what it needs.`;
+    ? `${base}${say}${today()} This customer has already saved ${known.join(', ')}. Use what is saved: do not ask for it again.`
+    : `${base}${say}${today()} This customer has not saved anything yet; a tool will say what it needs.`;
 }
 
 function build(personId: string): McpServer {

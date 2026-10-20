@@ -44,8 +44,11 @@ export function register(server: McpServer, personOf: () => string): void {
         'cut: open shelters from the federal shelter system near their address, whether each has a generator, step-free ' +
         'access or takes pets, and the 211 line for local warming and cooling centres. Call this when they say they have ' +
         'no heat, no power, no air conditioning, that the house is freezing or boiling, or ask where they can go. It is for ' +
-        'finding a place; for advice on getting ready before a power cut use storm_prep.',
-      inputSchema: {},
+        'finding a place; for advice on getting ready before a power cut use storm_prep. Pass place when they name ' +
+        'where they are in the same breath, "I am in Fairbanks and the power is out".',
+      inputSchema: {
+        place: z.string().optional().describe('Where they are, as spoken, only when they say it in the same sentence'),
+      },
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
     },
     async () => {

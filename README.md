@@ -31,7 +31,7 @@ medicines, conditions, home and town, and answers for that person:
 
 Built for the [Build, Ship, Shape: Amazon Developer Hackathon](https://amazonappdev2026.devpost.com),
 Alexa+ track, plus the Open Source and AWS Builder mini challenges. Self-hosted MCP server, spec 2025-11-25,
-Streamable HTTP, 13 tools by default, with an MCP Apps panel for the Echo Show. Its sister add-on
+Streamable HTTP, 17 tools by default, with an MCP Apps panel for the Echo Show. Its sister add-on
 [Orbita](https://github.com/nirbhay221/orbita) does the same for GPS-guided field work, and the two talk to
 each other.
 
@@ -66,7 +66,7 @@ Nothing here is mocked for the demo. Where something stands in for a thing we co
 
 | Part | Status |
 |---|---|
-| MCP server, 13 tools by default | **Real and deployed** on AWS, behind account linking. 2,529 automated checks, run on every push |
+| MCP server, 17 tools by default | **Real and deployed** on AWS, behind account linking. 2,529 automated checks, run on every push |
 | Agent Skill | **Real**: `skills/sudor-heat-safety`, to the open Agent Skills format, passing the format's own validator. Installable as a folder, and readable from the server as `skill://` resources |
 | Strands agent | **Real**: `strands/agent.mjs`, on AWS's Strands Agents SDK. It reads the skill from the server and follows each next step. The chain, the yes before a write and the step cap are checked with a scripted model at no cost; the path through Claude needs a key and is not in the automated checks |
 | Weather, UV, air quality | **Real, live**: Open-Meteo, worldwide |
@@ -349,7 +349,7 @@ absorb one. Only Class I is ever volunteered inside an answer about going outsid
 
 ## Tools
 
-Thirteen tools by default. Related actions share one tool, because tool choice gets worse as the list
+Seventeen tools by default. Related actions share one tool, because tool choice gets worse as the list
 grows: everything about the person is `about_me`, every change to the family list is `contact`.
 With `SUDOR_SCOPE=all` the original, finer-grained tools are listed instead.
 
@@ -382,6 +382,22 @@ With `SUDOR_SCOPE=all` the original, finer-grained tools are listed instead.
   type it on. The account holder's yes sends one invitation; nothing else is sent until that person agrees
 * `share_my_day` a one-time code so a family member, or a crew lead on Orbita, can see how the day is looking,
   never why
+
+**The longer view** (added on 19 October; the tools above are unchanged by them)
+* `plan_my_week` the seven days ahead, judged for this person: which days have hours to stay in, which need care,
+  the best day for something they want to do, and, given their working hours, the days their trip to or from work
+  falls in stay-in hours, so they can work from home. It reads its own seven-day forecast, so the shared one that
+  every other answer uses is untouched
+* `heat_patterns` the last week, month or year where they live, counted for them: how many days were too hot or
+  too cold, the worst day, the hot season by month, and how often they said they felt unwell. From the Open-Meteo
+  historical archive (ERA5), which runs about five days behind
+* `doctor_plan` what their own doctor or pharmacist told them for hot or cold days, kept in their words and repeated
+  on those days. It never suggests skipping, stopping or changing a medicine: the CDC tells clinicians that any change
+  in dose or schedule is individual, and to warn patients against stopping a medicine without a plan
+  ([CDC](https://www.cdc.gov/heat-health/hcp/clinical-guidance/heat-and-medications-guidance-for-clinicians.html))
+* `my_trips` trips and holidays: the days of a trip judged against their medicines from the forecast there once it
+  reaches the dates, otherwise from the same dates last year; the emergency number when it differs from home; and
+  past trips kept, so the next one can be compared
 
 ## When the house is the problem
 

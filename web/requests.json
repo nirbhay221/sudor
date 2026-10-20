@@ -12,7 +12,7 @@
         {
           "say": "Are there any warnings where I live?",
           "tool": "weather_warnings",
-"secondary": true,
+          "secondary": true,
           "args": {}
         },
         {
@@ -47,7 +47,7 @@
         {
           "say": "Will I burn faster today?",
           "tool": "sun_check",
-"secondary": true,
+          "secondary": true,
           "args": {}
         }
       ]
@@ -92,6 +92,50 @@
       ]
     },
     {
+      "name": "The longer view",
+      "requests": [
+        {
+          "say": "Plan my week around the heat.",
+          "tool": "plan_my_week",
+          "args": {}
+        },
+        {
+          "say": "I work nine to five. Should I work from home any day this week?",
+          "tool": "plan_my_week",
+          "args": {
+            "workStart": 9,
+            "workEnd": 17
+          }
+        },
+        {
+          "say": "How many hot days did I have this month?",
+          "tool": "heat_patterns",
+          "args": {
+            "period": "month"
+          }
+        },
+        {
+          "say": "My doctor said on hot days to take my water pill in the morning.",
+          "tool": "doctor_plan",
+          "args": {
+            "action": "add",
+            "says": "on hot days take my water pill in the morning",
+            "when": "hot_days"
+          }
+        },
+        {
+          "say": "I am going to Las Vegas, Nevada on {{next-friday}}.",
+          "tool": "my_trips",
+          "args": {
+            "action": "add",
+            "place": "Las Vegas, Nevada",
+            "from": "{{next-friday}}",
+            "to": "{{next-friday}}"
+          }
+        }
+      ]
+    },
+    {
       "name": "When something is wrong",
       "requests": [
         {
@@ -126,7 +170,7 @@
         {
           "say": "Should I shovel the snow?",
           "tool": "should_i_shovel",
-"secondary": true,
+          "secondary": true,
           "args": {}
         }
       ]
@@ -249,7 +293,11 @@
     "share_my_day",
     "check_on",
     "get_help",
-    "tell_me_more"
+    "tell_me_more",
+    "plan_my_week",
+    "heat_patterns",
+    "doctor_plan",
+    "my_trips"
   ],
   "seed": {
     "location": {

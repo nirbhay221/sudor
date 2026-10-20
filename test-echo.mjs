@@ -96,7 +96,7 @@ const ID = 'demo:0123456789abcdef0123456789abcdef';
   check('every line names a tool a customer gets by default', lines.every((l) => names.includes(l.tool)), lines.filter((l) => !names.includes(l.tool)).map((l) => l.tool).join(','));
   const html = readFileSync('./web/echo.html', 'utf8');
   check('the page says it is a stand-in, and which part a model runs', /stand-in for an Echo Show/.test(html) && /No assistant model runs on the fixed lines/.test(html) && /a model picks the tool/.test(html));
-  check('the phone says the demo never sends email', /never sends email/.test(html));
+  check('the phone says this page never sends real email', /never sends real email/.test(html));
   check('the answer is announced to a screen reader', /id="answer" aria-live="polite"/.test(html));
 }
 
@@ -113,7 +113,7 @@ console.log('\nThe story the page tells, start to finish, through the same calls
   check('a tool folded into another one still answers when called by its old name', !(await visitor.call('register_location', { place: 'Phoenix, Arizona', lat, lon })).isError && store.get(ID).lat === lat);
   const invite = notify.demoPhone(ID);
   check('confirming Priya puts an invitation on the phone, and emails nobody', invite.length === 1 && invite[0].reason === 'invite' && /^[0-9a-f]{48}$/.test(invite[0].accept) && sent.length === 0, JSON.stringify(invite));
-  check('...and the answer says where it went', /goes to the phone on this page, not to a real inbox/.test(said['Yes, add her.'].said), said['Yes, add her.'].said);
+  check('...and the answer says where it went', /on their phone, shown on this page/.test(said['Yes, add her.'].said), said['Yes, add her.'].said);
   check('the invitation says nothing about health', !/medic|condition|heart|carvedilol|furosemide/i.test(invite[0].text), invite[0].text);
 
   const early = await visitor.call('get_help', { what: 'the power is out' });
@@ -126,7 +126,7 @@ console.log('\nThe story the page tells, start to finish, through the same calls
   const phone = notify.demoPhone(ID);
   const msg = phone.at(-1);
   check('asking for help now puts the real message on the phone', phone.length === 2 && msg.reason === 'help' && /What they said: "the power is out"/.test(msg.text) && /Banner University Medical Center Phoenix/.test(msg.text), msg.text);
-  check('...and still says 911 is theirs to call', /I cannot phone anyone or reach 911 for you/.test(help.said) && /phone on this page/.test(help.said), help.said);
+  check('...and still says 911 is theirs to call', /I cannot phone anyone or reach 911 for you/.test(help.said) && /shown on this page/.test(help.said), help.said);
   check('...with nothing about a medicine or a condition', !/carvedilol|furosemide|lasix|coreg|heart disease|medication|medicine|beta blocker|diuretic/i.test(msg.text), msg.text);
   check('...and nothing emailed', sent.length === 0);
 

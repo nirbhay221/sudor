@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<a class="skip" href="#demo">Skip to the live demo</a>
+<a class="skip" href="#demo">Skip to trying it</a>
 
 <header class="top">
   <div class="wrap top-inner">
@@ -21,7 +21,7 @@
     </a>
     <nav class="top-nav">
       <a href="/echo.html">On a screen</a>
-      <a href="#demo">Demo</a>
+      <a href="#demo">Try it</a>
       <a href="#how">How it works</a>
       <a href="#limits">Limits</a>
       <a href="#run">Run it</a>
@@ -56,9 +56,9 @@
 
   <section id="demo" class="section wrap">
     <div class="section-head">
-      <h2>Live demo</h2>
+      <h2>Try it live</h2>
       <p>
-        Every answer is computed here, from the live forecast for the demo address. Nothing on this page is scripted.
+        Every answer is computed here, from the live forecast for the stand-in address. Nothing on this page is scripted.
         Alexa is not in the loop: the page calls the same tools an Alexa+ add-on would call, and shows what comes back.
         This is not medical advice, and it is not a doctor.
       </p>
@@ -195,7 +195,7 @@
       <li><b>It will not guess.</b> If the weather service is unreachable it says so.</li>
       <li><b>It cannot speak first.</b> An add-on answers when called, so the evening warning for tomorrow goes to confirmed contacts by email instead.</li>
       <li><b>Places are US only</b>, because Alexa+ is.</li>
-      <li><b>This demo profile is temporary.</b> It belongs to this browser and is cleared when the server restarts.</li>
+      <li><b>The stand-in profile is temporary.</b> It belongs to this browser and is cleared when the server restarts.</li>
     </ul>
   </section>
 
@@ -250,5 +250,6 @@ node dist/server.js        # serves this page and the MCP endpoint on 8789</code
 </footer>
 
 <script src="/app.js" type="module"></script>
+<script src="/heat.js" type="module"></script>
 </body>
 </html>

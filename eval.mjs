@@ -2,7 +2,7 @@
 // The model this measures, set before the stand-in loads. The stand-in's own default is Haiku, for the public demo
 // page; this golden set and its baseline are Opus, and a run that reported Opus while asking Haiku scored the wrong host.
 process.env.SUDOR_AGENT_MODEL ??= 'claude-opus-5-5';
-// --core measures the thirteen tools a host is actually shown by default, from evals/golden-core.json; without it,
+// --core measures the seventeen tools a host is actually shown by default, from evals/golden-core.json; without it,
 // every tool, from evals/golden.json. They keep separate baselines, because the two lists are different tests.
 const CORE = process.argv.includes('--core');
 process.env.SUDOR_SCOPE ??= CORE ? 'core' : 'all';

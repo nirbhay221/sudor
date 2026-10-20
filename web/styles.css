@@ -282,3 +282,8 @@ h1 {
 /* The play control. Quiet, and it only exists when the server can speak. */
 .speak { margin-top: .5rem; font-size: .85rem; padding: .3rem .6rem; }
 .speak[disabled] { opacity: .6; cursor: default; }
+
+/* The heat behind everything (heat.js). Content sits above it; the canvas never takes a click. */
+.sky { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+body > header, body > main, body > details, body > footer { position: relative; z-index: 1; }
+body > header.top { z-index: 5; }

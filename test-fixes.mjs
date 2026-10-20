@@ -193,7 +193,7 @@ console.log('\nIt cannot be used to pester a stranger');
   await visitor('contact', { action: 'add', name: 'Stranger', email: 'stranger@example.com' });
   const demo = await visitor('contact', { action: 'confirm', name: 'Stranger' });
   await settle();
-  check('a visitor to the demo cannot send an invitation by email at all: it goes to the phone on the page', sent.length === 0 && /phone on this page, not to a real inbox/.test(demo.said), demo.said);
+  check('a visitor to the demo cannot send an invitation by email at all: it goes to the phone on the page', sent.length === 0 && /on their phone, shown on this page/.test(demo.said), demo.said);
 }
 
 console.log('\nWhere there is no public address, the old behaviour stands');
