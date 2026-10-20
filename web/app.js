@@ -186,6 +186,31 @@ const GROUPS = fill(catalogue.groups);
 const ALL_TOOLS = catalogue.tools;
 const SEED = catalogue.seed;
 
+/*
+ * A few requests ask for tools the server only publishes when its full scope is switched on (SECONDARY_TOOLS on
+ * the server). On the default server those buttons answered "I can't do that one", so a request marked secondary
+ * is offered only when the server's own tools/list has it. Everything else is offered as before, including the
+ * tools folded into another one, which are callable though not listed.
+ */
+async function listedTools() {
+  try {
+    const res = await fetch('/mcp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'x-sudor-demo': session },
+      body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/list', params: {} }),
+    });
+    const raw = await res.text();
+    const line = raw.split('\n').find((l) => l.startsWith('data: '));
+    const json = JSON.parse(line ? line.slice(6) : raw);
+    return new Set((json.result?.tools ?? []).map((t) => t.name));
+  } catch {
+    return new Set();
+  }
+}
+const LISTED = await listedTools();
+const SECONDARY = new Set(GROUPS.flatMap((g) => g.requests).filter((r) => r.secondary).map((r) => r.tool));
+const offered = (tool) => !SECONDARY.has(tool) || LISTED.has(tool);
+
 /* ------------------------------------------------------------------ *
  * Rendering
  * ------------------------------------------------------------------ */
@@ -257,13 +282,15 @@ function buildRequests() {
   const host = el('request-groups');
   host.textContent = '';
   for (const group of GROUPS) {
+    const requests = group.requests.filter((r) => offered(r.tool));
+    if (!requests.length) continue;
     const wrap = document.createElement('div');
     wrap.className = 'group';
     const heading = document.createElement('p');
     heading.className = 'label';
     heading.textContent = group.name;
     wrap.append(heading);
-    for (const req of group.requests) {
+    for (const req of requests) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'request';
@@ -277,7 +304,7 @@ function buildRequests() {
   }
 
   const select = el('adv-tool');
-  for (const tool of ALL_TOOLS) {
+  for (const tool of ALL_TOOLS.filter(offered)) {
     const option = document.createElement('option');
     option.value = tool;
     option.textContent = tool;
@@ -339,12 +366,19 @@ async function ensureProfile() {
 
 const STATUS_WORD = { good: 'fine to be out', caution: 'take care', avoid: 'better inside' };
 
-async function refreshNow() {
+async function refreshNow(tries = 0) {
   try {
-    const out = await callTool('heat_check');
+    const out = await callTool('weather_check');
     const s = out.structured ?? {};
     if (s.unavailable) {
-      el('stats-note').textContent = out.text;
+      // A first visit asks a moment before the forecast for the demo address has arrived. The boxes used to stay
+      // on "checking" for good, under the server's "ask me again in a moment"; this asks again instead.
+      if (tries < 10) {
+        el('stats-note').textContent = 'Fetching the live forecast for the demo address…';
+        setTimeout(() => void refreshNow(tries + 1), 3000);
+      } else {
+        el('stats-note').textContent = 'The live forecast is slow to arrive. The demo below still works.';
+      }
       return;
     }
     el('stat-hi').innerHTML =

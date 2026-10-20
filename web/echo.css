@@ -190,7 +190,7 @@ button { font: inherit; cursor: pointer; }
 .chip[disabled] { opacity: .5; cursor: progress; }
 
 .foot { max-width: 1280px; margin: 0 auto; padding: 24px clamp(16px, 4vw, 48px) 48px; color: var(--soft); font-size: 13px; }
-.link { background: none; border: 0; padding: 0; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.link { background: none; border: 0; padding: 8px 4px; margin: -8px -4px; min-height: 24px; cursor: pointer; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 
 /* Lines that take something typed (none on the page today). */
 .chip-form { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; margin: 0 0 8px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }

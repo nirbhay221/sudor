@@ -71,7 +71,8 @@ async function call(name, args = {}) {
   const ms = Number(process.hrtime.bigint() - started) / 1e6;
   const line = raw.split('\n').find((l) => l.startsWith('data: '));
   const body = JSON.parse(line ? line.slice(6) : raw);
-  return { ms, ok: !body.error && !!body.result?.content?.[0]?.text };
+  const text = body.result?.content?.[0]?.text ?? '';
+  return { ms, ok: !body.error && !!text, text };
 }
 
 // A real place, and the few seconds a first visit also takes while the forecast,
@@ -80,7 +81,13 @@ await call('register_location', { place: 'Phoenix, Arizona', lat: 33.45, lon: -1
 await call('medication', { action: 'add', name: 'lisinopril' });
 await call('medication', { action: 'add', name: 'hydrochlorothiazide' });
 await call('health_condition', { action: 'add', condition: 'heart disease' });
-await wait(8000);
+// Then until the forecast is really in. A fixed wait was not enough on a slow runner: the first weather_check
+// there waited two seconds for a forecast still on its way, which is the first visit, not steady running.
+for (let i = 0; i < 60; i++) {
+  const { text } = await call('weather_check');
+  if (text && !/Ask me again in a moment/i.test(text)) break;
+  await wait(1000);
+}
 
 const MEMORY = {
   weather_check: {},
