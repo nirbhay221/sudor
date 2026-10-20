@@ -72,7 +72,7 @@ async function call(name, args = {}) {
   const line = raw.split('\n').find((l) => l.startsWith('data: '));
   const body = JSON.parse(line ? line.slice(6) : raw);
   const text = body.result?.content?.[0]?.text ?? '';
-  return { ms, ok: !body.error && !!text, text };
+  return { ms, ok: !body.error && !!text, text, unavailable: body.result?.structuredContent?.unavailable === true };
 }
 
 // A real place, and the few seconds a first visit also takes while the forecast,
@@ -84,8 +84,10 @@ await call('health_condition', { action: 'add', condition: 'heart disease' });
 // Then until the forecast is really in. A fixed wait was not enough on a slow runner: the first weather_check
 // there waited two seconds for a forecast still on its way, which is the first visit, not steady running.
 for (let i = 0; i < 60; i++) {
-  const { text } = await call('weather_check');
-  if (text && !/Ask me again in a moment/i.test(text)) break;
+  // The server's own flag, not its wording: the short-answer layer can turn "ask me again in a moment" into
+  // "in short: I'm pulling the weather", and the measuring then began before the forecast was in.
+  const { text, unavailable } = await call('weather_check');
+  if (text && !unavailable) break;
   await wait(1000);
 }
 
