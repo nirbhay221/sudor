@@ -132,7 +132,7 @@ console.log('\nNothing is saved or sent without a yes');
   const logged = await allowed.find((t) => t.name === 'log_outing').invoke({ felt: 'fine', minutes: 20 });
   check('with a yes, a tool that saves does run', !logged.refused && told.length === 1 && typeof logged.say === 'string' && logged.say.length > 0, JSON.stringify(logged));
   const writers = sudor.tools.filter((t) => t.toolSpec.annotations?.readOnlyHint !== true).map((t) => t.name).sort();
-  check('the tools held back are exactly the ones the server marks as writing', writers.join() === ['about_me', 'contact', 'get_help', 'log_outing', 'share_my_day', 'warning_signs'].join(), writers.join());
+  check('the tools held back are exactly the ones the server marks as writing', writers.join() === ['about_me', 'contact', 'doctor_plan', 'get_help', 'log_outing', 'my_trips', 'share_my_day', 'warning_signs'].join(), writers.join());
 }
 
 console.log('\nA chain that reaches a step needing a yes stops there and asks');
