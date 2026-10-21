@@ -354,7 +354,8 @@
     "plan_my_week",
     "heat_patterns",
     "doctor_plan",
-    "my_trips"
+    "my_trips",
+    "household"
   ],
   "seed": {
     "location": {

@@ -96,6 +96,7 @@ const SPOKEN = {
   heat_patterns: { period: 'week' },
   doctor_plan: { action: 'add', says: 'on hot days take my water pill in the morning' },
   my_trips: { action: 'list' },
+  household: { action: 'add', called: 'Mum', age: 82, medicines: ['Lasix'] },
 };
 
 /** Nothing can be answered for a person until there is a person and a place. */
