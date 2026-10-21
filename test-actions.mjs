@@ -123,7 +123,7 @@ check('adding a contact only stages it, and asks', /Nothing is sent until you co
 const early = await tools.warning_signs({ symptoms: 'he is confused and not sweating' });
 await tick();
 check('an emergency before confirmation emails nobody', mails.length === 0 && !/emailing/.test(text(early)), text(early));
-check('...and still says call 911 first', /^That can be heat stroke/.test(text(early)));
+check('...and still says call 911 first', /^This is an emergency. Call 911 now/.test(text(early)));
 check('confirming the contact says so', /Done\. Priya will get an email/.test(text(await tools.contact({ action: 'confirm', name: 'priya' }))));
 const emergency = await tools.warning_signs({ symptoms: 'he is confused and not sweating' });
 await tick();

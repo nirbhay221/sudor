@@ -154,6 +154,29 @@ const call = async (name, args = {}) => {
   const after = await call('weather_check');
   check('...and the answers are the customer\'s own again', !/At home:/.test(after.said), after.said);
 
+  // First aid, for whoever is unwell, on a hot day and a mild one.
+  await call('household', { action: 'add', called: 'my mum', age: 82, medicines: ['Lasix'], conditions: ['heart disease'] });
+  weather.seedForTest(snapOf(Date.now(), 2, () => 74, LAT, LON, 74));
+  const mildFaint = await call('warning_signs', { symptoms: 'My mother just fainted' });
+  check('on a mild day a faint is an emergency, but not called heat stroke', /Call 911 now/.test(mildFaint.said) && !/heat stroke/.test(mildFaint.said) && /may not be the heat/.test(mildFaint.said), mildFaint.said);
+  check('...the operator is told what Sudor knows about Mum', /Tell them Mum is 82, takes furosemide and has heart disease/.test(mildFaint.said), mildFaint.said);
+  check('...with the NHS fainting steps and CPR if not breathing', /lay them on their back and raise their legs/.test(mildFaint.said) && /push hard and fast/.test(mildFaint.said), mildFaint.said);
+  check('...and the card does not say to cool them', mildFaint.data.card && !/cool/i.test(mildFaint.data.card.lines.join(' ')), JSON.stringify(mildFaint.data.card));
+  const hotCar = await call('warning_signs', { symptoms: 'My mother fainted after sitting in the car' });
+  check('a hot car keeps the heat answer even on a mild day', /heat stroke/.test(hotCar.said), hotCar.said);
+  const mildDizzy = await call('warning_signs', { symptoms: 'I feel dizzy and have a headache' });
+  check('dizzy on a mild day is not called heat exhaustion', !/heat exhaustion/.test(mildDizzy.said) && /may not be the heat/.test(mildDizzy.said), mildDizzy.said);
+  weather.seedForTest(snapOf(Date.now(), 2, () => 100, LAT, LON, 100));
+  const hotFaint = await call('warning_signs', { symptoms: 'My husband is confused and has stopped sweating' });
+  check('on a hot day it says heat stroke, and that it can have other causes', /^This is an emergency. Call 911 now./.test(hotFaint.said) && /can be heat stroke, though it can have other causes too/.test(hotFaint.said), hotFaint.said);
+  check('...somebody not at home gets "tell them any medicines"', /Tell them any medicines they take/.test(hotFaint.said) && !/furosemide/.test(hotFaint.said), hotFaint.said);
+  store.update(id, (p) => { p.conditions = ['diabetes']; });
+  const sugar = await call('warning_signs', { symptoms: 'I passed out for a moment' });
+  check('for the customer on insulin: sugar only if awake and able to swallow', /if they are awake and can swallow, give them juice/.test(sugar.said) && !/Give them nothing to drink/.test(sugar.said), sugar.said);
+  check('...and they are told to say they have diabetes', /Tell them you have diabetes/.test(sugar.said), sugar.said);
+  store.update(id, (p) => { p.conditions = []; });
+  await call('household', { action: 'clear' });
+
   for (let k = 0; k < 10; k++) await call('household', { action: 'add', called: `Friend${k}`, age: 30 });
   const full = await call('household', { action: 'add', called: 'One more', age: 30 });
   check('no more than ten people are kept', full.data.saved === false && store.get(id).household.length === 10, full.said);

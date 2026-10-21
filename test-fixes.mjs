@@ -222,7 +222,7 @@ console.log('\nA question about the signs is not a description of a person');
   sent.length = 0;
   const asked = await asker('warning_signs', { symptoms: 'is confusion a sign of heat stroke?' });
   await settle();
-  check('a general question still gets the 911 advice', /If that is happening to somebody now: That can be heat stroke.*Call 911 now/.test(asked.said), asked.said);
+  check('a general question still gets the 911 advice', /If that is happening to somebody now: This is an emergency. Call 911 now/.test(asked.said), asked.said);
   check('...and nobody is emailed that heat stroke was described', sent.length === 0 && asked.data.contacted === null && asked.data.askedInGeneral === true, `${sent.length}`);
   const real = await asker('warning_signs', { symptoms: 'she is confused and her speech is slurred' });
   await settle();

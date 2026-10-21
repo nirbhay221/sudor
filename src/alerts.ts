@@ -33,8 +33,19 @@ const recipients = (p: store.Person, reason: store.NotifyReason) =>
   p.contacts.filter((c) => reachable(c) && c.notifyOn.includes(reason));
 
 /** Starts the emails and returns straight away, because a tool must answer inside the turn budget. */
-export function alertEmergency(personId: string, description: string): { trying: string[]; configured: boolean; demo?: boolean } {
+/**
+ * kind says what was described, so the family is not told "heat stroke" about a faint on a mild day, or about
+ * somebody freezing. 'heat' is the default, as it always was.
+ */
+const KIND_WORDS = {
+  heat: { subject: 'Heat emergency: signs of heat stroke were described', said: 'signs of heat stroke' },
+  cold: { subject: 'Cold emergency: signs of hypothermia or frostbite were described', said: 'signs of a cold emergency' },
+  general: { subject: 'Emergency: signs of a medical emergency were described', said: 'signs of a medical emergency' },
+} as const;
+
+export function alertEmergency(personId: string, description: string, kind: keyof typeof KIND_WORDS = 'heat'): { trying: string[]; configured: boolean; demo?: boolean } {
   const p = store.get(personId);
+  const words = KIND_WORDS[kind];
   const to = recipients(p, 'emergency');
   // The emergency advice itself, which is to call 911, is never withheld from a
   // sandbox. Only the email is.
@@ -44,8 +55,8 @@ export function alertEmergency(personId: string, description: string): { trying:
       toDemoPhone(personId, {
         to: c.name,
         reason: 'emergency',
-        subject: 'Heat emergency: signs of heat stroke were described',
-        text: `Sudor heard signs of heat stroke described${p.locationName ? ` near ${p.locationName}` : ''}: "${description.slice(0, 200)}". They were told to call ${emergencyNumber(p.country)} straight away. Please check on them now.`,
+        subject: words.subject,
+        text: `Sudor heard ${words.said} described${p.locationName ? ` near ${p.locationName}` : ''}: "${description.slice(0, 200)}". They were told to call ${emergencyNumber(p.country)} straight away. Please check on them now.`,
         stop: c.stopId ?? undefined,
       });
     }
@@ -54,14 +65,14 @@ export function alertEmergency(personId: string, description: string): { trying:
   const where = p.locationName ? ` near ${p.locationName}` : '';
   for (const c of to) {
     // And a text, to anybody who added their own number. See texts.ts.
-    if (c.phone) void sendText({ to: c.phone, sender: personId, reason: 'emergency', text: `Sudor: signs of heat stroke were described${where}. They were told to call ${emergencyNumber(p.country)}. Please check on them now.` });
+    if (c.phone) void sendText({ to: c.phone, sender: personId, reason: 'emergency', text: `Sudor: ${words.said} were described${where}. They were told to call ${emergencyNumber(p.country)}. Please check on them now.` });
     void sendEmail({
       to: c.email,
       sender: personId,
       reason: 'emergency',
-      subject: 'Heat emergency: signs of heat stroke were described',
+      subject: words.subject,
       text:
-        `Sudor heard signs of heat stroke described${where} at ${new Date().toUTCString()}: ` +
+        `Sudor heard ${words.said} described${where} at ${new Date().toUTCString()}: ` +
         `"${description.slice(0, 200)}". They were told to call ${emergencyNumber(p.country)} straight away. Please check on them now.\n\n` +
         'You are getting this because you were added as an emergency contact and agreed to it.' +
         stopFooter(c),

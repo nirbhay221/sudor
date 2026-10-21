@@ -15,6 +15,7 @@ import { windChillF, coldCategory, coldMeaning, COLD_WORDS, matchColdFirstAid } 
 import { profileOf, judgeHour, planDay, planShift, precautions } from '../personal.js';
 import * as wbgt from '../wbgt.js';
 import { triage, asksInGeneral } from '../firstaid.js';
+import { whoIsUnwell, tellOperator, memberProfile } from '../household.js';
 import { geocode } from '../geocode.js';
 import { alertEmergency } from '../alerts.js';
 import { emailConfigured, DEMO_PHONE } from '../notify.js';
@@ -238,6 +239,11 @@ export function register(server: McpServer, personOf: () => string): void {
       // A cold home they read out in the last three hours is the cold too. See indoorcold.ts.
       const coldInside = !!person.indoor && person.indoor.f <= 64 && Date.now() - Date.parse(person.indoor.at) < 3 * 3_600_000;
       const isCold = coldOutside || coldWords || coldInside;
+      // Who is unwell: the customer, somebody at home, or somebody else. The first aid follows their body, and
+      // the operator is told what Sudor already knows about them. See household.ts.
+      const unwell = whoIsUnwell(person, symptoms ?? '');
+      const tell = tellOperator(person, unwell);
+      const theirProfile = unwell.who === 'member' && unwell.member ? memberProfile(unwell.member, !!person.privacy) : unwell.who === 'self' ? profile : undefined;
 
       if (isCold) {
         const matched = matchColdFirstAid(symptoms ?? '');
@@ -251,6 +257,7 @@ export function register(server: McpServer, personOf: () => string): void {
           );
         }
         let spoken = matched.say;
+        if (matched.emergency && tell) spoken += ` ${tell}`;
         // Where to go, straight after what to do. Never in place of 911, which the first aid already said.
         const hospital = care.sentence(person.lat, person.lon);
         if (hospital) spoken += ` ${hospital}`;
@@ -259,7 +266,7 @@ export function register(server: McpServer, personOf: () => string): void {
         const general = asksInGeneral(symptoms ?? '');
         if (matched.emergency && general) spoken = `If that is happening to somebody now: ${spoken}`;
         if (matched.emergency && !general) {
-          contacted = alertEmergency(id, symptoms ?? '');
+          contacted = alertEmergency(id, symptoms ?? '', 'cold');
           const names = contacted.trying.join(' and ');
           if (contacted.trying.length) {
             spoken += contacted.demo
@@ -279,7 +286,15 @@ export function register(server: McpServer, personOf: () => string): void {
         });
       }
 
-      const result = triage(symptoms ?? '', profile, lastedMinutes);
+      /*
+       * Neither hot nor cold. Below a heat index of 80, where the National Weather Service caution band starts,
+       * with nothing said about heat, effort or a hot room, fainting is far more often something else, and the
+       * answer stops calling it heat stroke. It still says call now.
+       */
+      const hotWords = /\bhot\b|\bheat\b|overheat|\bsun\b|sunburn|sauna|hot tub|\bcar\b|air condition|\bac\b|\ba\/c\b|exercis|workout|running(?! a temp)|\bran\b|hik(e|ing)|gardening|working outside|mowing|football|soccer|practice/.test(said);
+      const hotInside = !!person.indoor && person.indoor.f >= 80 && Date.now() - Date.parse(person.indoor.at) < 3 * 3_600_000;
+      const mild = !!snap && Number.isFinite(snap.tempF) && heatIndexF(snap.tempF, snap.humidityPct) < 80 && !hotWords && !hotInside;
+      const result = triage(symptoms ?? '', theirProfile, lastedMinutes, { mild, tell });
       let spoken = result.spoken;
       // For the two answers that say to get medical help, say where. Cramps and general questions do not need it.
       const hospital = result.level === 'emergency' || result.level === 'urgent' ? care.sentence(person.lat, person.lon) : '';
@@ -289,7 +304,7 @@ export function register(server: McpServer, personOf: () => string): void {
       const general = asksInGeneral(symptoms ?? '');
       if (result.level === 'emergency' && general) spoken = `If that is happening to somebody now: ${spoken}`;
       if (result.level === 'emergency' && !general) {
-        contacted = alertEmergency(id, symptoms ?? '');
+        contacted = alertEmergency(id, symptoms ?? '', result.mild ? 'general' : 'heat');
         const names = contacted.trying.join(' and ');
         if (contacted.trying.length) {
           spoken += contacted.demo
@@ -306,7 +321,7 @@ export function register(server: McpServer, personOf: () => string): void {
         ...(general ? { askedInGeneral: true } : {}),
         // The one card that has to be readable from across the room.
         ...(result.level === 'emergency'
-          ? { card: { kind: 'card', title: 'Call 911 now', status: { label: 'emergency', tone: 'bad' }, lines: ['Move them somewhere cool.', 'Cool them with wet cloths or a cool bath.', 'Give them nothing to drink.'], foot: contacted?.trying.length && contacted.configured ? `Emailing ${contacted.trying.join(' and ')}.` : '' } }
+          ? { card: { kind: 'card', title: 'Call 911 now', status: { label: 'emergency', tone: 'bad' }, lines: result.mild ? ['Say exactly what happened.', 'Breathing: lay them down, legs raised.', 'Not breathing: push hard and fast on the chest.'] : ['Move them somewhere cool.', 'Cool them with wet cloths or a cool bath.', 'Give them nothing to drink.'], foot: contacted?.trying.length && contacted.configured ? `Emailing ${contacted.trying.join(' and ')}.` : '' } }
           : {}),
       });
     },

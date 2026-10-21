@@ -23,6 +23,8 @@ export type Triage = {
   matched: string[];
   spoken: string;
   sources: Source[];
+  /** Answered without assuming the heat, because it is not hot where they are. */
+  mild?: boolean;
 };
 
 const NWS = { name: 'National Weather Service, Heat Illness', url: 'https://www.weather.gov/safety/heat-illness' };
@@ -30,6 +32,41 @@ const NWS = { name: 'National Weather Service, Heat Illness', url: 'https://www.
 // help, and they may be harmful." A body overheated from outside is not a fever, and these act on fever.
 const MEDLINE = { name: 'MedlinePlus, Heat emergencies', url: 'https://medlineplus.gov/ency/article/000056.htm' };
 const NIOSH = { name: 'CDC NIOSH, Heat-related Illnesses and First Aid', url: 'https://www.cdc.gov/niosh/heat-stress/about/illnesses.html' };
+const NHS_FAINT = { name: 'NHS, Fainting', url: 'https://www.nhs.uk/symptoms/fainting/' };
+const AHA_CPR = { name: 'American Heart Association, Hands-Only CPR', url: 'https://cpr.heart.org/en/cpr-courses-and-kits/hands-only-cpr' };
+const CDC_SEIZURE = { name: 'CDC, First Aid for Seizures', url: 'https://www.cdc.gov/epilepsy/first-aid-for-seizures/index.html' };
+const ADA_LOW = { name: 'American Diabetes Association, Low Blood Glucose', url: 'https://diabetes.org/living-with-diabetes/hypoglycemia-low-blood-glucose' };
+
+/**
+ * What the weather and the person add to the answer.
+ *
+ * mild: it is neither hot nor cold where they are, and nothing said points to heat. Fainting on a 75 degree
+ * afternoon is far more often the heart, a stroke, low blood sugar or a medicine than the heat, and calling it
+ * heat stroke sends the family the wrong way. Then the answer still says call now, but does not name a cause.
+ * Even on a hot day it says the signs have other causes too: Sudor cannot tell which, and the operator can.
+ *
+ * tell: what to tell the operator, from what the customer has already said about the person ("Mum is 82 and
+ * takes furosemide"). Dispatchers ask for the conditions and the medicines, and in a panic people forget.
+ */
+export type Setting = { mild?: boolean; tell?: string };
+
+/** Do not guess the cause. Only the steps the first aid bodies give for the sign that was described. */
+function steps(stroke: string[], p: Profile | undefined, mild: boolean): string[] {
+  const out: string[] = [];
+  const faint = stroke.includes('fainting or collapse');
+  if (stroke.includes('a seizure')) out.push('If they are shaking or jerking, turn them on their side, put nothing in their mouth, and time it.');
+  if (faint) {
+    out.push(
+      mild
+        ? `If they are breathing, lay them on their ${p?.conditions.some((c) => c.id === 'pregnancy') ? 'left side' : 'back and raise their legs'}.`
+        : 'If they are breathing, lay them down somewhere cool.',
+    );
+    out.push('If they are not breathing normally, push hard and fast in the middle of their chest until help comes.');
+  }
+  return out;
+}
+/** For somebody on insulin: sugar only when awake and able to swallow, otherwise nothing by mouth. See ADA. */
+const SUGAR = 'Because of the insulin: if they are awake and can swallow, give them juice or something sugary. If not, put nothing in their mouth.';
 
 const STROKE_SIGNS: [RegExp, string][] = [
   [/confus|disorient|not making sense|altered/, 'confusion'],
@@ -108,7 +145,9 @@ const EXHAUSTION_SIGNS: [RegExp, string][] = [
 const VOMIT = /vomit|throw(ing)? up|threw up|being sick/;
 const CRAMPS = /cramp|spasm/;
 
-export function triage(description: string, p?: Profile, lastedMinutes?: number): Triage {
+export function triage(description: string, p?: Profile, lastedMinutes?: number, setting: Setting = {}): Triage {
+  const mild = !!setting.mild;
+  const tell = setting.tell ? ` ${setting.tell}` : '';
   const text = description.toLowerCase();
   const stroke = STROKE_SIGNS.filter(([re]) => described(text, re)).map(([, s]) => s);
   if (fever(text)) stroke.push('a temperature above 103');
@@ -118,13 +157,30 @@ export function triage(description: string, p?: Profile, lastedMinutes?: number)
   const sources = [NWS, NIOSH];
 
   if (stroke.length) {
+    const how = steps(stroke, p, mild);
+    const insulin = !!p?.insulin;
+    const extra = [...(stroke.includes('fainting or collapse') ? [NHS_FAINT, AHA_CPR] : []), ...(stroke.includes('a seizure') ? [CDC_SEIZURE] : []), ...(insulin ? [ADA_LOW] : [])];
+    if (mild) {
+      return {
+        level: 'emergency',
+        matched: stroke,
+        spoken:
+          `This is an emergency. Call 911 now.${tell} It isn't hot there, so this may not be the heat: tell them exactly what happened and do what they say.` +
+          (how.length ? ` ${how.join(' ')}` : '') +
+          (insulin ? ` ${SUGAR}` : ' Give them nothing to eat or drink until they are fully awake.'),
+        sources: extra,
+        mild: true,
+      };
+    }
     return {
       level: 'emergency',
       matched: stroke,
       spoken:
-        'That can be heat stroke, which is an emergency. Call 911 now. While you wait, move them somewhere cool ' +
-        'and cool them with cool wet cloths or a cool bath. Give them nothing to drink and no fever medicine.',
-      sources: [...sources, MEDLINE],
+        `This is an emergency. Call 911 now.${tell} In this heat it can be heat stroke, though it can have other causes too, so tell them exactly what happened. ` +
+        'While you wait, move them somewhere cool and cool them with cool wet cloths or a cool bath.' +
+        (how.length ? ` ${how.join(' ')}` : '') +
+        (insulin ? ` ${SUGAR} No fever medicine.` : ' Give them nothing to drink and no fever medicine.'),
+      sources: [...sources, MEDLINE, ...extra],
     };
   }
 
@@ -132,12 +188,25 @@ export function triage(description: string, p?: Profile, lastedMinutes?: number)
   const fasting = !!p?.conditions.some((c) => c.id === 'fasting');
   const sip = p?.fluidLimit ? 'sip water within your fluid plan' : fasting ? 'break your fast and sip water' : 'sip water';
 
+  if (mild && (vomiting || exhaustion.length || cramps)) {
+    const urgent = vomiting || (lastedMinutes != null && lastedMinutes > 60);
+    return {
+      level: urgent ? 'urgent' : 'self_care',
+      matched: [...exhaustion, ...(vomiting ? ['vomiting'] : []), ...(cramps ? ['cramps'] : [])],
+      spoken: urgent
+        ? `Get medical help now: call a doctor or urgent care.${tell} It isn't hot there, so this may not be the heat. Call 911 if they faint, get confused, or have chest pain or trouble breathing.`
+        : `It isn't hot there, so this may not be the heat. Sit or lie down somewhere comfortable and sip water${p?.fluidLimit ? ' within your fluid plan' : ''}. Call a doctor if it does not pass or gets worse, and 911 if there is fainting, confusion, chest pain or trouble breathing.`,
+      sources: [NHS_FAINT],
+      mild: true,
+    };
+  }
+
   if (vomiting || (exhaustion.length && lastedMinutes != null && lastedMinutes > 60)) {
     return {
       level: 'urgent',
       matched: [...exhaustion, ...(vomiting ? ['vomiting'] : [])],
       spoken:
-        `Get medical help now. With heat exhaustion, ${vomiting ? 'vomiting' : 'symptoms lasting more than an hour'} ` +
+        `Get medical help now.${tell} With heat exhaustion, ${vomiting ? 'vomiting' : 'symptoms lasting more than an hour'} ` +
         `means it needs a doctor. Meanwhile move somewhere cool, loosen clothing and use ${cool}.`,
       sources,
     };

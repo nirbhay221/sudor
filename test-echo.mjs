@@ -202,7 +202,7 @@ console.log('\nA stay-inside day is mentioned until it is heard');
   attention.resetForTest();
   await who.call('plan_my_day', { activity: 'a walk', minutes: 30 });
   const emergency = await who.call('warning_signs', { symptoms: 'she is confused and collapsed' });
-  check('an emergency is never preceded by a reminder', /^That can be heat stroke/.test(emergency.said), emergency.said.slice(0, 60));
+  check('an emergency is never preceded by a reminder', /^This is an emergency. Call 911 now/.test(emergency.said), emergency.said.slice(0, 60));
   const got = await who.call('weather_check', { heard: true });
   check('"got it" stops it, and says so', /I won't mention it again today/.test(got.said), got.said);
   const after = await who.call('my_profile');

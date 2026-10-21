@@ -126,17 +126,22 @@ export function familyDay(household: Member[], snap: LocationSnapshot, day: 'tod
   const judged = household.map((m) => {
     const plan = planDay(snap, memberProfile(m, isPrivate), { now, day });
     const status: Status = plan.hours.reduce<Status>((w, h) => (RANK[h.status] > RANK[w] ? h.status : w), 'good');
-    return { m, status, stay: spanOf(plan.hours, 'avoid'), care: spanOf(plan.hours, 'caution') };
+    // Whether the hours that matter are cold ones, so the words fit: no parked car or shade on a freezing day.
+    const worst = plan.hours.filter((h) => h.status === status);
+    const cold = worst.length > 0 && worst.filter((h) => h.feelsF <= 50).length * 2 > worst.length;
+    return { m, status, cold, stay: spanOf(plan.hours, 'avoid'), care: spanOf(plan.hours, 'caution') };
   });
-  const parts = groupBy(judged, (x) => `${x.status}:${x.stay ?? x.care ?? ''}:${SMALL(x.m)}`).map((g) => {
-    const { status, stay, care } = g[0];
+  const parts = groupBy(judged, (x) => `${x.status}:${x.stay ?? x.care ?? ''}:${SMALL(x.m)}:${x.cold}`).map((g) => {
+    const { status, stay, care, cold } = g[0];
     const small = SMALL(g[0].m);
     const text =
       status === 'avoid'
-        ? `should stay in ${stay}${small ? ', and never be left in a parked car' : ''}`
+        ? `should stay in ${stay}: it's too ${cold ? 'cold' : 'hot'}${small ? (cold ? ', and small children lose heat fast' : ', and never be left in a parked car') : ''}`
         : status === 'caution'
-          ? `can go out, but keep it short from ${care}${small ? ', with drinks and shade' : ''}`
-          : `{is} fine all day${small ? ', with drinks and shade' : ''}`;
+          ? cold
+            ? `can go out, wrapped up warm, but keep it short from ${care}${small ? ', with a hat and an extra layer' : ''}`
+            : `can go out, but keep it short from ${care}${small ? ', with drinks and shade' : ''}`
+          : `{is} fine all day${small && !cold ? ', with drinks and shade' : ''}`;
     return { who: g.map((x) => x.m.called), text, rank: RANK[status] * 2 + (small ? 1 : 0) };
   });
   return { line: join(parts), members: judged.map((x) => ({ called: x.m.called, group: x.m.group, status: x.status })) };
@@ -172,3 +177,62 @@ export function describeMember(m: Member, isPrivate: boolean): string {
 }
 
 export const householdOf = (p: store.Person): Member[] => p.household ?? [];
+
+/**
+ * Who is unwell, from the words: the customer, somebody at home, or somebody Sudor knows nothing about.
+ *
+ * "My mother just fainted" is Mum, when Mum is at home. The first aid then follows her body, not the
+ * customer's, and the customer is told what to tell the operator about her.
+ */
+const KIN_WORDS: string[][] = [
+  ['mum', 'mom', 'mother', 'mama', 'mummy', 'mommy'],
+  ['dad', 'father', 'papa', 'daddy'],
+  ['husband'], ['wife'], ['partner'],
+  ['grandma', 'grandmother', 'granny', 'gran', 'nana', 'nani', 'dadi'],
+  ['grandpa', 'grandfather', 'granddad', 'nanu', 'dada'],
+  ['brother'], ['sister'], ['aunt', 'auntie'], ['uncle'],
+  ['son'], ['daughter'], ['baby'], ['kid', 'kids', 'child', 'children'],
+];
+const words = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z']+/).filter(Boolean);
+
+export type Unwell = { who: 'self' | 'member' | 'other'; member?: Member };
+export function whoIsUnwell(person: store.Person, text: string): Unwell {
+  const said = words(text);
+  for (const m of householdOf(person)) {
+    const own = words(m.called).filter((w) => !['my', 'our', 'the', 'your'].includes(w));
+    const kin = KIN_WORDS.find((g) => own.some((w) => g.includes(w)));
+    if (own.some((w) => w.length >= 3 && said.includes(w)) || (kin && said.some((w) => kin.includes(w)))) return { who: 'member', member: m };
+  }
+  const someoneElse = said.some((w) => ['he', 'she', 'they', 'him', 'her', 'them', 'his', 'someone', 'somebody', 'friend', 'neighbor', 'neighbour'].includes(w) || KIN_WORDS.some((g) => g.includes(w)));
+  if (someoneElse) return { who: 'other' };
+  return said.some((w) => ['i', "i'm", 'im', "i've", 'me', 'my', 'myself'].includes(w)) ? { who: 'self' } : { who: 'other' };
+}
+
+const CONDITION_ONLY_AGE = ['older_adult', 'young_child'];
+const andList = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
+/** What to tell the operator, from what has been said about them. Never a guess about the cause. */
+export function tellOperator(person: store.Person, u: Unwell): string {
+  const isPrivate = !!person.privacy;
+  if (u.who === 'member' && u.member) {
+    const m = u.member;
+    if (MINOR.includes(m.group)) return '';
+    const label = m.called.charAt(0).toUpperCase() + m.called.slice(1);
+    if (isPrivate) return m.medicines.length || m.conditions.length ? `Tell them which medicines ${label} takes.` : '';
+    const parts: string[] = [];
+    if (typeof m.age === 'number') parts.push(`is ${m.age}`);
+    if (m.medicines.length) parts.push(`takes ${andList(m.medicines.map((x) => x.generic))}`);
+    const conds = m.conditions.filter((c) => !CONDITION_ONLY_AGE.includes(c)).map((c) => conditionById(c)?.label ?? c.replace(/_/g, ' '));
+    if (conds.length) parts.push(`has ${andList(conds)}`);
+    return parts.length ? `Tell them ${label} ${andList(parts)}.` : `Tell them any medicines ${label} takes.`;
+  }
+  if (u.who === 'self') {
+    if (isPrivate) return person.medications.length || person.conditions.length ? 'Tell them which medicines you take.' : '';
+    const parts: string[] = [];
+    if (person.medications.length) parts.push(`take ${andList(person.medications.map((x) => x.generic))}`);
+    const conds = person.conditions.filter((c) => !CONDITION_ONLY_AGE.includes(c)).map((c) => conditionById(c)?.label ?? c.replace(/_/g, ' '));
+    if (conds.length) parts.push(`have ${andList(conds)}`);
+    return parts.length ? `Tell them you ${andList(parts)}.` : '';
+  }
+  return 'Tell them any medicines they take.';
+}
