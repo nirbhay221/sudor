@@ -124,7 +124,9 @@ export type Person = {
    */
   doctorPlans?: { says: string; medicine: string | null; when: 'hot_days' | 'cold_days' | 'always'; at: string }[];
   /** Trips they told Sudor about, kept after they are over so the next one can be compared. See my_trips. */
-  trips?: { place: string; lat: number; lon: number; country: string; from: string; to: string; at: string; seen?: { worst: 'good' | 'caution' | 'avoid'; peakHeatIndexF: number; stayDays: number } }[];
+  trips?: { place: string; lat: number; lon: number; country: string; from: string; to: string; at: string; with?: string[]; seen?: { worst: 'good' | 'caution' | 'avoid'; peakHeatIndexF: number; stayDays: number } }[];
+  /** The people at home with them, judged beside them. Children are an age group only. See household.ts. */
+  household?: import('./household.js').Member[];
   /** Crews this person shares their working day with. Only a hash of each link is kept. */
   crewLinks?: { hash: string; at: string }[];
   /** An address waiting to be typed: a hash of the link, and who it is for. See the typed entry in consent.ts. */

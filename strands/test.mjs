@@ -95,7 +95,7 @@ seedDay(33.45, -112.07, 110);
 
 console.log('\nConnected through Strands\' MCP client');
 const sudor = await sudorFor('acct:strands');
-check('the tools are the server\'s default set', sudor.tools.length === 17 && sudor.tools.some((t) => t.name === 'weather_check'), String(sudor.tools.length));
+check('the tools are the server\'s default set', sudor.tools.length === 18 && sudor.tools.some((t) => t.name === 'weather_check'), String(sudor.tools.length));
 check('the skill was read from the server, not from a file', /^---\nname: sudor-heat-safety\n/.test(sudor.skill) && SKILL_URI === 'skill://sudor-heat-safety/SKILL.md');
 check('the server\'s instructions came with it', /already saved a place/.test(sudor.instructions));
 const prompt = systemPrompt(sudor);
@@ -132,7 +132,7 @@ console.log('\nNothing is saved or sent without a yes');
   const logged = await allowed.find((t) => t.name === 'log_outing').invoke({ felt: 'fine', minutes: 20 });
   check('with a yes, a tool that saves does run', !logged.refused && told.length === 1 && typeof logged.say === 'string' && logged.say.length > 0, JSON.stringify(logged));
   const writers = sudor.tools.filter((t) => t.toolSpec.annotations?.readOnlyHint !== true).map((t) => t.name).sort();
-  check('the tools held back are exactly the ones the server marks as writing', writers.join() === ['about_me', 'contact', 'doctor_plan', 'get_help', 'log_outing', 'my_trips', 'share_my_day', 'warning_signs'].join(), writers.join());
+  check('the tools held back are exactly the ones the server marks as writing', writers.join() === ['about_me', 'contact', 'doctor_plan', 'get_help', 'household', 'log_outing', 'my_trips', 'share_my_day', 'warning_signs'].join(), writers.join());
 }
 
 console.log('\nA chain that reaches a step needing a yes stops there and asks');

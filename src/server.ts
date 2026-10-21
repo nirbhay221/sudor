@@ -75,7 +75,9 @@ function instructionsFor(personId: string): string {
         "It remembers the customer: their place, medicines, conditions, equipment and home cooling are saved, so " +
         "call the tool without asking for them; the answer itself says when something is missing. When someone says " +
         "they feel unwell, call warning_signs straight away with their words, before asking anything. The saved " +
-        "profile is the customer's own: never record another person's place or medicines in it with about_me.";
+        "profile is the customer's own: never record another person's place or medicines in it with about_me. " +
+        "Somebody else who lives or travels with them, a parent, a partner, a baby, goes in household, one call per person, " +
+        "and the answers about going out, the day and trips then cover them too.";
   const p = store.get(personId);
   const known = [
     p.lat != null || p.locationStatus === 'locating' ? 'a place' : '',
@@ -84,6 +86,7 @@ function instructionsFor(personId: string): string {
     (p.equipment ?? []).length ? 'medical equipment' : '',
     p.cooling ? 'their home cooling' : '',
     p.contacts.length ? 'family contacts' : '',
+    (p.household ?? []).length ? 'the people at home' : '',
   ].filter(Boolean);
   // Amazon Translate is not available to this account, and Alexa+ is itself a language model that answers in the
   // customer's language. So the host is told which language this person most likely speaks, from their country,

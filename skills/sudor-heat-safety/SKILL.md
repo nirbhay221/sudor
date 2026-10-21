@@ -46,6 +46,8 @@ that follow.
 | How many hot days this month, when does the hot season start here | `heat_patterns` |
 | My doctor said on hot days to take my water pill in the morning, what did my doctor say | `doctor_plan` |
 | I am going to Las Vegas on the 20th, will my trip be too hot | `my_trips` |
+| My mum lives with us, she is 82 and takes Lasix | `household` |
+| We have a baby | `household` |
 
 Arguments and the full wording of each tool are in [references/tools.md](references/tools.md).
 

@@ -31,7 +31,7 @@ medicines, conditions, home and town, and answers for that person:
 
 Built for the [Build, Ship, Shape: Amazon Developer Hackathon](https://amazonappdev2026.devpost.com),
 Alexa+ track, plus the Open Source and AWS Builder mini challenges. Self-hosted MCP server, spec 2025-11-25,
-Streamable HTTP, 17 tools by default, with an MCP Apps panel for the Echo Show. Its sister add-on
+Streamable HTTP, 18 tools by default, with an MCP Apps panel for the Echo Show. Its sister add-on
 [Orbita](https://github.com/nirbhay221/orbita) does the same for GPS-guided field work, and the two talk to
 each other.
 
@@ -66,7 +66,7 @@ Nothing here is mocked for the demo. Where something stands in for a thing we co
 
 | Part | Status |
 |---|---|
-| MCP server, 17 tools by default | **Real and deployed** on AWS, behind account linking. 2,529 automated checks, run on every push |
+| MCP server, 18 tools by default | **Real and deployed** on AWS, behind account linking. 2,529 automated checks, run on every push |
 | Agent Skill | **Real**: `skills/sudor-heat-safety`, to the open Agent Skills format, passing the format's own validator. Installable as a folder, and readable from the server as `skill://` resources |
 | Strands agent | **Real**: `strands/agent.mjs`, on AWS's Strands Agents SDK. It reads the skill from the server and follows each next step. The chain, the yes before a write and the step cap are checked with a scripted model at no cost; the path through Claude needs a key and is not in the automated checks |
 | Weather, UV, air quality | **Real, live**: Open-Meteo, worldwide |
@@ -397,7 +397,19 @@ With `SUDOR_SCOPE=all` the original, finer-grained tools are listed instead.
   ([CDC](https://www.cdc.gov/heat-health/hcp/clinical-guidance/heat-and-medications-guidance-for-clinicians.html))
 * `my_trips` trips and holidays: the days of a trip judged against their medicines from the forecast there once it
   reaches the dates, otherwise from the same dates last year; the emergency number when it differs from home; and
-  past trips kept, so the next one can be compared
+  past trips kept, so the next one can be compared. Name who from home is going ("Mum and the kids") and each of
+  them is judged too
+
+**The people at home** (added on 21 October; nothing above changes for somebody on their own)
+* `household` the other people who live with the customer: a partner, a parent of 82 on a water pill, a baby. Each
+  is judged with the same rules as the customer, for their own age, medicines and conditions, and the answers about
+  going out now and the day end with one line about them, most at risk first: "At home: Mum should stay in 11 am to
+  7 pm. Your son should stay in 12 to 4 pm, and never be left in a parked car." With nobody added, nothing in any
+  answer changes. Children are kept as an age group only, never a name, an age or a health detail: Sudor is for
+  adults and the policy forbids collecting children's information, and the CDC's steps for a baby or a young child
+  (shade, drinks, never the car) do not depend on who the child is
+  ([CDC](https://www.cdc.gov/heat-health/risk-factors/infants-and-children.html)). HeatWatch, from the University
+  of Sydney, lets its users add profiles for family members for the same reason
 
 ## When the house is the problem
 

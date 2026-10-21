@@ -136,6 +136,63 @@
       ]
     },
     {
+      "name": "The people at home",
+      "requests": [
+        {
+          "say": "My mum lives with us. She is 82 and takes Lasix.",
+          "tool": "household",
+          "args": {
+            "action": "add",
+            "called": "Mum",
+            "age": 82,
+            "medicines": [
+              "Lasix"
+            ]
+          }
+        },
+        {
+          "say": "We have a baby too.",
+          "tool": "household",
+          "args": {
+            "action": "add",
+            "called": "the baby",
+            "ageGroup": "baby"
+          }
+        },
+        {
+          "say": "Is it safe for us to go out?",
+          "tool": "weather_check",
+          "args": {}
+        },
+        {
+          "say": "Plan our day around the heat.",
+          "tool": "plan_my_day",
+          "args": {}
+        },
+        {
+          "say": "Mum and the baby are coming with me to Las Vegas, Nevada on {{next-friday}}.",
+          "tool": "my_trips",
+          "args": {
+            "action": "add",
+            "place": "Las Vegas, Nevada",
+            "from": "{{next-friday}}",
+            "to": "{{next-friday}}",
+            "travellers": [
+              "Mum",
+              "the baby"
+            ]
+          }
+        },
+        {
+          "say": "Who do you have at home with me?",
+          "tool": "household",
+          "args": {
+            "action": "list"
+          }
+        }
+      ]
+    },
+    {
       "name": "When something is wrong",
       "requests": [
         {

@@ -71,7 +71,7 @@ const mum = await connect('acct:mum');
   process.env.SUDOR_SCOPE = 'all';
   const all = await connect('acct:all');
   const allNames = (await all.tools()).map((t) => t.name);
-  check('with the scope set to all, they are published', SECONDARY_TOOLS.every((n) => allNames.includes(n)) && MERGED_AWAY.every((n) => allNames.includes(n) && !names.includes(n)) && !allNames.includes('about_me') && names.length === 17, `${names.length} ${names.join(',')}`);
+  check('with the scope set to all, they are published', SECONDARY_TOOLS.every((n) => allNames.includes(n)) && MERGED_AWAY.every((n) => allNames.includes(n) && !names.includes(n)) && !allNames.includes('about_me') && names.length === 18, `${names.length} ${names.join(',')}`);
   await all.close();
   delete process.env.SUDOR_SCOPE;
 }

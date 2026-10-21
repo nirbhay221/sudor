@@ -14,6 +14,7 @@ import { geocode, GeocoderDown } from '../geocode.js';
 import { emergencyNumber } from '../world.js';
 import { weekAhead, pastHours, lastYear, planWeek, patterns, judgeTrip, judgeLastYear, monthDay, weekday, dayHours, judgeDay, speakDay, EARLIEST_DAY, type JudgedDay } from '../week.js';
 import { say, settle, locate, profileFor, count } from './shared.js';
+import { householdOf, memberProfile, whoIs, type Member } from '../household.js';
 
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -242,9 +243,10 @@ export function register(server: McpServer, personOf: () => string): void {
         place: z.string().optional().describe('Where they are going: city and state, or city and country'),
         from: z.string().optional().describe('First day of the trip, YYYY-MM-DD'),
         to: z.string().optional().describe('Last day of the trip, YYYY-MM-DD; the same as from for a day trip'),
+        travellers: z.array(z.string()).max(10).optional().describe('Who from home is going too, as said: "Mum", "the kids", "everyone". Leave it out when they go alone'),
       },
     },
-    async ({ action, place, from, to }) => {
+    async ({ action, place, from, to, travellers }) => {
       const id = personOf();
       const person = store.get(id);
       const trips = person.trips ?? [];
@@ -265,12 +267,17 @@ export function register(server: McpServer, personOf: () => string): void {
           const snap = await weekAhead(t.lat, t.lon);
           const days = judgeTrip(snap, profile, t.from, t.to, new Date());
           const s = summarise(days);
+          const goingToo = (t.with ?? []).map((w) => householdOf(person).find((m) => m.id === w)).filter((m): m is Member => !!m);
+          const others = goingToo.map((m) => {
+            const theirs = judgeTrip(snap, memberProfile(m, person.privacy), t.from, t.to, new Date()).filter((d) => d.status === 'avoid').map((d) => (d.date === today ? 'today' : weekday(d.date)));
+            return theirs.length ? `${m.called} has stay-in hours on ${andList(theirs)}` : `${m.called} is fine every day`;
+          });
           const stayNames = s.stay.map((d) => (d.date === today ? 'today' : weekday(d.date)));
           const fine = days.filter((d) => d.status === 'good').map((d) => weekday(d.date));
           store.update(id, (p) => void (p.trips = (p.trips ?? []).map((x) => (x.from === t.from && x.place === t.place ? { ...x, seen: { worst: s.worst, peakHeatIndexF: s.peak, stayDays: s.stay.length } } : x))));
           const text = days.length
             ? `For your trip to ${label}: ${s.stay.length ? `stay-in hours for you on ${andList(stayNames)}, heat index up to ${s.peak}.` : 'no day is too hot for you.'}` +
-              `${fine.length && s.stay.length ? ` ${andList(fine)} ${fine.length === 1 ? 'is' : 'are'} fine.` : ''}${t.to > reach ? ` The forecast only reaches ${monthDay(reach)}, so ask me again for the days after.` : ''}${sos}`
+              `${fine.length && s.stay.length ? ` ${andList(fine)} ${fine.length === 1 ? 'is' : 'are'} fine.` : ''}${t.to > reach ? ` The forecast only reaches ${monthDay(reach)}, so ask me again for the days after.` : ''}${others.length ? ` For the others going: ${others.join('; ')}.` : ''}${sos}`
             : `For your trip to ${label}, I don't have the forecast for those days yet.${sos}`;
           return { spoken: text, days };
         }
@@ -307,7 +314,8 @@ export function register(server: McpServer, personOf: () => string): void {
         }
         if (!found) return say(`I couldn't find ${where}. Tell me the city and the state, or the city and the country.`, { saved: false, reason: 'not_found' });
         const name = [found.name, found.state ?? found.countryName].filter(Boolean).join(', ');
-        const trip = { place: name, lat: found.lat, lon: found.lon, country: found.country, from: start, to: end, at: new Date().toISOString() };
+        const going = travellers?.length ? whoIs(householdOf(person), travellers.map((x) => clean(x, 40))).map((m) => m.id) : [];
+        const trip = { place: name, lat: found.lat, lon: found.lon, country: found.country, from: start, to: end, at: new Date().toISOString(), ...(going.length ? { with: going } : {}) };
         store.update(id, (p) => void (p.trips = [...(p.trips ?? []).filter((x) => !(x.place === name && x.from === start)), trip]));
         let checked;
         try {
@@ -315,7 +323,7 @@ export function register(server: McpServer, personOf: () => string): void {
         } catch {
           checked = { spoken: `I'll check the weather there closer to the time.`, days: [] };
         }
-        return say(`Saved your trip to ${name}, ${monthDay(start)}${end !== start ? ` to ${monthDay(end)}` : ''}. ${checked.spoken}`, { saved: true, trip: { place: name, from: start, to: end, country: found.country } });
+        return say(`Saved your trip to ${name}, ${monthDay(start)}${end !== start ? ` to ${monthDay(end)}` : ''}. ${checked.spoken}`, { saved: true, trip: { place: name, from: start, to: end, country: found.country, ...(going.length ? { with: going.length } : {}) } });
       }
 
       if (!trips.length) return say("You haven't told me about any trips. Tell me where you're going and the dates.", { count: 0 });

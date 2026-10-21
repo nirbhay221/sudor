@@ -8,7 +8,7 @@ A tool marked "reads" changes nothing. A tool marked "writes" saves or sends som
 
 Writes.
 
-Tell the add-on about the customer, or read back what it knows: where they are, the medicines they take, the health conditions they have, medical equipment they rely on, whether the cooling and the heating at home work, and whether to keep those private. Call this when someone says where they live, names a medicine, a condition or equipment such as home oxygen, says their air conditioning or heating is broken, that they cannot afford to heat or cool, or how hot or cold it is indoors, says they have stopped one, asks what you know about them, asks whether a medicine or their equipment has been recalled, asks to keep their health private, or says forget everything. Several things can be given at once. With nothing given it reads the profile back. It records details about the customer only, never about another person. It is not for the weather itself (use weather_check) and not for who to tell in an emergency (use contact).
+Tell the add-on about the customer, or read back what it knows: where they are, the medicines they take, the health conditions they have, medical equipment they rely on, whether the cooling and the heating at home work, and whether to keep those private. Call this when someone says where they live, names a medicine, a condition or equipment such as home oxygen, says their air conditioning or heating is broken, that they cannot afford to heat or cool, or how hot or cold it is indoors, says they have stopped one, asks what you know about them, asks whether a medicine or their equipment has been recalled, asks to keep their health private, or says forget everything. Several things can be given at once. With nothing given it reads the profile back. It records details about the customer only, never about another person (use household for the people at home). It is not for the weather itself (use weather_check) and not for who to tell in an emergency (use contact).
 
 | Argument | Values | Needed |
 |---|---|---|
@@ -95,6 +95,21 @@ Looks back over the last week, month or year where this customer lives and count
 | `period` | week, month, year | no |
 | `date` | string | no |
 
+## `household`
+
+Writes.
+
+The other people who live with the customer, or are travelling with them: a partner, a parent, a baby, children. action add saves one person, or adds medicines or conditions to somebody already saved; list reads them back; remove takes one off; clear removes them all. Once somebody is saved, the answers about going out, the day and trips also say what the weather means for them. Call this when the customer talks about another person at home: "my mum lives with us and takes Lasix", "my husband has heart disease", "we have a baby", "my son is four". One call per person. Never for the customer themselves, whose own place, medicines and conditions are kept separately.
+
+| Argument | Values | Needed |
+|---|---|---|
+| `action` | add, list, remove, clear | yes |
+| `called` | string | no |
+| `age` | integer | no |
+| `ageGroup` | baby, young_child, child, teen, adult, older_adult | no |
+| `medicines` | array | no |
+| `conditions` | array | no |
+
 ## `log_outing`
 
 Writes.
@@ -119,6 +134,7 @@ Trips and holidays this customer tells us about: where and which dates. action a
 | `place` | string | no |
 | `from` | string | no |
 | `to` | string | no |
+| `travellers` | array | no |
 
 ## `plan_my_day`
 

@@ -610,6 +610,36 @@
       }
     },
     {
+      "say": "my mum lives with us, she is 82 and takes Lasix",
+      "tool": "household",
+      "args": {
+        "action": "add",
+        "age": 82
+      }
+    },
+    {
+      "say": "we have a baby",
+      "tool": "household",
+      "args": {
+        "action": "add",
+        "ageGroup": "baby"
+      }
+    },
+    {
+      "say": "who do you have down as living with me",
+      "tool": "household",
+      "args": {
+        "action": "list"
+      }
+    },
+    {
+      "say": "take my husband off, he moved out",
+      "tool": "household",
+      "args": {
+        "action": "remove"
+      }
+    },
+    {
       "say": "book me a flight to Las Vegas",
       "tool": null
     },

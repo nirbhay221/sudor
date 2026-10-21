@@ -44,6 +44,8 @@ import * as official from './tools/official.js';
 import * as skin from './tools/skin.js';
 import * as discovery from './tools/discovery.js';
 import * as week from './tools/week.js';
+import * as household from './tools/household.js';
+import { householdOf, familyNow, familyDay } from './household.js';
 
 // Re-exported because server.ts imports it from here, and moving it to
 // shared.ts should not make every caller learn the new layout.
@@ -111,6 +113,9 @@ function localDateOf(id: string): string | null {
   return snap ? new Date(Date.now() + snap.utcOffsetSeconds * 1000).toISOString().slice(0, 10) : null;
 }
 
+/** The answers that end with a line about the people at home, when there are any. See household.ts. */
+const FAMILY_TOOLS = ['weather_check', 'going_out_now', 'plan_my_day'];
+
 const andWords = (xs: string[]): string => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
 export function registerTools(server: McpServer, personOf: () => string): void {
@@ -176,6 +181,24 @@ export function registerTools(server: McpServer, personOf: () => string): void {
           }
         }
       }
+      // The people at home, in one line after the customer's own answer. With nobody added, nothing changes.
+      {
+        const me = store.get(id);
+        const home = householdOf(me);
+        const sc1 = result?.structuredContent;
+        const t0 = result?.content?.[0];
+        const a0 = (args[0] ?? {}) as { shiftStart?: number };
+        if (home.length && sc1 && !result.isError && !sc1.unavailable && typeof t0?.text === 'string' && FAMILY_TOOLS.includes(name) && typeof a0.shiftStart !== 'number' && !/\b911\b/.test(t0.text) && me.lat != null && me.lon != null) {
+          const snap = weather.current(me.lat, me.lon);
+          if (snap && Number.isFinite(snap.tempF)) {
+            const fam = name === 'plan_my_day' ? familyDay(home, snap, sc1.day === 'tomorrow' ? 'tomorrow' : 'today', new Date(), me.privacy) : familyNow(home, snap, nowHour(snap), me.privacy);
+            if (fam) {
+              const text = `${t0.text} ${fam.line}`;
+              result = { ...result, content: [{ ...t0, text }, ...(result.content ?? []).slice(1)], structuredContent: { ...sc1, spoken: text, household: fam.members } } as R;
+            }
+          }
+        }
+      }
       const first = result?.content?.[0];
       if (!first || typeof first.text !== 'string' || result.isError) return result;
       // What is said first, before the answer: a family member's reply to a call for help, then the reminder.
@@ -236,6 +259,7 @@ export function registerTools(server: McpServer, personOf: () => string): void {
   official.register(server, personOf);
   skin.register(server, personOf);
   week.register(server, personOf);
+  household.register(server, personOf);
   discovery.register(server, personOf);
 
   if (merged) {
@@ -251,7 +275,7 @@ export function registerTools(server: McpServer, personOf: () => string): void {
           'the health conditions they have, medical equipment they rely on, whether the cooling and the heating at home work, and whether to keep those private. Call ' +
           'this when someone says where they live, names a medicine, a condition or equipment such as home oxygen, says their air conditioning or heating is broken, that they cannot afford to heat or cool, or how hot or cold it is indoors, says they have stopped one, asks what you know about them, asks whether a medicine or their equipment has been recalled, asks to ' +
           'keep their health private, or says forget everything. Several things can be given at once. With nothing ' +
-          'given it reads the profile back. It records details about the customer only, never about another person. It is not for the weather itself (use weather_check) and not for who to ' +
+          'given it reads the profile back. It records details about the customer only, never about another person (use household for the people at home). It is not for the weather itself (use weather_check) and not for who to ' +
           'tell in an emergency (use contact).',
         inputSchema: {
           place: z.string().optional().describe('Where the customer themselves lives: a city and state, a city and country, or a US zip code. Never another person\u2019s place'),
