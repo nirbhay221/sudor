@@ -48,7 +48,7 @@ const ADA_LOW = { name: 'American Diabetes Association, Low Blood Glucose', url:
  * tell: what to tell the operator, from what the customer has already said about the person ("Mum is 82 and
  * takes furosemide"). Dispatchers ask for the conditions and the medicines, and in a panic people forget.
  */
-export type Setting = { mild?: boolean; tell?: string };
+export type Setting = { mild?: boolean; tell?: string; why?: 'mild' | 'cool' };
 
 /** Do not guess the cause. Only the steps the first aid bodies give for the sign that was described. */
 function steps(stroke: string[], p: Profile | undefined, mild: boolean): string[] {
@@ -148,6 +148,7 @@ const CRAMPS = /cramp|spasm/;
 export function triage(description: string, p?: Profile, lastedMinutes?: number, setting: Setting = {}): Triage {
   const mild = !!setting.mild;
   const tell = setting.tell ? ` ${setting.tell}` : '';
+  const notHeat = setting.why === 'cool' ? 'They have been somewhere cool, so this may not be the heat' : "It isn't hot there, so this may not be the heat";
   const text = description.toLowerCase();
   const stroke = STROKE_SIGNS.filter(([re]) => described(text, re)).map(([, s]) => s);
   if (fever(text)) stroke.push('a temperature above 103');
@@ -165,7 +166,7 @@ export function triage(description: string, p?: Profile, lastedMinutes?: number,
         level: 'emergency',
         matched: stroke,
         spoken:
-          `This is an emergency. Call 911 now.${tell} It isn't hot there, so this may not be the heat: tell them exactly what happened and do what they say.` +
+          `This is an emergency. Call 911 now.${tell} ${notHeat}: tell them exactly what happened and do what they say.` +
           (how.length ? ` ${how.join(' ')}` : '') +
           (insulin ? ` ${SUGAR}` : ' Give them nothing to eat or drink until they are fully awake.'),
         sources: extra,
@@ -194,8 +195,8 @@ export function triage(description: string, p?: Profile, lastedMinutes?: number,
       level: urgent ? 'urgent' : 'self_care',
       matched: [...exhaustion, ...(vomiting ? ['vomiting'] : []), ...(cramps ? ['cramps'] : [])],
       spoken: urgent
-        ? `Get medical help now: call a doctor or urgent care.${tell} It isn't hot there, so this may not be the heat. Call 911 if they faint, get confused, or have chest pain or trouble breathing.`
-        : `It isn't hot there, so this may not be the heat. Sit or lie down somewhere comfortable and sip water${p?.fluidLimit ? ' within your fluid plan' : ''}. Call a doctor if it does not pass or gets worse, and 911 if there is fainting, confusion, chest pain or trouble breathing.`,
+        ? `Get medical help now: call a doctor or urgent care.${tell} ${notHeat}. Call 911 if they faint, get confused, or have chest pain or trouble breathing.`
+        : `${notHeat}. Sit or lie down somewhere comfortable and sip water${p?.fluidLimit ? ' within your fluid plan' : ''}. Call a doctor if it does not pass or gets worse, and 911 if there is fainting, confusion, chest pain or trouble breathing.`,
       sources: [NHS_FAINT],
       mild: true,
     };

@@ -164,12 +164,48 @@ const call = async (name, args = {}) => {
   check('...and the card does not say to cool them', mildFaint.data.card && !/cool/i.test(mildFaint.data.card.lines.join(' ')), JSON.stringify(mildFaint.data.card));
   const hotCar = await call('warning_signs', { symptoms: 'My mother fainted after sitting in the car' });
   check('a hot car keeps the heat answer even on a mild day', /heat stroke/.test(hotCar.said), hotCar.said);
+  const garden = await call('warning_signs', { symptoms: 'My husband was working in the garden. Now he is confused and has stopped sweating' });
+  check('working in the garden keeps the heat answer on a mild day', /can be heat stroke/.test(garden.said), garden.said);
+  const site = await call('warning_signs', { symptoms: 'My son collapsed on the building site' });
+  check('hard work on a mild day keeps the heat answer (Korey Stringer Institute: not always hot)', /can be heat stroke/.test(site.said), site.said);
+  const told = await call('warning_signs', { symptoms: 'She collapsed', where: 'hard_work_or_exercise' });
+  check('...and so does the model saying where, in any words', /can be heat stroke/.test(told.said), told.said);
+  const kitchen = await call('warning_signs', { symptoms: 'My mother fainted in the kitchen' });
+  check('a kitchen at home on a mild day is not called heat stroke', !/heat stroke/.test(kitchen.said), kitchen.said);
+  const fever = await call('warning_signs', { symptoms: 'He is confused and running a temperature of 104' });
+  check('a fever on a mild day is an emergency, not called heat stroke', /Call 911 now/.test(fever.said) && !/heat stroke/.test(fever.said), fever.said);
+  const power = await call('warning_signs', { symptoms: 'My father fainted, the power has been out since yesterday' });
+  check('a power cut on a day that has been mild throughout is not called heat stroke', !/heat stroke/.test(power.said), power.said);
+  const molly = await call('warning_signs', { symptoms: 'My daughter collapsed at a party after taking molly' });
+  check('a stimulant keeps the heat answer (Victoria Department of Health, MDMA)', /can be heat stroke/.test(molly.said), molly.said);
   const mildDizzy = await call('warning_signs', { symptoms: 'I feel dizzy and have a headache' });
   check('dizzy on a mild day is not called heat exhaustion', !/heat exhaustion/.test(mildDizzy.said) && /may not be the heat/.test(mildDizzy.said), mildDizzy.said);
   weather.seedForTest(snapOf(Date.now(), 2, () => 100, LAT, LON, 100));
   const hotFaint = await call('warning_signs', { symptoms: 'My husband is confused and has stopped sweating' });
   check('on a hot day it says heat stroke, and that it can have other causes', /^This is an emergency. Call 911 now./.test(hotFaint.said) && /can be heat stroke, though it can have other causes too/.test(hotFaint.said), hotFaint.said);
   check('...somebody not at home gets "tell them any medicines"', /Tell them any medicines they take/.test(hotFaint.said) && !/furosemide/.test(hotFaint.said), hotFaint.said);
+  const cool = await call('warning_signs', { symptoms: 'My husband fainted', where: 'cool_indoors' });
+  check('on a hot day, somebody who has been somewhere cool is not told it is heat stroke', /They have been somewhere cool, so this may not be the heat/.test(cool.said), cool.said);
+  const out = await call('warning_signs', { symptoms: 'My husband fainted', where: 'outside' });
+  check('...but outside on a hot day it is', /can be heat stroke/.test(out.said), out.said);
+  weather.seedForTest(snapOf(Date.now(), 2, () => 100, LAT, LON, 74));
+  const night = await call('warning_signs', { symptoms: 'My husband fainted' });
+  check('mild now but hot in the last twelve hours is still the heat', /can be heat stroke/.test(night.said), night.said);
+  weather.seedForTest(snapOf(Date.now(), 2, () => 100, LAT, LON, 100));
+
+  // Somebody unwell in another city: that city's number and weather.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('geocoding-api')) return new Response(JSON.stringify({ results: [{ name: 'Delhi', admin1: 'Delhi', latitude: 28.65, longitude: 77.23, timezone: 'Asia/Kolkata', country_code: 'IN', country: 'India', population: 11034555 }] }), { status: 200 });
+    throw new Error('network is off for this test');
+  };
+  week.seedForTest('week', 28.65, 77.23, snapOf(Date.now(), 7, () => 70, 28.65, 77.23, 70));
+  const far = await call('warning_signs', { symptoms: 'My mother just fainted', place: 'Delhi, India' });
+  check("somebody in another city gets that country's number, said so it is not swapped", /Somebody near them in Delhi should call 1 1 2, or 1 0 8 for an ambulance/.test(far.said) && !/\b911\b/.test(far.said), far.said);
+  check("...and that city's weather: mild in Delhi, so not called heat stroke", !/heat stroke/.test(far.said), far.said);
+  const same = await call('warning_signs', { symptoms: 'My husband fainted', place: 'Sun City West, Arizona' });
+  check('naming the same place changes nothing', /Call 911 now/.test(same.said), same.said);
+  globalThis.fetch = realFetch;
   store.update(id, (p) => { p.conditions = ['diabetes']; });
   const sugar = await call('warning_signs', { symptoms: 'I passed out for a moment' });
   check('for the customer on insulin: sugar only if awake and able to swallow', /if they are awake and can swallow, give them juice/.test(sugar.said) && !/Give them nothing to drink/.test(sugar.said), sugar.said);

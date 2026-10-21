@@ -16,6 +16,9 @@ import { profileOf, judgeHour, planDay, planShift, precautions } from '../person
 import * as wbgt from '../wbgt.js';
 import { triage, asksInGeneral } from '../firstaid.js';
 import { whoIsUnwell, tellOperator, memberProfile } from '../household.js';
+import { weekAhead } from '../week.js';
+import { emergencyNumber } from '../world.js';
+import { milesBetween as milesApart } from '../shelters.js';
 import { geocode } from '../geocode.js';
 import { alertEmergency } from '../alerts.js';
 import { emailConfigured, DEMO_PHONE } from '../notify.js';
@@ -215,12 +218,49 @@ export function register(server: McpServer, personOf: () => string): void {
       inputSchema: {
         symptoms: z.string().optional().describe('What the person describes, in their words'),
         lastedMinutes: z.number().int().min(0).optional().describe('How long symptoms have lasted, if said'),
+        where: z
+          .enum(['hard_work_or_exercise', 'hot_place', 'hot_car', 'outside', 'cool_indoors'])
+          .optional()
+          .describe(
+            'Where the unwell person was, or what they were doing, when it is said or clear from the conversation, in any place or language: ' +
+              'hard_work_or_exercise (sport, running, building work, farm work, a long walk or a pilgrimage on foot), ' +
+              'hot_place (a room that is hot: a kitchen or bakery at work, a factory, a sauna, an attic, a home whose cooling has failed; an ordinary room or kitchen at home is not one), hot_car (a parked car), ' +
+              'outside (outdoors, but not working hard), cool_indoors (an air conditioned or cool room). Leave it out when it is not known.',
+          ),
+        place: z
+          .string()
+          .optional()
+          .describe('The town or city where the unwell person is, only when it is somewhere other than where the customer is: "my mother in Delhi just fainted" is "Delhi, India"'),
       },
     },
-    async ({ symptoms, lastedMinutes }) => {
+    async ({ symptoms, lastedMinutes, where, place }) => {
       const id = personOf();
       const person = store.get(id);
       const profile = profileFor(person);
+
+      /*
+       * Somebody unwell somewhere else: "my mother in Delhi just fainted", said in Dubai. The weather, the
+       * emergency number and the hospital are then Delhi's, not the customer's. Each lookup has a short limit,
+       * because this is an emergency: if one is slow, the answer goes without it rather than waiting.
+       */
+      const within = <T,>(p: Promise<T>, ms: number): Promise<T | null> => Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+      const found = place?.trim() ? await within(geocode(place.trim(), 2500), 2600) : null;
+      const apart = found && person.lat != null && person.lon != null ? milesApart(person.lat, person.lon, found.lat, found.lon) : Infinity;
+      const there = found && apart > 25 ? found : null;
+      const atLat = there ? there.lat : person.lat;
+      const atLon = there ? there.lon : person.lon;
+      const [elsewhere] = there ? await Promise.all([within(weekAhead(there.lat, there.lon), 2500), within(care.refresh(there.lat, there.lon, `${there.name}${there.state ? `, ${there.state}` : ''}`), 2500)]) : [null];
+      // Said spaced, the way phone numbers are read, so the customer's own country's number is not put in its place
+      // on the way out (world.localise). India: 112, or 108 for an ambulance.
+      const thereNumber = there ? (there.country === 'IN' ? '1 1 2, or 1 0 8 for an ambulance,' : emergencyNumber(there.country).split('').join(' ')) : null;
+      const placed = (text: string): string => {
+        if (!there || !thereNumber) return text;
+        const name = there.name;
+        return text
+          .replace(/\b[Cc]all 911 now\./, `Somebody near them in ${name} should call ${thereNumber} now. If you can't reach anybody there, call the hospital nearest them.`)
+          .replace(/\b911\b/g, thereNumber)
+          .replace(/, ([.!?])/g, '$1');
+      };
 
       /*
        * Which first aid, decided by the weather rather than by the words.
@@ -230,8 +270,9 @@ export function register(server: McpServer, personOf: () => string): void {
        * tell someone to cool down a person who is freezing. So when it is cold
        * where they are, cold first aid answers.
        */
-      const snap = person.lat != null && person.lon != null ? weather.current(person.lat, person.lon) : null;
-      const coldOutside = !!snap && !Number.isNaN(snap.tempF) && coldCategory(windChillF(snap.tempF, snap.windMph)) !== 'none';
+      const snap = there ? elsewhere : atLat != null && atLon != null ? weather.current(atLat, atLon) : null;
+      // The week forecast used for somewhere else carries no current wind, and a missing wind must not read as a freeze.
+      const coldOutside = !!snap && Number.isFinite(snap.tempF) && coldCategory(windChillF(snap.tempF, Number.isFinite(snap.windMph) ? snap.windMph : 0)) !== 'none';
       // Words that only the cold explains, unless the same breath says heat. "Numb and shivering" on a hot day is a
       // person in a cold room or out of a cold pool, never heat stroke, and it was answered as heat stroke.
       const said = (symptoms ?? '').toLowerCase();
@@ -256,10 +297,10 @@ export function register(server: McpServer, personOf: () => string): void {
             { season: 'cold', level: 'information' },
           );
         }
-        let spoken = matched.say;
+        let spoken = placed(matched.say);
         if (matched.emergency && tell) spoken += ` ${tell}`;
         // Where to go, straight after what to do. Never in place of 911, which the first aid already said.
-        const hospital = care.sentence(person.lat, person.lon);
+        const hospital = care.sentence(atLat, atLon);
         if (hospital) spoken += ` ${hospital}`;
         let contacted: { trying: string[]; configured: boolean; demo?: boolean } | null = null;
         // A question about the signs gets the same advice, and nobody is emailed that it happened. See firstaid.ts.
@@ -291,13 +332,44 @@ export function register(server: McpServer, personOf: () => string): void {
        * with nothing said about heat, effort or a hot room, fainting is far more often something else, and the
        * answer stops calling it heat stroke. It still says call now.
        */
-      const hotWords = /\bhot\b|\bheat\b|overheat|\bsun\b|sunburn|sauna|hot tub|\bcar\b|air condition|\bac\b|\ba\/c\b|exercis|workout|running(?! a temp)|\bran\b|hik(e|ing)|gardening|working outside|mowing|football|soccer|practice/.test(said);
+      /*
+       * Whether this could be the heat, from the place and what they were doing, not only the weather.
+       *
+       * Heat stroke from hard work or sport does not need a hot day: the Korey Stringer Institute says it usually
+       * happens in the heat, but not always, because how hard the body works is what drives its temperature up.
+       * OSHA lists indoor heat too: kitchens, bakeries, laundries, boiler rooms, foundries and furnaces, and most
+       * of the non fatal heat illness it investigated happened indoors. A parked car heats up on a mild day, and
+       * full sun adds up to 15 degrees to the heat index (National Weather Service).
+       *
+       * The model says where, from the conversation and in any language. The words below are the fallback for
+       * when it does not. Leaning towards the heat is the safer mistake: cooling a person who fainted for
+       * another reason does no harm, while telling a person with heat stroke it may not be the heat could.
+       */
+      /*
+       * Also from the sources: stimulants raise body heat on their own, and dancing for hours in a crowd adds to it
+       * (Victoria Department of Health, on MDMA). Walking in crowds and the sun is what the Hajj studies name.
+       * A home without working cooling stays hot after the sun goes down: in Maricopa County most indoor heat
+       * deaths had an air conditioner that was off or broken, and those homes averaged 102 degrees inside.
+       */
+      const effort = /exercis|workout|work out|\bgym\b|running(?! a temp)|\bran\b|\bjog|marathon|\brace\b|training|practi[cs]e|\bdrills?\b|football|soccer|rugby|cricket|tennis|basketball|baseball|softball|lacrosse|hockey|cycling|bike ride|biking|\bhik(e|ed|ing)\b|\btrek|\bclimb|\bmarch(ing|ed)?\b|pilgrimage|\bhajj\b|umrah|tawaf|dancing|festival|concert|\brave\b|mosh|construction|building site|\bon (the|a) site\b|\broof|scaffold|\bfarm|\bfields?\b|harvest|landscap|garden|yard work|\blawn\b|mowing|digging|shovel|chopping wood|delivering|deliveries|carrying|lifting|moving house|working outside|work(ing|ed)? out(doors| in the)|firefight|walk(ed|ing)? for hours|long walk/;
+      const hotSetting = /\bhot\b|\bheat\b|heatwave|overheat|in the sun|sunbath|sunburn|sauna|steam room|hot tub|hot yoga|bikram|\bcar\b|\battic\b|\bloft\b|greenhouse|bakery|laundry|foundry|furnace|boiler|\bovens?\b|smelter|engine room|air condition|\bac\b|\ba\/c\b|no fan|stuffy|sweltering|boiling|mdma|ecstasy|\bmolly\b|amphetamine|\bmeth\b|cocaine/;
+      const said_ = said.replace(/[‘’]/g, "'");
+      const heatContext = where === 'hard_work_or_exercise' || where === 'hot_place' || where === 'hot_car' || effort.test(said_) || hotSetting.test(said_);
       const hotInside = !!person.indoor && person.indoor.f >= 80 && Date.now() - Date.parse(person.indoor.at) < 3 * 3_600_000;
-      const mild = !!snap && Number.isFinite(snap.tempF) && heatIndexF(snap.tempF, snap.humidityPct) < 80 && !hotWords && !hotInside;
-      const result = triage(symptoms ?? '', theirProfile, lastedMinutes, { mild, tell });
-      let spoken = result.spoken;
+      const feels = snap && Number.isFinite(snap.tempF) ? heatIndexF(snap.tempF, snap.humidityPct) : null;
+      // Hot in the last twelve hours, though mild now: a body and a home are still carrying the day's heat at 3 am.
+      const nowMs = Date.now();
+      const hotEarlier = !!snap?.hourly?.some((h) => {
+        const t = Date.parse(h.time);
+        return t <= nowMs && t >= nowMs - 12 * 3_600_000 && Number.isFinite(h.tempF) && heatIndexF(h.tempF, h.humidityPct) >= 90;
+      });
+      // A mild day, or somebody who has been somewhere cool on a hot one: then it is not called heat stroke.
+      const coolNow = where === 'cool_indoors' && !heatContext;
+      const mild = !heatContext && !hotInside && ((feels != null && feels < 80 && !hotEarlier) || coolNow);
+      const result = triage(symptoms ?? '', theirProfile, lastedMinutes, { mild, tell, why: feels != null && feels < 80 ? 'mild' : 'cool' });
+      let spoken = placed(result.spoken);
       // For the two answers that say to get medical help, say where. Cramps and general questions do not need it.
-      const hospital = result.level === 'emergency' || result.level === 'urgent' ? care.sentence(person.lat, person.lon) : '';
+      const hospital = result.level === 'emergency' || result.level === 'urgent' ? care.sentence(atLat, atLon) : '';
       if (hospital) spoken += ` ${hospital}`;
       let contacted: { trying: string[]; configured: boolean; demo?: boolean } | null = null;
       // A question about the signs gets the same advice, and nobody is emailed that it happened. See firstaid.ts.

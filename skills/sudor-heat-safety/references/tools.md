@@ -219,6 +219,8 @@ What to do when someone feels unwell in the heat or the cold: heat stroke and he
 |---|---|---|
 | `symptoms` | string | no |
 | `lastedMinutes` | integer | no |
+| `where` | hard_work_or_exercise, hot_place, hot_car, outside, cool_indoors | no |
+| `place` | string | no |
 
 ## `weather_check`
 

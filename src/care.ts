@@ -68,7 +68,7 @@ const CMS = 'https://data.cms.gov/provider-data/api/1/datastore/query/xubh-q36u/
 const GENERAL = /^(acute care hospitals|critical access hospitals|rural emergency hospitals?)$/i;
 // Outside the US the map also tags businesses that only share a hospital's name: in Manchester, "The Christie
 // Charity Trading Limited", a cancer hospital's charity company, came back as the nearest emergency department.
-const NOT_FOR_EVERYONE =/psychiatr|behaviou?ral|mental health|rehab|detox|recovery|hospice|long.?term|veterans?|\bva\b|children|pediatric|surgical|surgery|specialty|women'?s|eye|orthop|cancer|dialysis|animal|veterinar|charity|trading|\blimited\b|\bltd\b|\bplc\b|\bshop\b|pharmacy|chemist|dental|dentist|laborator|imaging|radiolog|physiotherap|optic/i;
+const NOT_FOR_EVERYONE =/psychiatr|behaviou?ral|mental health|rehab|detox|recovery|hospice|long.?term|veterans?|\bva\b|children|pediatric|surgical|surgery|specialty|women'?s|eye|orthop|cancer|dialysis|animal|veterinar|charity|trading|\blimited\b|\bltd\b|\bplc\b|\bshop\b|pharmacy|chemist|dental|dentist|laborator|imaging|radiolog|physiotherap|optic|health cent(er|re)|back pain|falcon|\bbirds?\b|\bpets?\b|\bvet\b|equine|horse|camel|صقور|بيطر|حيوان/i;
 
 const title = (s: string) => s.toLowerCase().replace(/(^|[ -])([a-z])/g, (_m, a: string, b: string) => `${a}${b.toUpperCase()}`);
 
@@ -148,6 +148,7 @@ export function parseAmazon(body: unknown): Place[] {
     if (!name || typeof lat !== 'number' || typeof lon !== 'number') continue;
     const street = [r.Address?.AddressNumber, r.Address?.Street].filter((x) => typeof x === 'string' && x).join(' ');
     const phone = (r.Contacts?.Phones ?? []).map((x) => x.Value).find((v) => typeof v === 'string' && v.trim());
+    if ((r.Categories ?? []).some((c) => /veterin|animal|pet/i.test(`${String(c.Id ?? '')} ${String(c.Name ?? '')}`))) continue;
     const emergency = (r.Categories ?? []).some((c) => /emergency/i.test(`${String(c.Id ?? '')} ${String(c.Name ?? '')}`));
     out.push({
       name: name.slice(0, 80),
@@ -174,7 +175,10 @@ async function fetchFromAmazon(lat: number, lon: number): Promise<Place[]> {
         QueryPosition: [lon, lat],
         QueryRadius: RADIUS_M,
         MaxResults: 50,
+        // In Dubai the nearest "hospital" came back as a falcon hospital, named in Arabic. The map files equine,
+        // falcon and veterinary hospitals as hospitals, so they are left out by name; and names come in English.
         Filter: { IncludeCategories: ['hospital'] },
+        Language: 'en',
         AdditionalFeatures: ['Contact'],
         // Held for a week, so asked for as stored, which is what the terms require.
         IntendedUse: 'Storage',
