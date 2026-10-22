@@ -140,7 +140,7 @@ Trips and holidays this customer tells us about: where and which dates. action a
 
 Reads.
 
-Plan a day around the heat or the cold for this customer: the best window for going out and the hours to avoid, from the hourly forecast, their medications and conditions. Call this when someone asks when to go out, walk the dog, run errands, exercise or garden, when it cools down, or to plan today or tomorrow. For somebody who works outside fixed hours, pass shiftStart and shiftEnd and it plans the shift and its breaks, and pass startedWork when they say they are new to the job or just back. For one trip that cannot wait use going_out_now, and for whether it is safe this moment use weather_check.
+Plan a day around the heat or the cold for this customer: the best window for going out and the hours to avoid, from the hourly forecast, their medications and conditions. Call this when someone asks when to go out, walk the dog, run errands, exercise or garden, when it cools down, or to plan today or tomorrow. For somebody who works outside fixed hours, pass shiftStart and shiftEnd and it plans the shift and its breaks, and pass startedWork when they are new to it or just back, and workplace when it is inside; plan_my_week does the whole week. For one trip that cannot wait use going_out_now, and for whether it is safe this moment use weather_check.
 
 | Argument | Values | Needed |
 |---|---|---|
@@ -150,12 +150,13 @@ Plan a day around the heat or the cold for this customer: the best window for go
 | `shiftStart` | integer | no |
 | `shiftEnd` | integer | no |
 | `startedWork` | new, returning, settled | no |
+| `workplace` | outside, hot_inside, cool_inside | no |
 
 ## `plan_my_week`
 
 Reads.
 
-The seven days ahead for this customer, judged against their own medicines and conditions: which days have hours to stay in, which need care, which are fine, and the best day for something they want to do. Pass workStart and workEnd when they say their working hours, and it says which days their trip to or from work falls in stay-in hours, so they can work from home that day. Call this for this week, the next few days, a weekday by name past tomorrow, or working from home. For today or tomorrow alone use plan_my_day.
+The seven days ahead for this customer, judged against their own medicines and conditions: which days have hours to stay in, which need care, which are fine, and the best day for something they want to do. Pass workStart and workEnd when they say their working hours, and it says which days their trip to or from work falls in stay-in hours, so they can work from home that day. Pass workplace for work outside or in a hot place, and it plans each shift instead: breaks, and the build-up while new. Call this for this week, the next few days, a weekday by name past tomorrow, or working from home. For today or tomorrow alone use plan_my_day.
 
 | Argument | Values | Needed |
 |---|---|---|
@@ -165,6 +166,8 @@ The seven days ahead for this customer, judged against their own medicines and c
 | `workEnd` | integer | no |
 | `workDays` | array | no |
 | `date` | string | no |
+| `workplace` | outside, hot_inside, cool_inside | no |
+| `startedWork` | new, returning, settled | no |
 
 ## `share_my_day`
 

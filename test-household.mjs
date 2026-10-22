@@ -124,7 +124,7 @@ const call = async (name, args = {}) => {
   check('...and the small child is never to be left in a car', /never (be )?left in a parked car|never leave them in a parked car/.test(now.said), now.said);
   check("the customer's own answer still comes first", now.said.indexOf('At home:') > 20, now.said);
 
-  const day = await call('plan_my_day');
+  const day = await call('plan_my_day', { day: 'tomorrow' }); // tomorrow, so the hot hours are still ahead at any time of day
   check('the day plan gives each person their own stay-in hours', /At home:/.test(day.said) && /Mum should stay in \d/.test(day.said), day.said);
 
   const shift = await call('plan_my_day', { shiftStart: 7, shiftEnd: 15 });

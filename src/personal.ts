@@ -394,12 +394,54 @@ export function planDay(
  */
 export type Acclimatization = { kind: 'new' | 'returning'; day: number; fraction: number };
 
-export function acclimatization(work: { kind: 'new' | 'returning'; since: string } | null | undefined, localDate: string): Acclimatization | null {
+export function acclimatization(work: { kind: 'new' | 'returning'; since: string } | null | undefined, localDate: string, workDay?: number): Acclimatization | null {
   if (!work) return null;
-  const day = Math.round((Date.parse(`${localDate}T00:00:00Z`) - Date.parse(`${work.since}T00:00:00Z`)) / 86_400_000) + 1;
+  // The day of the build-up: counted in working days when the week plan knows which days they work, otherwise in
+  // calendar days from the day they started.
+  const day = workDay ?? Math.round((Date.parse(`${localDate}T00:00:00Z`) - Date.parse(`${work.since}T00:00:00Z`)) / 86_400_000) + 1;
   if (!Number.isFinite(day) || day < 1) return null;
   const fraction = work.kind === 'new' ? Math.min(1, 0.2 * day) : [0.5, 0.6, 0.8, 1][Math.min(3, day - 1)];
   return fraction >= 1 ? null : { kind: work.kind, day, fraction };
+}
+
+/**
+ * The time in the heat allowed today while getting used to it, and when to take it.
+ *
+ * It is not a time to go home. NIOSH has the rest of the shift spent away from the heat, in a cooler place or
+ * on work out of the sun, and OSHA's page for new workers asks for shorter spells in the heat. So the hours
+ * go where the shift is coolest, and the answer says what to do for the rest. Asked after that stretch, it
+ * cannot know whether they were out in it, so it says both: the rest out of the heat if they were, and the
+ * coolest stretch left if they were not.
+ * https://www.cdc.gov/niosh/heat-stress/recommendations/acclimatization.html
+ */
+export type HeatTime = {
+  kind: 'new' | 'returning';
+  day: number;
+  heatHoursAllowed: number;
+  /** The coolest stretch of the shift for it, "7 am" to "9 am". */
+  from: string;
+  doneBy: string;
+  /** Asked today, after that stretch. */
+  passed: boolean;
+  /** The coolest stretch still to come, when it has passed and one is left. */
+  coolestLeft: { from: string; doneBy: string } | null;
+  /** Whether every hour of the shift is in the heat, or only some of it. */
+  restOf: 'shift' | 'hot hours';
+};
+
+/** "spend the rest of the shift in the shade or inside", and the same for the hot hours only. */
+export const restOut = (restOf: HeatTime['restOf']) => `spend the rest of ${restOf === 'shift' ? 'the shift' : 'the hot hours'} in the shade or inside`;
+
+/** What to say about the time in the heat, for a person ("you") or about somebody ("they"). */
+export function heatTimeSaid(a: HeatTime, who: 'you' | 'they' = 'you'): string {
+  const n = `${a.heatHoursAllowed} ${a.heatHoursAllowed === 1 ? 'hour' : 'hours'}`;
+  const had = who === 'you' ? "you've" : "they've";
+  const rest = who === 'you' ? restOut(a.restOf) : `they should ${restOut(a.restOf)}`;
+  if (!a.passed) return `${n} out in the heat at most, ${a.from} to ${a.doneBy}, while it's coolest, and ${rest}.`;
+  return (
+    `${n} out in the heat at most. The coolest stretch for it, ${a.from} to ${a.doneBy}, has passed, so if ${had} had ${who === 'you' ? 'your' : 'their'} ${n}, ${rest}` +
+    `${a.coolestLeft ? `; if not, ${a.coolestLeft.from} to ${a.coolestLeft.doneBy} is the coolest left` : ''}.`
+  );
 }
 
 export const WORK_INITIAL_F = 80;
@@ -419,18 +461,18 @@ export type ShiftPlan = {
   /** When to stop for fifteen minutes, once the high line is crossed. */
   breaks: string[];
   /** Set while somebody is still getting used to the heat and the shift reaches 80: how much of it they do today. */
-  acclimatization?: { kind: 'new' | 'returning'; day: number; heatHoursAllowed: number; doneBy: string } | null;
+  acclimatization?: HeatTime | null;
   spoken: string;
 };
 
 export function planShift(
   snap: LocationSnapshot,
   p: Profile,
-  opts: { now: Date; day?: 'today' | 'tomorrow'; fromHour: number; untilHour: number; heatWork?: { kind: 'new' | 'returning'; since: string } | null },
+  opts: { now: Date; day?: 'today' | 'tomorrow'; fromHour: number; untilHour: number; heatWork?: { kind: 'new' | 'returning'; since: string } | null; date?: string; workDay?: number },
 ): ShiftPlan {
   const day = opts.day ?? 'today';
   const offsetMs = snap.utcOffsetSeconds * 1000;
-  const date = new Date(opts.now.getTime() + offsetMs + (day === 'tomorrow' ? 86_400_000 : 0)).toISOString().slice(0, 10);
+  const date = opts.date ?? new Date(opts.now.getTime() + offsetMs + (day === 'tomorrow' ? 86_400_000 : 0)).toISOString().slice(0, 10);
   const from = Math.max(0, Math.min(23, Math.floor(opts.fromHour)));
   const until = Math.max(from + 1, Math.min(24, Math.floor(opts.untilHour)));
   const hours = snap.hourly
@@ -478,19 +520,41 @@ export function planShift(
   }
   // Still getting used to the heat. Only when the shift reaches 80 at all, because below that there is no
   // heat to ration. The hours allowed are counted from the first hour at or past 80.
-  const used = acclimatization(opts.heatWork, date);
+  const used = acclimatization(opts.heatWork, date, opts.workDay);
   const hot = hours.filter((h) => h.heatIndexF >= WORK_INITIAL_F);
   let limited: ShiftPlan['acclimatization'] = null;
   if (used && hot.length) {
     const allowed = Math.max(1, Math.round((until - from) * used.fraction));
     if (allowed < hot.length) {
-      const last = hot[allowed - 1];
-      const doneBy = hourLabel(`${date}T${String(hourOf(last.local) + 1).padStart(2, '0')}:00`);
-      limited = { kind: used.kind, day: used.day, heatHoursAllowed: allowed, doneBy };
-      parts.push(
-        `This is day ${used.day} of ${used.kind === 'new' ? 'getting used to the heat' : 'being back in the heat'}, so no more than ` +
-          `${allowed} ${allowed === 1 ? 'hour' : 'hours'} of it ${when}: done by ${doneBy}.`,
-      );
+      // The unbroken run of hot hours whose hottest hour is the least hot, the earliest when two tie.
+      const at = (h: number) => hourLabel(`${date}T${String(h).padStart(2, '0')}:00`);
+      const coolest = (fromIndex: number) => {
+        let best: { start: number; worst: number } | null = null;
+        for (let i = fromIndex; i + allowed <= hot.length; i++) {
+          const run = hot.slice(i, i + allowed);
+          if (hourOf(run[run.length - 1].local) - hourOf(run[0].local) !== allowed - 1) continue;
+          const worst = Math.max(...run.map((h) => h.heatIndexF));
+          if (!best || worst < best.worst) best = { start: hourOf(run[0].local), worst };
+        }
+        return best ? { from: at(best.start), doneBy: at(best.start + allowed), start: best.start } : null;
+      };
+      const pick = coolest(0) ?? { from: at(hourOf(hot[0].local)), doneBy: at(hourOf(hot[0].local) + allowed), start: hourOf(hot[0].local) };
+      const local = new Date(opts.now.getTime() + offsetMs);
+      const nowHour = local.toISOString().slice(0, 10) === date ? local.getUTCHours() : -1;
+      const passed = nowHour >= pick.start + allowed;
+      const still = hot.findIndex((h) => hourOf(h.local) >= nowHour);
+      const left = passed && still >= 0 ? coolest(still) : null;
+      limited = {
+        kind: used.kind,
+        day: used.day,
+        heatHoursAllowed: allowed,
+        from: pick.from,
+        doneBy: pick.doneBy,
+        passed,
+        coolestLeft: left ? { from: left.from, doneBy: left.doneBy } : null,
+        restOf: hot.length === hours.length ? 'shift' : 'hot hours',
+      };
+      parts.push(`This is day ${used.day} of ${used.kind === 'new' ? 'getting used to the heat' : 'being back in the heat'}, so ${when}: ${heatTimeSaid(limited)}`);
     }
   }
   if (initial) parts.push('Drink a cup of water every fifteen to twenty minutes, before you feel thirsty.');
@@ -510,6 +574,148 @@ export function planShift(
     acclimatization: limited,
     spoken: parts.join(' '),
   };
+}
+
+/**
+ * Where the work is. The forecast is for outside, so it only plans an outside shift.
+ *
+ * OSHA's proposed heat rule leaves out air conditioned workplaces kept below a heat index of 80, and sedentary
+ * indoor work; hot indoor work (kitchens, laundries, warehouses, foundries) gets the same 80 and 90 lines, read
+ * from a thermometer there, not from the forecast. Getting used to the heat applies indoors and out.
+ */
+export type Workplace = 'outside' | 'hot_inside' | 'cool_inside';
+
+export const INDOOR_HEAT =
+  "The forecast outside doesn't tell me how hot it is where you work. If a thermometer there reads a heat index of 80 or more, " +
+  'keep water within reach and a cooler place to rest; at 90 or more, take a 15 minute break at least every two hours.';
+
+/** A hot workplace inside: only the build-up, which does not need the forecast. */
+export function indoorAllowance(heatWork: { kind: 'new' | 'returning'; since: string } | null | undefined, date: string, fromHour: number, untilHour: number, workDay?: number): { day: number; kind: 'new' | 'returning'; heatHoursAllowed: number; doneBy: string } | null {
+  const used = acclimatization(heatWork, date, workDay);
+  if (!used) return null;
+  const allowed = Math.max(1, Math.round((untilHour - fromHour) * used.fraction));
+  return { day: used.day, kind: used.kind, heatHoursAllowed: allowed, doneBy: hourLabel(`${date}T${String(Math.min(23, fromHour + allowed)).padStart(2, '0')}:00`) };
+}
+
+/**
+ * The working week where they are, when they have not said theirs. Most of the world works Monday to Friday.
+ * Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Jordan, Egypt, Iraq, Yemen, Algeria, Libya, Sudan, Syria and
+ * Israel keep a Friday and Saturday weekend, so Sunday to Thursday; Iran works Saturday to Thursday. The
+ * United Arab Emirates moved to Monday to Friday in 2022.
+ */
+const SUN_THU = ['SA', 'QA', 'KW', 'BH', 'OM', 'JO', 'EG', 'IQ', 'YE', 'DZ', 'LY', 'SD', 'SY', 'IL'];
+export function usualWorkDays(country: string | null | undefined): { days: number[]; said: string } {
+  const c = (country ?? 'US').toUpperCase();
+  if (SUN_THU.includes(c)) return { days: [7, 1, 2, 3, 4], said: 'Sunday to Thursday' };
+  if (c === 'IR') return { days: [6, 7, 1, 2, 3, 4], said: 'Saturday to Thursday' };
+  return { days: [1, 2, 3, 4, 5], said: 'Monday to Friday' };
+}
+
+export type ShiftDay = {
+  date: string;
+  name: string;
+  off: boolean;
+  workDay: number | null;
+  peakHeatIndexF: number | null;
+  highFrom: string | null;
+  initialFrom: string | null;
+  breaks: string[];
+  heatHoursAllowed: number | null;
+  doneBy: string | null;
+  /** Where the time in the heat starts, and whether the rest is the whole shift or only its hot hours. */
+  heatFrom?: string | null;
+  restOf?: HeatTime['restOf'] | null;
+  line: string;
+};
+
+/**
+ * The shifts of the week ahead, for somebody who works fixed hours in the heat: each day's limit while they
+ * are still getting used to it, and each day's breaks.
+ *
+ * The build-up is counted in working days, not calendar days: NIOSH's schedule is days of work in the heat.
+ * Days off in between do not undo it. A NIOSH funded study found acclimatization takes about six weeks away
+ * to lose completely, and NIOSH treats somebody away for a week or more as returning; the proposed OSHA rule
+ * uses fourteen days. So a weekend keeps the count where it was.
+ */
+export function planShiftWeek(
+  snap: LocationSnapshot,
+  p: Profile,
+  opts: { now: Date; fromHour: number; untilHour: number; workDays?: number[]; assumedDays?: string | null; heatWork?: { kind: 'new' | 'returning'; since: string } | null; workplace: Exclude<Workplace, 'cool_inside'> },
+): { days: ShiftDay[]; spoken: string } {
+  const offsetMs = snap.utcOffsetSeconds * 1000;
+  const local = new Date(opts.now.getTime() + offsetMs);
+  const today = local.toISOString().slice(0, 10);
+  const hourThere = local.getUTCHours();
+  const works = opts.workDays?.length ? opts.workDays : [1, 2, 3, 4, 5];
+  const isoDay = (date: string) => ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1;
+  const name = (date: string) => (date === today ? 'Today' : new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }));
+  const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  // Working days from the day they started up to and including this one.
+  const workDayOf = (date: string): number | null => {
+    if (!opts.heatWork) return null;
+    let n = 0;
+    for (let d = opts.heatWork.since; d <= date; d = addDays(d, 1)) if (works.includes(isoDay(d)) || d === opts.heatWork.since) n++;
+    return n;
+  };
+  const first = hourThere >= opts.untilHour ? 1 : 0;
+  const days: ShiftDay[] = [];
+  for (let i = first; i < first + 7; i++) {
+    const date = addDays(today, i);
+    const base = { date, name: name(date), workDay: null, peakHeatIndexF: null, highFrom: null, initialFrom: null, breaks: [], heatHoursAllowed: null, doneBy: null };
+    if (!works.includes(isoDay(date))) {
+      days.push({ ...base, off: true, line: '' });
+      continue;
+    }
+    const workDay = workDayOf(date);
+    if (opts.workplace === 'hot_inside') {
+      const a = indoorAllowance(opts.heatWork, date, opts.fromHour, opts.untilHour, workDay ?? undefined);
+      days.push({
+        ...base,
+        off: false,
+        workDay,
+        heatHoursAllowed: a?.heatHoursAllowed ?? null,
+        doneBy: a?.doneBy ?? null,
+        line: a ? `${base.name}, day ${a.day}: ${a.heatHoursAllowed} ${a.heatHoursAllowed === 1 ? 'hour' : 'hours'} in the heat at most, in short spells.` : `${base.name}: the full shift.`,
+      });
+      continue;
+    }
+    const s = planShift(snap, p, { now: opts.now, fromHour: opts.fromHour, untilHour: opts.untilHour, heatWork: opts.heatWork, date, workDay: workDay ?? undefined });
+    if (!s.hours.length) break; // past the end of the forecast
+    const a = s.acclimatization;
+    const when = s.highFrom
+      ? `15 minute breaks${s.breaks.length ? ` at ${s.breaks.length === 1 ? s.breaks[0] : `${s.breaks.slice(0, -1).join(', ')} and ${s.breaks[s.breaks.length - 1]}`}` : ` from ${s.highFrom}`}`
+      : s.initialFrom
+        ? `water and shade from ${s.initialFrom}`
+        : `below the workplace heat lines`;
+    const line = a
+      ? a.passed
+        ? `${base.name}, day ${a.day}: ${a.heatHoursAllowed} ${a.heatHoursAllowed === 1 ? 'hour' : 'hours'} in the heat at most. The coolest stretch, ${a.from} to ${a.doneBy}, has passed, so if you've had them, stay in the shade or inside${a.coolestLeft ? `; if not, ${a.coolestLeft.from} to ${a.coolestLeft.doneBy} is the coolest left` : ''}.`
+        : `${base.name}, day ${a.day}: ${a.heatHoursAllowed} ${a.heatHoursAllowed === 1 ? 'hour' : 'hours'} in the heat at most, ${a.from} to ${a.doneBy}.`
+      : `${base.name}${workDay != null && opts.heatWork ? (acclimatization(opts.heatWork, date, workDay) ? `, day ${workDay}` : `, day ${workDay}, the full shift`) : ''}: ${when}.`;
+    days.push({ ...base, off: false, workDay, peakHeatIndexF: s.peakHeatIndexF, highFrom: s.highFrom, initialFrom: s.initialFrom, breaks: s.breaks, heatHoursAllowed: a?.heatHoursAllowed ?? null, doneBy: a?.doneBy ?? null, heatFrom: a?.from ?? null, restOf: a?.restOf ?? null, line });
+  }
+  const working = days.filter((d) => !d.off && d.line);
+  const off = days.filter((d) => d.off).map((d) => d.name);
+  const parts: string[] = [];
+  const label = spanLabel(`${today}T${String(opts.fromHour).padStart(2, '0')}:00`, opts.untilHour - opts.fromHour);
+  if (opts.workplace === 'hot_inside') parts.push(INDOOR_HEAT);
+  const breaksOn = working.some((d) => d.highFrom);
+  // Not "Your ...": the agent puts back any "Your" sentence a reply leaves out (keepReason), and this one is the whole list.
+  parts.push(`This week's ${label} shifts${breaksOn && opts.workplace === 'outside' ? ', with the breaks the proposed OSHA heat rule calls for past a heat index of 90' : ''}:`);
+  parts.push(...working.map((d) => d.line));
+  // The limit is time in the heat, not time at work. See HeatTime.
+  if (working.some((d) => d.heatHoursAllowed)) {
+    const rest = working.some((d) => d.restOf === 'hot hours') ? 'the hot hours' : 'the shift';
+    parts.push(
+      opts.workplace === 'hot_inside'
+        ? "On the days with a limit, spend the rest of the shift somewhere cooler: it's still a working day, just out of the heat."
+        : `On the days with a limit, spend the rest of ${rest} in the shade or inside: it's still a working day, just out of the sun.`,
+    );
+  }
+  if (opts.assumedDays) parts.push(`I've taken your working days as ${opts.assumedDays}; tell me if yours are different.`);
+  if (off.length && opts.heatWork) parts.push(`${off.length === 1 ? off[0] : `${off.slice(0, -1).join(', ')} and ${off[off.length - 1]}`} off: a few days off does not undo getting used to it, but a week or more away does.`);
+  if (working.some((d) => d.initialFrom || d.heatHoursAllowed)) parts.push('Drink a cup of water every fifteen to twenty minutes, before you feel thirsty, and work in pairs.');
+  return { days, spoken: parts.join(' ') };
 }
 
 export type Precautions = { steps: string[]; spoken: string; nextStep: number | null };

@@ -333,14 +333,17 @@ export function keepReason(reply: string, steps: Step[]): string {
   const said = textOf(steps[steps.length - 1]?.result ?? {});
   if (!said || !reply.trim()) return reply;
   const lower = reply.toLowerCase();
+  // Kept in other words counts: "your 7 am to 5 pm shift" is "your shift", and adding the tool's sentence back
+  // said the shift twice. The noun counts as kept within a few words of a "your".
+  const kept = (noun: string) => new RegExp(`\\byour\\b[^.!?]{0,40}?\\b${noun.replace(/[^a-z]/g, '')}`).test(lower);
   const add: string[] = [];
   for (const m of said.matchAll(/\bbecause (your [^,.;]+)/gi)) {
     const noun = /your (\w+)/i.exec(m[1])?.[1]?.toLowerCase();
-    if (noun && !lower.includes(`your ${noun}`)) add.push(`That is because ${m[1].trim()}.`);
+    if (noun && !kept(noun)) add.push(`That is because ${m[1].trim()}.`);
   }
   for (const m of said.matchAll(/(?:^|[.!?]\s+)(Your [^.!?]+[.!?])/g)) {
     const noun = /^Your (\w+)/.exec(m[1])?.[1]?.toLowerCase();
-    if (noun && !lower.includes(`your ${noun}`)) add.push(m[1].trim());
+    if (noun && !kept(noun)) add.push(m[1].trim());
   }
   for (const m of said.matchAll(/(One thing that is not the sun: [^.!?]+[.!?])/g)) {
     // Kept in other words counts: the reply may say what it is without the words 'not the sun'.

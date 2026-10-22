@@ -409,6 +409,8 @@ console.log('\nAsking, a question at a time');
   const tomorrow = step('The best time to be outside tomorrow, because your medication blocks your sweating, is 6 to 10 am, heat index about 76.');
   check('a reworded reply that drops "because your medication ..." gets it back', /because your medication blocks your sweating/.test(agentMod.keepReason('Tomorrow is fine from 6 to 10 am.', [tomorrow])));
   check('...and one that kept it is left alone', agentMod.keepReason('Because your medication blocks your sweating, go 6 to 10 am.', [tomorrow]) === 'Because your medication blocks your sweating, go 6 to 10 am.');
+  const shiftStep = { result: { content: [{ type: 'text', text: 'Your shift, 7 am to 5 pm today, peaks at heat index 104 at 12 pm.' }] } };
+  check('"your 7 am to 5 pm shift" counts as keeping "Your shift", so the shift is not said twice', agentMod.keepReason('Your 7 am to 5 pm shift peaks at 104 at noon.', [shiftStep]) === 'Your 7 am to 5 pm shift peaks at 104 at noon.');
   const stayIn = step('For you, it is better to stay in right now. Your carvedilol blocks your sweating, so you may not feel overheating until it is serious. Is it working?');
   const kept = agentMod.keepReason('Better to stay in right now. Is your cooling working?', [stayIn]);
   check('a dropped "Your carvedilol ..." sentence goes back before the closing question', /Your carvedilol blocks your sweating.*Is your cooling working\?$/.test(kept), kept);

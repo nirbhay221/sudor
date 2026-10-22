@@ -9,7 +9,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as store from '../store.js';
 import * as weather from '../weather.js';
-import { planDay } from '../personal.js';
+import { planDay, planShiftWeek, usualWorkDays } from '../personal.js';
 import { geocode, GeocoderDown } from '../geocode.js';
 import { emergencyNumber } from '../world.js';
 import { weekAhead, pastHours, lastYear, planWeek, patterns, judgeTrip, judgeLastYear, monthDay, weekday, dayHours, judgeDay, speakDay, EARLIEST_DAY, type JudgedDay } from '../week.js';
@@ -54,7 +54,7 @@ export function register(server: McpServer, personOf: () => string): void {
         'The seven days ahead for this customer, judged against their own medicines and conditions: which days have hours ' +
         'to stay in, which need care, which are fine, and the best day for something they want to do. Pass workStart and ' +
         'workEnd when they say their working hours, and it says which days their trip to or from work falls in stay-in ' +
-        'hours, so they can work from home that day. Call this for this week, the next few days, a weekday by name past ' +
+        'hours, so they can work from home that day. Pass workplace for work outside or in a hot place, and it plans each shift instead: breaks, and the build-up while new. Call this for this week, the next few days, a weekday by name past ' +
         'tomorrow, or working from home. For today or tomorrow alone use plan_my_day.',
       inputSchema: {
         activity: z.string().optional().describe('Something they want to fit into the week, e.g. "gardening", "a long walk"'),
@@ -63,9 +63,17 @@ export function register(server: McpServer, personOf: () => string): void {
         workEnd: z.number().int().min(1).max(24).optional().describe('Hour their working day ends, 1 to 24'),
         workDays: z.array(z.enum(WEEKDAYS)).optional().describe('The days they work, when they say; Monday to Friday otherwise'),
         date: z.string().optional().describe('One particular day they ask about, up to six days ahead, as YYYY-MM-DD: "Thursday", "October 24". Leave it out for the whole week'),
+        workplace: z
+          .enum(['outside', 'hot_inside', 'cool_inside'])
+          .optional()
+          .describe('Where they work, when said or clear: outside (roofing, building, farm, delivery) or hot_inside (a hot kitchen, laundry, warehouse or factory) plans each shift, its breaks and, while they are new, how long in the heat; cool_inside (an air conditioned office) plans only the trip there and back'),
+        startedWork: z
+          .enum(['new', 'returning', 'settled'])
+          .optional()
+          .describe('Only when they say it: new if they have just started working in the heat, returning if back after a week or more away, settled if they have been at it for weeks'),
       },
     },
-    async ({ activity, minutes, workStart, workEnd, workDays, date }) => {
+    async ({ activity, minutes, workStart, workEnd, workDays, date, workplace, startedWork }) => {
       const id = personOf();
       await settle(id);
       const person = store.get(id);
@@ -92,6 +100,26 @@ export function register(server: McpServer, personOf: () => string): void {
       const work = workStart != null && workEnd != null && workEnd % 24 !== workStart
         ? { start: workStart, end: workEnd, days: workDays?.length ? workDays.map((d) => WEEKDAYS.indexOf(d) + 1) : undefined }
         : null;
+      // A job in the heat: each shift of the week, and while they are new or back, how long in the heat each day.
+      // The build-up is a schedule over days, so this is where it belongs. See planShiftWeek in personal.ts.
+      if (startedWork) {
+        const today = new Date(Date.now() + snap.utcOffsetSeconds * 1000).toISOString().slice(0, 10);
+        store.update(id, (p) => void (p.heatWork = startedWork === 'settled' ? null : { kind: startedWork, since: today }));
+      }
+      if (work && work.end > work.start && (workplace === 'outside' || workplace === 'hot_inside')) {
+        // Their own days when said; otherwise the usual working week of the country, said so it can be corrected.
+        const usual = usualWorkDays(person.country);
+        const shifts = planShiftWeek(snap, profileFor(person), { now: new Date(), fromHour: work.start, untilHour: work.end, workDays: work.days ?? usual.days, assumedDays: work.days ? null : usual.said, heatWork: store.get(id).heatWork, workplace });
+        return say(shifts.spoken, {
+          place: person.locationName,
+          timezone: snap.timezone,
+          workplace,
+          // Each day of the build-up is the point of the answer, so it is read in full, like a checklist. See brief.ts.
+          fullAnswer: true,
+          shifts: shifts.days.map(({ line: _line, ...d }) => d),
+          sources: ['https://www.osha.gov/heat-exposure/protecting-new-workers', 'https://www.osha.gov/heat-exposure/rulemaking'],
+        });
+      }
       const week = planWeek(snap, profileFor(person), { now: new Date(), minutes, activity, work, doctorSays: doctorWords(person, 'hot_days') });
       return say(week.spoken, {
         place: person.locationName,

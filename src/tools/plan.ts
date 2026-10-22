@@ -12,7 +12,7 @@ import { findMedication as classifyMedication, nearMatches, MEDICATIONS, article
 import { chooseOne, canAsk } from '../elicit.js';
 import { CONDITIONS, findCondition } from '../conditions.js';
 import { windChillF, coldCategory, coldMeaning, COLD_WORDS, matchColdFirstAid } from '../cold.js';
-import { profileOf, judgeHour, planDay, planShift, precautions } from '../personal.js';
+import { profileOf, judgeHour, planDay, planShift, precautions, indoorAllowance, hourLabel, INDOOR_HEAT, acclimatization } from '../personal.js';
 import * as wbgt from '../wbgt.js';
 import { triage, asksInGeneral } from '../firstaid.js';
 import { whoIsUnwell, tellOperator, memberProfile } from '../household.js';
@@ -55,7 +55,7 @@ export function register(server: McpServer, personOf: () => string): void {
         'from the hourly forecast, their medications and conditions. Call this when someone asks when to go out, walk ' +
         'the dog, run errands, exercise or garden, when it cools down, or to plan today or tomorrow. For somebody who ' +
         'works outside fixed hours, pass shiftStart and shiftEnd and it plans the shift and its breaks, and pass ' +
-        'startedWork when they say they are new to the job or just back. For one trip that cannot wait use ' +
+        'startedWork when they are new to it or just back, and workplace when it is inside; plan_my_week does the whole week. For one trip that cannot wait use ' +
         'going_out_now, and for whether it is safe this moment use weather_check.',
       inputSchema: {
         activity: z.string().optional().describe('What they want to do, e.g. "a walk", "groceries", "gardening"'),
@@ -67,10 +67,14 @@ export function register(server: McpServer, personOf: () => string): void {
           .enum(['new', 'returning', 'settled'])
           .optional()
           .describe('Only when they say it: new if they have just started working outdoors, returning if they are back after a week or more away, settled if they have been at it for weeks'),
+        workplace: z
+          .enum(['outside', 'hot_inside', 'cool_inside'])
+          .optional()
+          .describe('Where that shift is, when said or clear: outside (roofing, building, farm, delivery), hot_inside (a kitchen, bakery, laundry, warehouse or factory that gets hot), cool_inside (an air conditioned office or shop). Leave it out when not known'),
       },
       _meta: { ui: { resourceUri: UI } },
     },
-    async ({ activity, minutes, day, shiftStart, shiftEnd, startedWork }) => {
+    async ({ activity, minutes, day, shiftStart, shiftEnd, startedWork, workplace }) => {
       await settle(personOf());
       const person = store.get(personOf());
       const snap = snapshotFor(person);
@@ -92,10 +96,35 @@ export function register(server: McpServer, personOf: () => string): void {
         const hourThere = new Date(Date.now() + snap.utcOffsetSeconds * 1000).getUTCHours();
         // A model often passes "today" for it anyway, so an ended shift is tomorrow's whatever day came with it.
         const shiftDay = hourThere >= shiftEnd ? 'tomorrow' : day;
-        const shift = planShift(snap, profile, { now: new Date(), day: shiftDay, fromHour: shiftStart, untilHour: shiftEnd, heatWork: store.get(personOf()).heatWork });
+        const heatWork = store.get(personOf()).heatWork;
+        const when = shiftDay === 'tomorrow' ? 'tomorrow' : 'today';
+        // The whole week, offered while they are still building up: the schedule runs over days, not one day.
+        const week = heatWork && workplace !== 'cool_inside'
+          ? { offer: 'Want the whole week planned, day by day?', nextAction: { tool: 'plan_my_week', arguments: { workStart: shiftStart, workEnd: shiftEnd, workplace: workplace ?? 'outside' } } }
+          : {};
+        // A cooled workplace: the heat is only on the way there and back. See Workplace in personal.ts.
+        if (workplace === 'cool_inside') {
+          const s = planShift(snap, profile, { now: new Date(), day: shiftDay, fromHour: Math.max(0, shiftStart - 1), untilHour: Math.min(24, shiftEnd + 1) });
+          const trip = (h: (typeof s.hours)[number] | undefined, at: string) =>
+            !h ? '' : h.status === 'avoid' ? `at ${at} it is too hot for you to walk or wait outside, so go by car or a cooled bus, or wait inside` : h.status === 'caution' ? `at ${at}, take water and keep the walk short` : `at ${at} it is fine to travel`;
+          const legs = [trip(s.hours[0], hourLabel(`${s.date}T${String(shiftStart).padStart(2, '0')}:00`)), trip(s.hours[s.hours.length - 1], hourLabel(`${s.date}T${String(shiftEnd).padStart(2, '0')}:00`))].filter(Boolean);
+          return say(`You work somewhere cooled, so the heat only matters getting there and back ${when}: ${legs.join('; ')}.`, { workplace, place: person.locationName, timezone: snap.timezone });
+        }
+        // A hot workplace inside: the build-up still applies, but the forecast outside is not the heat in there.
+        if (workplace === 'hot_inside') {
+          const date = new Date(Date.now() + snap.utcOffsetSeconds * 1000 + (shiftDay === 'tomorrow' ? 86_400_000 : 0)).toISOString().slice(0, 10);
+          const a = indoorAllowance(heatWork, date, shiftStart, shiftEnd);
+          const lead = a ? `This is day ${a.day} of ${a.kind === 'new' ? 'getting used to the heat' : 'being back in the heat'}, so no more than ${a.heatHoursAllowed} ${a.heatHoursAllowed === 1 ? 'hour' : 'hours'} in the heat ${when}, in short spells, and the rest of the shift somewhere cooler: it's still a working day, just out of the heat. ` : '';
+          return say(`${lead}${INDOOR_HEAT} Drink a cup of water every fifteen to twenty minutes, before you feel thirsty.${'offer' in week ? ` ${week.offer}` : ''}`, { workplace, acclimatization: a, ...week, sources: ['https://www.osha.gov/heat-exposure/rulemaking', 'https://www.osha.gov/heat-exposure/protecting-new-workers'] });
+        }
+        const shift = planShift(snap, profile, { now: new Date(), day: shiftDay, fromHour: shiftStart, untilHour: shiftEnd, heatWork });
         // Without the hours, and without the sentence, which is already the answer itself.
         const { hours: _hours, spoken: _spoken, ...summary } = shift;
-        return say(shift.spoken, { shift: summary, place: person.locationName, timezone: snap.timezone, sources: ['https://www.osha.gov/heat-exposure/rulemaking'] });
+        // Still building up, but the heat that day is too short to cut the shift: say which day it is, so the count is not lost.
+        const used = heatWork ? acclimatization(heatWork, shift.date) : null;
+        const dayLine = used && !shift.acclimatization ? ` This is day ${used.day} of ${used.kind === 'new' ? 'getting used to the heat' : 'being back in the heat'}, and the heat ${when} is short enough for the whole shift.` : '';
+        const spoken = `${shift.spoken}${dayLine}${'offer' in week ? ` ${week.offer}` : ''}`;
+        return say(spoken, { shift: summary, place: person.locationName, timezone: snap.timezone, ...week, sources: ['https://www.osha.gov/heat-exposure/rulemaking'] });
       }
       const plan = planDay(snap, profile, { now: new Date(), day, minutes, activity });
       // A stay-inside day with nobody set to hear about it: offer the one thing that would help.

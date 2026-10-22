@@ -14,7 +14,7 @@ import { findMedication as classifyMedication, nearMatches, MEDICATIONS, article
 import { chooseOne, canAsk } from '../elicit.js';
 import { CONDITIONS, findCondition } from '../conditions.js';
 import { windChillF, coldCategory, coldMeaning, COLD_WORDS, matchColdFirstAid } from '../cold.js';
-import { profileOf, judgeHour, planDay, planShift, precautions } from '../personal.js';
+import { profileOf, judgeHour, planDay, planShift, precautions, heatTimeSaid } from '../personal.js';
 import * as wbgt from '../wbgt.js';
 import { triage } from '../firstaid.js';
 import { geocode } from '../geocode.js';
@@ -358,7 +358,7 @@ export function register(server: McpServer, personOf: () => string): void {
         if (shift.peakHeatIndexF == null) parts.push('No forecast for that shift.');
         else if (!shift.initialFrom) parts.push(`Their shift peaks at heat index ${shift.peakHeatIndexF}, which is fine.`);
         else parts.push(`Their shift peaks at heat index ${shift.peakHeatIndexF} at ${shift.peakAt}.`);
-        if (shift.acclimatization) parts.push(`They are on day ${shift.acclimatization.day} in the heat: ${shift.acclimatization.heatHoursAllowed} ${shift.acclimatization.heatHoursAllowed === 1 ? 'hour' : 'hours'} of it today, done by ${shift.acclimatization.doneBy}.`);
+        if (shift.acclimatization) parts.push(`They are on day ${shift.acclimatization.day} in the heat, so today: ${heatTimeSaid(shift.acclimatization, 'they')}`);
         if (earlier) parts.push(`For them the risky part starts at ${earlier}.`);
         return say(parts.join(' '), {
           sharing: true,

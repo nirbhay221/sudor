@@ -24,6 +24,9 @@ const NUMBER: Record<string, string> = {
   GB: '999', HK: '999', AU: '000', NZ: '111', NO: '113',
   JP: '119', KR: '119', TW: '119', CN: '120', SG: '995',
   IL: '101', AE: '998', SA: '997', BR: '192', AR: '107', CL: '131', CO: '123',
+  // Checked October 2026 against more than one list. Pakistan, Vietnam, Indonesia and Sri Lanka are left out: the
+  // lists disagree on the ambulance number, so they keep '112, or your local emergency number'.
+  QA: '999', BH: '999', OM: '9999', KW: '112', EG: '123', JO: '911', BD: '999', MY: '999', TH: '1669',
   ...Object.fromEntries(EU_112.map((c) => [c, '112'])),
 };
 
