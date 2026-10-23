@@ -257,6 +257,11 @@ export function canBeStrict(tools: ToolDef[]): boolean {
 }
 
 /** Typed API errors, turned into something a demo page can show. */
+/** An error from the model API itself (refused, rate limited, unreachable), as against a tool or our own code. */
+export function isModelError(err: unknown): boolean {
+  return err instanceof Anthropic.APIError;
+}
+
 export function explainError(err: unknown): string {
   if (err instanceof Anthropic.AuthenticationError) return 'The stand-in key was rejected.';
   if (err instanceof Anthropic.RateLimitError) return 'The stand-in is rate limited; try again shortly.';

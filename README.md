@@ -12,7 +12,7 @@ medicines, conditions, home and town, and answers for that body, not for everybo
 ![Streamable HTTP](https://img.shields.io/badge/transport-Streamable%20HTTP-1ac3eb)
 ![tools](https://img.shields.io/badge/tools-18-e08f1a)
 ![p95 under 40 ms](https://img.shields.io/badge/p95-under%2040%20ms-2ea44f)
-![checks](https://img.shields.io/badge/checks-2835%20passing-2ea44f)
+![checks](https://img.shields.io/badge/checks-2837%20passing-2ea44f)
 [![Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-lightgrey)](LICENSE)
 
 **[▶ Try it live](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html)** ·
@@ -157,7 +157,7 @@ Three things sit between the forecast and an answer, and none of them is a model
 | Whole conversations | 38 of 38 turns right in the patterns older adults were recorded in | `evals/conversations-last-run.json` |
 | Tool choice, from spoken sentences | 95 percent of 100 on the 18 tools Alexa+ is shown, first run 23 October on Opus 5.5 | `evals/golden-core.json` |
 | Medicines recognised | 134 of the 286 most prescribed ingredients in the US | `evals/coverage.mjs` |
-| Automated checks | 2,835 on every push, on Node 20 and 22, plus the stack, DynamoDB Local and the Strands agent | [`.github/workflows/tests.yml`](.github/workflows/tests.yml) |
+| Automated checks | 2,837 on every push, on Node 20 and 22, plus the stack, DynamoDB Local and the Strands agent | [`.github/workflows/tests.yml`](.github/workflows/tests.yml) |
 
 ## For the judges
 
@@ -226,7 +226,7 @@ Nothing here is mocked for the demo. Where something stands in for a thing we co
 
 | Part | Status |
 |---|---|
-| MCP server, 18 tools by default | **Real and deployed** on AWS, behind account linking. 2,835 automated checks, run on every push |
+| MCP server, 18 tools by default | **Real and deployed** on AWS, behind account linking. 2,837 automated checks, run on every push |
 | Agent Skill | **Real**: `skills/sudor-heat-safety`, to the open Agent Skills format, passing the format's own validator. Installable as a folder, and readable from the server as `skill://` resources |
 | Strands agent | **Real**: `strands/agent.mjs`, on AWS's Strands Agents SDK. It reads the skill from the server and follows each next step. The chain, the yes before a write and the step cap are checked with a scripted model at no cost; the path through Claude needs a key and is not in the automated checks |
 | Weather, UV, air quality | **Real, live**: Open-Meteo, worldwide |
@@ -1237,12 +1237,12 @@ Moving a running server over is `node scripts/copy-to-table.mjs` once on the hos
 every record in and changes nothing if run twice, then the `/sudor/store` parameter set to
 `dynamodb` and a restart. The file is kept, so going back is the parameter and a restart.
 
-`npm test` runs everything, 2,835 checks. It is also what CI runs on every push, on Node 20 and 22,
+`npm test` runs everything, 2,837 checks. It is also what CI runs on every push, on Node 20 and 22,
 with the live suite in its own job so an outage at a weather service is never mistaken for a
 regression here.
 
 ```bash
-npm run test:unit           # 2,481 checks, no live data
+npm run test:unit           # 2,483 checks, no live data
 npm run test:live           # 354 checks, against a running server and the real forecast
 
 node test.mjs               # heat index formula, categories, medications, how the lines read aloud

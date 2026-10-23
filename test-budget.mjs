@@ -106,11 +106,14 @@ try {
     const empty = await post(s.base, '/agent', { say: '   ' }, who);
     check('an empty utterance is a 400', empty.status === 400, String(empty.status));
 
-    // The key is fake, so each of these reaches the model call and fails with 502.
+    // The key is fake, so each of these reaches the model call and the API refuses it.
     // That is the point: they were allowed to try, and each one cost a unit.
     const first = await post(s.base, '/agent', { say: 'is it safe to plant' }, { 'x-sudor-demo': ID() });
     const second = await post(s.base, '/agent', { say: 'is it safe to plant' }, { 'x-sudor-demo': ID() });
     check('the first two are let through to the model', first.status !== 429 && second.status !== 429, `${first.status} ${second.status}`);
+    // A refused key, a spent workspace limit or the API down is answered by the word rules, not shown as an error.
+    const refused = await first.json();
+    check('a model the API refuses is answered by the word rules, not an error', first.status === 200 && refused.model === 'word rules' && typeof refused.modelError === 'string', `${first.status} ${JSON.stringify(refused).slice(0, 200)}`);
 
     const third = await post(s.base, '/agent', { say: 'is it safe to plant' }, { 'x-sudor-demo': ID() });
     // Past the cap the model is not called again; the word rules answer instead, and say so. See rules.ts.
