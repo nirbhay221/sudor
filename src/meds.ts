@@ -319,10 +319,15 @@ export function findMedication(spoken: string): Medication | null {
 
 /** What a person said, lowercased, without the dose. */
 export function cleanName(spoken: string): string {
+  // As it is said: "my Ozempic injection", "toprol-xl", "lisinopril 10 milligrams". The possessive, the form, a
+  // hyphen and a dose said in words used to keep a known medicine from being found (22 October 2026).
   return spoken
     .toLowerCase()
     .trim()
-    .replace(/\b\d+(\.\d+)?\s*(mg|mcg|g|ml)\b/g, '')
+    .replace(/[-_]/g, ' ')
+    .replace(/^(my|the|his|her|their|our|a|an|some)\s+/, '')
+    .replace(/\b\d+(\.\d+)?\s*(mg|mcg|g|ml|milligrams?|micrograms?|units?)\b/g, '')
+    .replace(/\b(shots?|injections?|pills?|tablets?|tabs|capsules?|caps|pens?|jabs?)\s*$/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -408,7 +413,7 @@ function editDistance(a: string, b: string): number {
 }
 
 export function nearMatches(spoken: string, limit = 3): Medication[] {
-  const want = spoken.toLowerCase().replace(/\b\d+(\.\d+)?\s*(mg|mcg|g|ml)\b/g, '').replace(/\s+/g, ' ').trim();
+  const want = cleanName(spoken);
   if (want.length < 4) return [];
 
   // One edit for a short name, two for a longer one. A flat threshold of two

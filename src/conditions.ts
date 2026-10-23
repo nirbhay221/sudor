@@ -418,7 +418,12 @@ export function findCondition(spoken: string): Condition | null {
  * "is" is in there because half of these profiles are set up by a daughter
  * saying "my mother is 88" rather than by the person themselves.
    */
-  const age = text.match(/\s(?:i am|i m|im|aged|age|is|are)\s(\d{2,3})\s/) ?? text.match(/\s(\d{2,3})\s(?:years? old|yo)\s/);
+  // An age said in words, as a voice transcript can give it: "I'm eighty two", "in my seventies" (22 October 2026).
+  const TENS: Record<string, number> = { sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+  const UNIT: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9 };
+  const worded = text.replace(/\b(sixty|seventy|eighty|ninety)(?: (one|two|three|four|five|six|seven|eight|nine))?\b/g, (_m, t: string, u?: string) => String(TENS[t] + (u ? UNIT[u] : 0)));
+  if (/\sin (my|his|her|their) (seventies|eighties|nineties)\s/.test(text)) return conditionById('older_adult') ?? null;
+  const age = worded.match(/\s(?:i am|i m|im|aged|age|is|are)\s(\d{2,3})\s/) ?? worded.match(/\s(\d{2,3})\s(?:years? old|yo)\s/);
   const years = age ? Number(age[1]) : NaN;
   if (years >= 65 && years <= 120) return conditionById('older_adult') ?? null;
   return null;

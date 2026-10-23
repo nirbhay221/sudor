@@ -175,7 +175,105 @@ export class GeocoderDown extends Error {}
  * The place, or null when there is no such place. Throws GeocoderDown when the service did not answer, so a
  * timeout is never told to the person as "I couldn't find Phoenix".
  */
+/*
+ * A place said the way people say it, found the way the lookup below expects it. Found on 22 October 2026 by
+ * saying places to the live geocoder: "near Tucson", "north of Phoenix" and "20 miles from Tucson" were not found
+ * at all; "Phoenix, AZ 85004" and a street address were not found; "Minnesota" was Minnesota, Georgia and
+ * "Arizona" a village in Louisiana, so somebody in Minnesota would have been judged against Georgia's heat;
+ * "USA" was Concord, North Carolina; and "Wagga Wagga NSW" and "Ludhiana Punjab" were not found.
+ */
+const LEAD = /^(just |right |a bit |a little )?(near|by|outside( of)?|around|close to|next to|in|at|(about |some )?\d+(\.\d+)? ?(miles?|mi|km|kilometres?|kilometers?) (from|outside( of)?|out of|(north|south|east|west|northeast|northwest|southeast|southwest) of)|(north|south|east|west|northeast|northwest|southeast|southwest) of)\s+/i;
+const POSTAL = /\b\d{5}(?:-\d{4})?\b|\b\d{6}\b|\b[A-Z]\d[A-Z] ?\d[A-Z]\d\b/i;
+// A street word ends an English address part ("Central Ave") and starts most others ("Avenida Blumenau"); at the
+// start in English it is a town ("St. Paul").
+const STREET_END = /\b(rd|road|st|street|ave|avenue|blvd|boulevard|dr|drive|ln|lane|way|hwy|highway|pkwy|parkway|ct|court|pl|sq|square|strasse|straße)\.?$/i;
+const STREET_START = /^(avenida|av\.|rua|calle|carrer|via|rue|chemin)\s/i;
+const streetLike = (part: string): boolean => /\d/.test(part) || STREET_END.test(part) || STREET_START.test(part);
+
+/** The town and what narrows it, without the street, the postal code or "near"; and the postal code apart. */
+export function simplify(query: string): { query: string; postal: string | null } {
+  const q = query.trim().replace(/\s+/g, ' ').replace(LEAD, '');
+  if (/^\d{5}$/.test(q)) return { query: q, postal: null };
+  const postal = POSTAL.exec(q)?.[0] ?? null;
+  let parts = q.split(',').map((p) => p.replace(POSTAL, '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  while (parts.length > 1 && streetLike(parts[0])) parts = parts.slice(1);
+  return { query: parts.join(', '), postal };
+}
+
+const PROVINCES: Record<string, string> = {
+  alberta: 'AB', 'british columbia': 'BC', manitoba: 'MB', 'new brunswick': 'NB', 'newfoundland and labrador': 'NL', 'nova scotia': 'NS',
+  ontario: 'ON', 'prince edward island': 'PE', quebec: 'QC', saskatchewan: 'SK',
+};
+/** The middle of each state and province, for somebody who names only that. A storm and a heat wave span hundreds of kilometres. */
+const CENTRES: Record<string, [number, number]> = {
+  AL: [32.8, -86.8], AK: [61.2, -149.9], AZ: [34.3, -111.7], AR: [34.9, -92.4], CA: [37.2, -119.5], CO: [39.0, -105.5], CT: [41.6, -72.7],
+  DE: [39.0, -75.5], FL: [28.6, -82.4], GA: [32.7, -83.4], HI: [20.8, -156.3], ID: [44.4, -114.6], IL: [40.0, -89.2], IN: [39.9, -86.3],
+  IA: [42.1, -93.5], KS: [38.5, -98.4], KY: [37.5, -85.3], LA: [31.1, -92.0], ME: [45.4, -69.2], MD: [39.0, -76.8], MA: [42.3, -71.8],
+  MI: [44.3, -85.4], MN: [46.3, -94.3], MS: [32.7, -89.7], MO: [38.4, -92.5], MT: [47.0, -109.6], NE: [41.5, -99.8], NV: [39.3, -116.6],
+  NH: [43.7, -71.6], NJ: [40.2, -74.7], NM: [34.4, -106.1], NY: [42.9, -75.5], NC: [35.6, -79.4], ND: [47.5, -100.5], OH: [40.3, -82.8],
+  OK: [35.6, -97.5], OR: [43.9, -120.6], PA: [40.9, -77.8], RI: [41.7, -71.5], SC: [33.9, -80.9], SD: [44.4, -100.2], TN: [35.9, -86.4],
+  TX: [31.5, -99.3], UT: [39.3, -111.7], VT: [44.1, -72.7], VA: [37.5, -78.9], WA: [47.4, -120.5], WV: [38.6, -80.6], WI: [44.6, -89.9],
+  WY: [43.0, -107.6], DC: [38.9, -77.0],
+  AB: [53.9, -116.6], BC: [50.5, -122.5], MB: [50.5, -98.0], NB: [46.6, -66.5], NL: [48.5, -56.0], NS: [45.0, -63.0], ON: [44.5, -79.5],
+  PE: [46.5, -63.4], QC: [46.8, -71.5], SK: [51.5, -106.0],
+};
+/** A query that is only a state or a province, as its middle; null otherwise. Two letters alone are never read as a state. */
+export function stateOnly(query: string): Place | null {
+  const q = query.trim().replace(/\.$/, '');
+  // "New York" is the city people mean, and "Washington" alone is as often the capital: both are looked up as places.
+  if (q.includes(',') || /^[a-z]{2}$/i.test(q) || /^(new york|washington)$/i.test(q)) return null;
+  const us = stateCode(q);
+  const ca = PROVINCES[q.toLowerCase()];
+  const code = us ?? ca;
+  const at = code ? CENTRES[code] : undefined;
+  if (!code || !at) return null;
+  const name = us ? STATES[us] : Object.keys(PROVINCES).find((k) => PROVINCES[k] === ca)!.replace(/\b\w/g, (c) => c.toUpperCase());
+  return { name: `central ${name}`, state: us ? STATES[us] : null, lat: at[0], lon: at[1], timezone: null, country: us ? 'US' : 'CA', countryName: us ? 'United States' : 'Canada' };
+}
+/** A query that is only a country: too big to judge from its middle, so the person is asked for a town. */
+export function countryOnly(query: string): boolean {
+  const q = query.trim().replace(/\.$/, '');
+  return !q.includes(',') && !stateCode(q) && !PROVINCES[q.toLowerCase()] && (!!countryCodeOf(q) || /^(usa|u\.?s\.?a?\.?|united states( of america)?)$/i.test(q));
+}
+const ABROAD_SHORT: Record<string, string> = {
+  NSW: 'New South Wales, Australia', QLD: 'Queensland, Australia', VIC: 'Victoria, Australia', SA: 'South Australia, Australia',
+  WA: 'Western Australia, Australia', TAS: 'Tasmania, Australia', NT: 'Northern Territory, Australia',
+  MT: 'Mato Grosso, Brazil', MS: 'Mato Grosso do Sul, Brazil', GO: 'Goiás, Brazil', PR: 'Paraná, Brazil', RS: 'Rio Grande do Sul, Brazil',
+  MG: 'Minas Gerais, Brazil', BA: 'Bahia, Brazil', SP: 'São Paulo, Brazil', RJ: 'Rio de Janeiro, Brazil', PE: 'Pernambuco, Brazil',
+};
+export function abroadReading(query: string): string | null {
+  const m = /^(.+?)[,\s]+([A-Za-z]{2,3})\.?$/.exec(query.trim());
+  const full = m ? ABROAD_SHORT[m[2].toUpperCase()] : undefined;
+  return m && full ? `${m[1].replace(/,\s*$/, '')}, ${full}` : null;
+}
+
 export async function geocode(query: string, timeoutMs = 8000): Promise<Place | null> {
+  const { query: q, postal } = simplify(query);
+  if (!q && postal) return geocodeOnce(postal, timeoutMs);
+  if (!q) return null;
+  const middle = stateOnly(q);
+  if (middle) return middle;
+  if (countryOnly(q)) return postal ? geocodeOnce(postal, timeoutMs) : null;
+  const found = await geocodeOnce(q, timeoutMs);
+  if (found) return found;
+  const abroad = abroadReading(q);
+  if (abroad) {
+    const hit = await geocodeOnce(abroad, timeoutMs);
+    if (hit) return hit;
+  }
+  // A region said with no comma, "Ludhiana Punjab": the last word or two as the region.
+  if (!q.includes(',')) {
+    const words = q.split(' ');
+    for (const n of [1, 2]) {
+      if (words.length <= n) continue;
+      const hit = await geocodeOnce(`${words.slice(0, -n).join(' ')}, ${words.slice(-n).join(' ')}`, timeoutMs);
+      if (hit) return hit;
+    }
+  }
+  return postal ? geocodeOnce(postal, timeoutMs) : null;
+}
+
+async function geocodeOnce(query: string, timeoutMs = 8000): Promise<Place | null> {
   const { name, elsewhere, state, country } = splitQuery(query);
   if (!name) return null;
   const ctrl = new AbortController();

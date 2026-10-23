@@ -103,5 +103,61 @@ console.log('\nA phone number typed on the consent page');
   delete process.env.SUDOR_SMS_COUNTRY_CODES;
 }
 
+console.log('\nPlaces said the way people say them');
+{
+  const s = (q) => geo.simplify(q);
+  check('"near Tucson" is Tucson', s('near Tucson').query === 'Tucson');
+  check('"20 miles from Tucson" is Tucson', s('20 miles from Tucson').query === 'Tucson');
+  check('"north of Phoenix" is Phoenix', s('north of Phoenix').query === 'Phoenix');
+  check('a street and a zip are taken off, and the zip kept', s('1221 N Central Ave, Phoenix, AZ 85004').query === 'Phoenix, AZ' && s('1221 N Central Ave, Phoenix, AZ 85004').postal === '85004');
+  check('a zip alone is left as the query', s('85004').query === '85004');
+  check('"St. Paul" is a town, not a street', s('St. Paul, Minnesota').query === 'St. Paul, Minnesota');
+  check('"Minnesota" alone is the middle of Minnesota, not Minnesota, Georgia', geo.stateOnly('Minnesota')?.lat === 46.3 && geo.stateOnly('Minnesota')?.state === 'Minnesota');
+  check('"Ontario" alone is the middle of Ontario, in Canada', geo.stateOnly('Ontario')?.country === 'CA');
+  check('"New York" and "Washington" are looked up as places', geo.stateOnly('New York') === null && geo.stateOnly('Washington') === null);
+  check('two letters alone are not a state', geo.stateOnly('MN') === null);
+  check('"USA" and "Brazil" alone ask for a town', geo.countryOnly('USA') && geo.countryOnly('Brazil'));
+  check('...but a state is not a country', !geo.countryOnly('Georgia') && !geo.countryOnly('Minnesota'));
+  check('"Wagga Wagga NSW" is read as New South Wales', geo.abroadReading('Wagga Wagga NSW') === 'Wagga Wagga, New South Wales, Australia');
+  check('"Rondonópolis MT" is read as Mato Grosso when Montana finds nothing', geo.abroadReading('Rondonópolis MT') === 'Rondonópolis, Mato Grosso, Brazil');
+}
+
+console.log('\nMedicine names, and ages, as they are said');
+{
+  const { findMedication } = await import('./dist/meds.js');
+  const { findCondition } = await import('./dist/conditions.js');
+  const is = (q, g) => check(`"${q}" is ${g}`, findMedication(q)?.generic === g, findMedication(q)?.generic);
+  is('toprol-xl', 'metoprolol');
+  is('my Ozempic injection', 'semaglutide');
+  is('lisinopril 10 milligrams', 'lisinopril');
+  is('my Lasix pills', 'furosemide');
+  is('Tylenol PM', 'acetaminophen');
+  for (const q of ["I'm eighty", "I'm eighty two", "I'm in my seventies", 'my father is ninety one']) {
+    check(`"${q}" is an older adult`, findCondition(q)?.id === 'older_adult', findCondition(q)?.id);
+  }
+  check('"I\'m sixty four" is not', findCondition("I'm sixty four") === null);
+  check('"I\'m in my sixties" is not said to be 65 or over', findCondition("I'm in my sixties") === null);
+}
+
+console.log('\nWith no model running, the word rules answer the demo and every emergency');
+{
+  const { chooseByWords } = await import('./dist/rules.js');
+  const tools = ['contact', 'share_my_day', 'get_help', 'log_outing', 'weather_check', 'plan_my_day', 'going_out_now', 'warning_signs', 'somewhere_to_go', 'storm_prep', 'plan_my_week', 'heat_patterns', 'doctor_plan', 'my_trips', 'household', 'what_can_you_do', 'about_me', 'tell_me_more'].map((name) => ({ name }));
+  const pick = (s) => chooseByWords(s, tools);
+  for (const q of ["She's not breathing", "he's having chest pain", "my dad won't wake up", "she's seizing", "his face is drooping", 'her lips are turning blue']) {
+    check(`"${q}" goes to the warning signs`, pick(q).tool === 'warning_signs', pick(q).tool);
+  }
+  check('"My air conditioner just stopped working." is cooling broken', pick('My air conditioner just stopped working.').args.cooling === 'broken');
+  check('an email address adds that person, by name', pick('My daughter Priya, priya@example.com').tool === 'contact' && pick('My daughter Priya, priya@example.com').args.name === 'Priya');
+  check('"I\'m 74 and I live alone" saves both', pick("I'm 74 and I live alone").args.age === 74 && pick("I'm 74 and I live alone").args.livesAlone === true);
+  check('"I\'m going to Las Vegas next week" is a trip', pick("I'm going to Las Vegas next week").tool === 'my_trips' && pick("I'm going to Las Vegas next week").args.place === 'Las Vegas');
+  check('"What does the next week look like?" is the week', pick('What does the next week look like?').tool === 'plan_my_week');
+  check('"How many hot days did we have this month?" is the heat history', pick('How many hot days did we have this month?').tool === 'heat_patterns');
+  check('"My doctor told me ..." is the doctor plan', pick('My doctor told me to drink extra water on hot days').tool === 'doctor_plan');
+  check('"My mum lives with us, she\'s 82" is the household', pick("My mum lives with us, she's 82").tool === 'household' && pick("My mum lives with us, she's 82").args.age === 82);
+  check('"I have to go out now" is going out now, not a condition', pick('I have to go out now').tool === 'going_out_now');
+  check('"I have hay fever" is a condition', pick('I have hay fever').args.conditions?.[0] === 'hay fever');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
