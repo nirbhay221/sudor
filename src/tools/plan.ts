@@ -83,8 +83,12 @@ export function register(server: McpServer, personOf: () => string): void {
       // "I started on Monday" is remembered, dated to today where they are, so tomorrow is day two without
       // being told again. See acclimatization in personal.ts.
       if (startedWork) {
-        const today = new Date(Date.now() + snap.utcOffsetSeconds * 1000).toISOString().slice(0, 10);
-        store.update(personOf(), (p) => void (p.heatWork = startedWork === 'settled' ? null : { kind: startedWork, since: today }));
+        // Said after today's shift has ended, or about tomorrow, the first day in the heat is tomorrow: counting
+        // from today told somebody starting a new job tonight that tomorrow was already day 2.
+        const local = Date.now() + snap.utcOffsetSeconds * 1000;
+        const firstIsTomorrow = day === 'tomorrow' || (shiftEnd != null && new Date(local).getUTCHours() >= shiftEnd);
+        const since = new Date(local + (firstIsTomorrow ? 86_400_000 : 0)).toISOString().slice(0, 10);
+        store.update(personOf(), (p) => void (p.heatWork = startedWork === 'settled' ? null : { kind: startedWork, since }));
       }
       // Somebody who works outside is not choosing a window. See planShift.
       if (shiftStart != null && shiftEnd != null) {
