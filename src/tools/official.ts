@@ -255,7 +255,11 @@ export function register(server: McpServer, personOf: () => string): void {
         );
       }
 
-      if (active) {
+      // A rip current statement or a beach hazard says nothing about the power, so somebody asking how to get ready
+      // for a power cut was told only about the sea and "I don't have any power-cut steps for you". With nothing but
+      // that in force, it is said in one line and the getting-ready checklist is the answer.
+      const asideOnly = active && hazardOf(active.event) === 'other' && !coming ? active : null;
+      if (active && !asideOnly) {
         const hazard = hazardOf(active.event);
         const needs = {
           coldMedicine: cold.insulin || cold.injectables.length > 0 || person.conditions.includes('diabetes') || (person.equipment ?? []).includes('insulin_pump'),
@@ -330,7 +334,9 @@ export function register(server: McpServer, personOf: () => string): void {
       // why the checklist matters now. See outlook.ts.
       const coming2 = person.lat != null && person.lon != null ? outlookLines(person) : [];
       const tail = solar ? ` ${spaceweather.speak(solar)}` : '';
-      return say(`${outLead}${lead}${coming2.length ? `${coming2.join(' ')} ` : ''}${opening} ${steps.join(' ')}${tail}`, {
+      const asideZone = (person.lat != null && person.lon != null ? weather.current(person.lat, person.lon)?.timezone : null) ?? 'UTC';
+      const aside = asideOnly ? `There is ${/^[aeiou]/i.test(asideOnly.event) ? 'an' : 'a'} ${asideOnly.event} where you are${warnings.until(asideOnly, asideZone)}, which is not about your power. ` : '';
+      return say(`${outLead}${lead}${aside}${coming2.length ? `${coming2.join(' ')} ` : ''}${opening} ${steps.join(' ')}${tail}`, {
         ...(out ? { powerOut: out, offer: 'Want me to find somewhere with power you can go?', nextAction: { tool: 'somewhere_to_go', arguments: {} } } : {}),
         ...(coming2.length ? { ahead: coming2 } : {}),
         // A checklist for before the power goes. With a storm on the way every line is a thing to do now, so it

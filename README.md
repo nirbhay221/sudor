@@ -30,7 +30,7 @@ medicines, conditions, home and town, and answers for that person:
 | "Tell my daughter I need help" / "Tell them I'm safe" | Email, and a text if she added her number, only after she agreed |
 
 Built for the [Build, Ship, Shape: Amazon Developer Hackathon](https://amazonappdev2026.devpost.com),
-Alexa+ track, plus the Open Source and AWS Builder mini challenges. Self-hosted MCP server, spec 2025-11-25,
+Alexa+ track. Self-hosted MCP server, spec 2025-11-25,
 Streamable HTTP, 18 tools by default, with an MCP Apps panel for the Echo Show. Its sister add-on
 [Orbita](https://github.com/nirbhay221/orbita) does the same for GPS-guided field work, and the two talk to
 each other.
@@ -66,7 +66,7 @@ Nothing here is mocked for the demo. Where something stands in for a thing we co
 
 | Part | Status |
 |---|---|
-| MCP server, 18 tools by default | **Real and deployed** on AWS, behind account linking. 2,529 automated checks, run on every push |
+| MCP server, 18 tools by default | **Real and deployed** on AWS, behind account linking. 2,833 automated checks, run on every push |
 | Agent Skill | **Real**: `skills/sudor-heat-safety`, to the open Agent Skills format, passing the format's own validator. Installable as a folder, and readable from the server as `skill://` resources |
 | Strands agent | **Real**: `strands/agent.mjs`, on AWS's Strands Agents SDK. It reads the skill from the server and follows each next step. The chain, the yes before a write and the step cap are checked with a scripted model at no cost; the path through Claude needs a key and is not in the automated checks |
 | Weather, UV, air quality | **Real, live**: Open-Meteo, worldwide |
@@ -101,7 +101,7 @@ This file is long because the reasoning is the work. If you are evaluating the p
 | Where it is wrong, or cannot know | [Honest limitations](#honest-limitations) |
 
 Free sources, no API keys for the data. Every tool call is answered from memory; nothing external is called
-inside a turn. `npm test` runs 2,529 checks.
+inside a turn. `npm test` runs 2,833 checks.
 
 ## The problem
 
@@ -349,7 +349,7 @@ absorb one. Only Class I is ever volunteered inside an answer about going outsid
 
 ## Tools
 
-Seventeen tools by default. Related actions share one tool, because tool choice gets worse as the list
+18 tools by default. Related actions share one tool, because tool choice gets worse as the list
 grows: everything about the person is `about_me`, every change to the family list is `contact`.
 With `SUDOR_SCOPE=all` the original, finer-grained tools are listed instead.
 
@@ -754,7 +754,8 @@ something a page of text can show.
 `/speak` runs the same string the tool returned through Polly. Joanna, neural, chosen over the default
 because a neural voice handles the drug names far better than a standard one, and "hydrochlorothiazide"
 appears in real advice. For the demo and the video only; Alexa+ does its own speech, and nothing in the
-MCP path synthesises audio.
+MCP path synthesises audio. It is off unless `SUDOR_SPEAK=on`, and it is off on the public demo, which
+speaks with the browser's own voice, so the demo costs nothing per word.
 
 Polly charges per character, so it is fenced: a content-hash cache, a 2,000 character ceiling, and
 angle brackets refused outright rather than escaped, because passing caller text through as SSML would
@@ -994,13 +995,13 @@ Moving a running server over is `node scripts/copy-to-table.mjs` once on the hos
 every record in and changes nothing if run twice, then the `/sudor/store` parameter set to
 `dynamodb` and a restart. The file is kept, so going back is the parameter and a restart.
 
-`npm test` runs everything, 2,529 checks. It is also what CI runs on every push, on Node 20 and 22,
+`npm test` runs everything, 2,833 checks. It is also what CI runs on every push, on Node 20 and 22,
 with the live suite in its own job so an outage at a weather service is never mistaken for a
 regression here.
 
 ```bash
-npm run test:unit           # 2,231 checks, no live data
-npm run test:live           # 298 checks, against a running server and the real forecast
+npm run test:unit           # 2,479 checks, no live data
+npm run test:live           # 354 checks, against a running server and the real forecast
 
 node test.mjs               # heat index formula, categories, medications, how the lines read aloud
 node test-personal.mjs      # conditions, an age said aloud, sensitivity, planning, precautions, first aid
@@ -1400,11 +1401,11 @@ Sources: [Mahmood and others, 2024](https://arxiv.org/pdf/2403.02421),
 
 ## Evaluating tool selection
 
-**The thirteen tools a host is actually shown now have their own set.** The golden set below tests the full list of
+**The 18 tools a host is actually shown have their own set.** The golden set below tests the full list of
 tools, and that list has no tool for the cooling, the heating, an indoor reading, living alone or the check-in hour,
 because `about_me` exists only in the default list. So what Alexa+ is shown was never what was measured.
-`evals/golden-core.json` is 81 sentences on the default thirteen, with the winter, smoke, disaster and family cases,
-speech noise, indirect and adversarial phrasing and 11 that expect no tool; `npm run eval -- --core` runs it with its own
+`evals/golden-core.json` is 114 sentences on the default eighteen, with the winter, smoke, disaster and family cases,
+speech noise, indirect and adversarial phrasing and 27 that expect no tool; `npm run eval -- --core` runs it with its own
 baseline. It is checked against the live tool list for free on every run (`test-golden.mjs`) and has not yet been run
 against a model.
 
@@ -1416,8 +1417,8 @@ one Alexa+ uses.
 
 `npm test` shows the server gives the right answer once a tool is chosen. It cannot show that a host would
 choose that tool from what a person said, which is what Amazon's certification list tests, so there is a
-separate golden eval: 74 spoken sentences, 15 of them expecting no tool at all, each with the tool and
-arguments a correct host should pick. It covers plain requests, speech-recognition noise ("north forty"),
+separate golden eval: 129 spoken sentences, 28 of them expecting no tool at all, each with the tool and
+arguments a correct host should pick. It covers plain requests, speech-recognition noise ("i live in fee nix arizona", "i take lee see no pril"),
 missing information, indirect phrasing, out-of-scope requests and prompt injection.
 
 ```sh
@@ -1521,8 +1522,8 @@ only remote HTTPS servers and not the local stdio kind.
 ```
 
 Cursor has a soft ceiling of roughly 40 active tools across all connected servers, and
-past it the agent quietly loses access to some. This publishes 13 and Orbita 15, so the
-pair is 28 before anything else is connected. On a host with a ceiling, connect one.
+past it the agent quietly loses access to some. This publishes 18 and Orbita 18, so the
+pair is 36 before anything else is connected. On a host with a ceiling, connect one.
 
 ## Honest limitations
 
@@ -1568,7 +1569,7 @@ pair is 28 before anything else is connected. On a host with a ceiling, connect 
 * Text messages need the AWS account's SMS service activated, and while it is in its sandbox only verified numbers
   receive them.
 * A learned limit comes from what the person reports, not a measurement, and it only tightens.
-* Thirteen tools by default. On fifteen varied sentences through the live talking demo, Claude Haiku 4.5 chose an
+* 18 tools by default. On fifteen varied sentences through the live talking demo, Claude Haiku 4.5 chose an
   expected tool for 13, which is why the demo now runs Sonnet 5.5, which got 33 of 34 conversation turns right; the same sentence can come out differently from run to run, and tool choice on real Alexa+
   still has to be tested.
 * The WBGT is estimated from weather variables, not measured with three thermometers. Globe
@@ -1586,7 +1587,8 @@ pair is 28 before anything else is connected. On a host with a ceiling, connect 
   confirming it.
 * The Alexa+ stand-in on the demo page is a model reading the real tool list, not Alexa. A description
   that works there can still fail on the device.
-* Spoken answers come from Polly and exist for the demo and the video. Alexa+ does its own speech.
+* Spoken answers on the public demo come from the browser's own voice; Polly is built in but switched off there
+  to keep the demo free. Alexa+ does its own speech.
 
 ## Licence
 

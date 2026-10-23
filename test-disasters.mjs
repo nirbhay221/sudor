@@ -482,6 +482,19 @@ console.log('\nCold first aid, on a day that is not cold');
   check('...while "dizzy and hot" is still the heat', /heat/i.test(hot.said), hot.said);
 }
 
+console.log('\nA rip current statement is not an answer to "how do I get ready for a power cut"');
+{
+  const warnings = await import('./dist/warnings.js');
+  seedDay(75, 60, 15);
+  await personIn('acct:rip', { medicine: 'insulin' });
+  warnings.seedForTest(LAT, LON, [{ id: 'rc1', event: 'Rip Current Statement', kind: 'other', severity: 'Moderate', urgency: 'Expected', headline: 'Rip Current Statement', instruction: null, areaDesc: 'here', onset: null, ends: null }]);
+  const ask = await connect('acct:rip');
+  const r = await ask('storm_prep');
+  check('the insulin steps are given', /insulin/i.test(r.said) && /36 and 46/.test(r.said), r.said);
+  check('...and the statement is still named, in one line', /Rip Current Statement/.test(r.said) && /not about your power/.test(r.said), r.said);
+  warnings.seedForTest(LAT, LON, []);
+}
+
 rmSync(DIR, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
