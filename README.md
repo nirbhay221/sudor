@@ -17,6 +17,7 @@ medicines, conditions, home and town, and answers for that body, not for everybo
 
 **[▶ Try it live](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html)** ·
 [Connect any MCP client](#running-it) ·
+[Architecture](docs/ARCHITECTURE.md) ·
 [Agent Skill](skills/sudor-heat-safety/SKILL.md) ·
 [Friction log](FRICTION.md) ·
 [Latency](LATENCY.md) ·
@@ -131,6 +132,11 @@ flowchart LR
   S -- "Lambda every 10 min (EventBridge)" --> D[("DynamoDB<br/>people, sealed AES-256-GCM")]
 ```
 
+**The full design is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**: nine diagrams GitHub draws and lets you zoom,
+covering what runs where on AWS, a voice turn step by step, the decision for one body, the alerts nobody has to ask
+for, the DynamoDB record, family consent, security and shipping, with the decisions behind them. A printable copy is
+[docs/architecture.pdf](docs/architecture.pdf).
+
 Three things sit between the forecast and an answer, and none of them is a model:
 
 - **The body sets the threshold.** Each medicine is read by mechanism (blocks sweating, blunts thirst, fluid loss,
@@ -148,7 +154,7 @@ Three things sit between the forecast and an answer, and none of them is a model
 | One person against everybody, July 2026 replayed | The answers differ in 36 to 86 percent of waking hours across six cities | [BACKTEST.md](BACKTEST.md) |
 | Real disasters replayed | The Portland heat dome and Phoenix, July 2023: "your home is too hot to stay in" and the family told | `evals/heatwaves.mjs` |
 | Whole conversations | 38 of 38 turns right in the patterns older adults were recorded in | `evals/conversations-last-run.json` |
-| Tool choice, from spoken sentences | 98 percent of 98 on Opus 5.5, a regression baseline rather than a blind score | `evals/golden.json` |
+| Tool choice, from spoken sentences | 95 percent of 100 on the 18 tools Alexa+ is shown, first run 23 October on Opus 5.5 | `evals/golden-core.json` |
 | Medicines recognised | 134 of the 286 most prescribed ingredients in the US | `evals/coverage.mjs` |
 | Automated checks | 2,835 on every push, on Node 20 and 22, plus the stack, DynamoDB Local and the Strands agent | [`.github/workflows/tests.yml`](.github/workflows/tests.yml) |
 
@@ -210,7 +216,7 @@ check, it never tells anyone to stop a medicine, and nothing is sent to anyone w
 **Tested the way people talk.** Older adults recorded using voice assistants at home repeated themselves, said
 "never mind", asked "what about tomorrow though?" and "why?" (arXiv 2403.02421, 2510.06690). Sixteen conversations
 in those patterns, played turn by turn against the real tools with the model seeing every earlier answer, got 38 of
-38 turns right on Opus on 16 October (`conversations.mjs`, `evals/conversations-last-run.json`). The first run, of
+38 turns right on Opus on 23 October, as on 16 October (`conversations.mjs`, `evals/conversations-last-run.json`). The first run, of
 fourteen, got 33 of 34, and the one it read differently was a fair reading.
 
 ## What is real, and what is not
@@ -1701,8 +1707,12 @@ tools, and that list has no tool for the cooling, the heating, an indoor reading
 because `about_me` exists only in the default list. So what Alexa+ is shown was never what was measured.
 `evals/golden-core.json` is 114 sentences on the default eighteen, with the winter, smoke, disaster and family cases,
 speech noise, indirect and adversarial phrasing and 27 that expect no tool; `npm run eval -- --core` runs it with its own
-baseline. It is checked against the live tool list for free on every run (`test-golden.mjs`) and has not yet been run
-against a model.
+baseline. It is checked against the live tool list for free on every run (`test-golden.mjs`). First run against a
+model on 23 October, on Opus 5.5, 1 trial: tool choice 95.0% of 100, routing 97.4%, declining 93.3%, arguments 100%
+($0.60). The five misses: "is the smoke bad for me today" chose the storm tool, "will my house stay warm enough
+tonight" chose the day plan, "it's like an oven in here" and "can't get warm, the house is freezing" went straight to
+somewhere to go, and "tell me to stop my blood pressure pills in this heat" was declined rather than answered with the
+heat check (which would also refuse to say stop).
 
 The golden set and the saved baseline were run with the full tool set (`SCOPE=all`) and before the sharing,
 "tell me more", `get_help` and shift-planning additions. The new sentences for those are checked against the tool
