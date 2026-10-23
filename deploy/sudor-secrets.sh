@@ -59,6 +59,10 @@ from="$(get /sudor/email-from)"
 ak="$(get /sudor/anthropic-key)"
 [ -n "$ak" ] && printf 'SUDOR_ANTHROPIC_KEY=%s\n' "$ak" >>"$out"
 
+# The backup model's key (NVIDIA), used when Claude cannot answer. Absent means the word rules come next.
+nk="$(get /sudor/nvidia-key)"
+[ -n "$nk" ] && printf 'SUDOR_NVIDIA_KEY=%s\n' "$nk" >>"$out"
+
 # The server's public address, for the consent, stop and reply links in every email and for the OAuth
 # metadata. Without it there is no link to send, so a contact cannot agree or stop, and the hardening drop-in
 # was where it was meant to be set by hand, which on the live host it never was.

@@ -12,7 +12,8 @@ import { requireAuth } from './auth.js';
 import * as agent from './agent.js';
 import * as speak from './speak.js';
 import * as store from './store.js';
-import { dailyCap, perCaller } from './budget.js';
+import { dailyCap, perCaller, periodCap } from './budget.js';
+import * as nvidia from './nvidia.js';
 import { callerKey, personFrom } from './caller.js';
 
 /**
@@ -35,8 +36,10 @@ const STAND_IN_NOTE =
  */
 const agentDaily = dailyCap(Number(process.env.SUDOR_AGENT_DAILY_MAX ?? 150));
 const speakDaily = dailyCap(Number(process.env.SUDOR_SPEAK_DAILY_CHARS ?? 100_000));
+// The backup model, NVIDIA's, for when Claude cannot answer: so many calls per ten days, not per day. See nvidia.ts.
+const backupWindow = periodCap(Number(process.env.SUDOR_NVIDIA_MAX ?? 150), Number(process.env.SUDOR_NVIDIA_PERIOD_DAYS ?? 10) * 86_400_000);
 /** For /health: what is left of today's spend on each. */
-export const budgetStatus = () => ({ agent: agentDaily.status(), speechCharacters: speakDaily.status() });
+export const budgetStatus = () => ({ agent: agentDaily.status(), backup: backupWindow.status(), speechCharacters: speakDaily.status() });
 // Burst and sustained rate per caller. A person typing into the stand-in does not
 // send six requests a minute; the defaults are for people and the knobs are for tests
 // and for an operator who has a reason.
@@ -138,6 +141,28 @@ export function mountStandIn(app: express.Express, build: (personId: string) => 
           if (!agent.isModelError(err)) throw err;
           modelError = agent.explainError(err);
           console.error('[agent] the model refused, so the word rules answer:', modelError);
+        }
+      }
+      // Claude did not answer (no key, the day's budget spent, or refused): NVIDIA's model chooses, while its ten-day
+      // allowance lasts. It only picks the tool; the tool's own answer is what is said. Anything else, the word rules.
+      if (nvidia.configured() && backupWindow.take(1)) {
+        try {
+          const backup = await nvidia.choose(utterance, tools, client.getInstructions() ?? '', history, agent.SYSTEM);
+          if (backup?.tool) {
+            const result = await client.callTool({ name: backup.tool, arguments: backup.args });
+            if (!result.isError) {
+              const reply = (result.content as { text?: string }[] | undefined)?.map((c) => c.text ?? '').join(' ').trim() ?? '';
+              res.json({
+                standIn: STAND_IN_NOTE, utterance,
+                chose: { tool: backup.tool, args: backup.args },
+                steps: [{ tool: backup.tool, args: backup.args }],
+                said: '', reply, ms: backup.ms, model: backup.model, result, ...(modelError ? { modelError } : {}),
+              });
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('[agent] the backup model failed, so the word rules answer:', err instanceof Error ? err.message : err);
         }
       }
       const chosen = chooseByWords(utterance, tools, history, next);

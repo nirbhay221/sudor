@@ -72,7 +72,7 @@ const MODEL = process.env.SUDOR_AGENT_MODEL ?? 'claude-sonnet-5-5';
  */
 const WORKSPACE = process.env.SUDOR_ANTHROPIC_WORKSPACE ?? '';
 
-const SYSTEM = [
+export const SYSTEM = [
   'You are standing in for Alexa+ talking to a self-hosted MCP add-on called Sudor.',
   "Sudor checks heat, cold and storms against the customer's own medicines, conditions and home, and says what to do.",
   '',

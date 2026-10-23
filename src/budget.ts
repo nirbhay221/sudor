@@ -47,6 +47,34 @@ export function perCaller(burst: number, perMinute: number) {
   };
 }
 
+/**
+ * A cap on total units per fixed period, counted from the Unix epoch: for the backup model, which is meant to last
+ * ten days rather than one. In memory, like the daily cap, so a restart starts the period's count again.
+ */
+export function periodCap(limit: number, periodMs: number) {
+  let period = -1;
+  let used = 0;
+  const roll = (now: number) => {
+    const p = Math.floor(now / periodMs);
+    if (p !== period) {
+      period = p;
+      used = 0;
+    }
+  };
+  return {
+    take(cost = 1, now = Date.now()): boolean {
+      roll(now);
+      if (used + cost > limit) return false;
+      used += cost;
+      return true;
+    },
+    status(now = Date.now()): { used: number; limit: number; resetsAt: string } {
+      roll(now);
+      return { used, limit, resetsAt: new Date((period + 1) * periodMs).toISOString() };
+    },
+  };
+}
+
 /** A cap on total units per UTC day. Units are calls for a model and characters for speech. */
 export function dailyCap(limit: number) {
   let day = '';
