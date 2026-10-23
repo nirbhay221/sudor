@@ -287,3 +287,47 @@ text, is the case the specification says should read as actionable feedback inst
 **Suggestion.** Say in the certification pages that a schema validation failure is customer-facing,
 and recommend rewriting it. Better still, have the toolkit offer a hook for it, since every add-on
 built on the reference SDK has this exact behaviour until someone notices.
+
+---
+
+## Re-checked against the live documentation, 23 October 2026
+
+The entries above were written against the documentation as it stood in September. Re-read on 23 October 2026 (the
+Alexa+ MCP pages were last modified on 10 and 21 July 2026):
+
+* **Entry 1, account linking: partly addressed.** The QuickStart and the account linking page now say plainly that
+  Dynamic Client Registration, Client ID Metadata Documents, OpenID Connect, step-up authorization and the
+  `WWW-Authenticate` header in 401 responses are not supported. That is the clarity this entry asked for. What remains:
+  MCP 2025-11-25, which the same QuickStart cites, recommends Client ID Metadata Documents for clients like Alexa+, so a
+  server built to the specification still needs a separate static-client path for Alexa+.
+* **Entry 2, proactive notifications: unchanged.** The Proactive Events API is documented for custom skills only; the
+  MCP Toolkit pages describe no way for an add-on to start a conversation.
+* **Entry 3, the round-trip budget: partly addressed.** The QuickStart now states that a server "must meet a round-trip
+  query response latency of less than 500 ms". Entry 5's question, what to do for work that outlasts a turn, is still
+  not answered: nothing says whether MCP tasks or progress notifications are honoured.
+* **Entry 4, display modes: changed.** The QuickStart now says to "follow the MCP Apps standard" for visuals, and the
+  lifecycle page says Alexa+ renders an MCP App "as long as you have `resourceUri` defined in the tool response". Sudor
+  declares it on the tool, as the MCP Apps standard does, and the Display Modes page was not re-tested here.
+* **Entries 7, 8 and 9: unchanged.** Nothing found on host retries, the `Accept` header, or schema validation errors
+  reaching the customer.
+* **Access.** The documentation home now says the Category SDK and MCP Toolkit "are available to select partners only",
+  which is why the demo uses a stand-in model rather than a real Echo.
+
+---
+
+## 10. The QuickStart and the lifecycle page disagree on the protocol version
+
+**Severity: medium. A server that pins one version can fail the handshake with the other.**
+
+**Task.** Confirm which MCP protocol version Alexa+ negotiates, so the server accepts it.
+
+**Steps.** Read the MCP QuickStart and the Alexa+ MCP Client and App Lifecycle page, both last modified 10 July 2026.
+
+**Expected.** One version, or a stated list.
+
+**Actual.** The QuickStart cites the MCP specification 2025-11-25. The lifecycle page's example `initialize` request
+and response both carry `"protocolVersion": "2025-03-26"`.
+
+**Workaround.** The server accepts both, through the SDK's version negotiation, and the tests initialize with each.
+
+**Suggestion.** State the versions Alexa+ sends and accepts on the QuickStart, and update the lifecycle example to match.
