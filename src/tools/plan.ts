@@ -427,7 +427,7 @@ export function register(server: McpServer, personOf: () => string): void {
         ...(general ? { askedInGeneral: true } : {}),
         // The one card that has to be readable from across the room.
         ...(result.level === 'emergency'
-          ? { card: { kind: 'card', title: 'Call 911 now', status: { label: 'emergency', tone: 'bad' }, lines: result.mild ? ['Say exactly what happened.', 'Breathing: lay them down, legs raised.', 'Not breathing: push hard and fast on the chest.'] : ['Move them somewhere cool.', 'Cool them with wet cloths or a cool bath.', 'Give them nothing to drink.'], foot: contacted?.trying.length && contacted.configured ? `Emailing ${contacted.trying.join(' and ')}.` : '' } }
+          ? { card: { kind: 'card', title: 'Call 911 now', status: { label: 'emergency', tone: 'bad' }, lines: result.anyCause ? ['Say exactly what happened.', 'Not breathing: push hard and fast on the chest.', 'Nothing to eat or drink.'] : result.mild ? ['Say exactly what happened.', 'Breathing: lay them down, legs raised.', 'Not breathing: push hard and fast on the chest.'] : ['Move them somewhere cool.', 'Cool them with wet cloths or a cool bath.', 'Give them nothing to drink.'], foot: contacted?.trying.length && contacted.configured ? `Emailing ${contacted.trying.join(' and ')}.` : '' } }
           : {}),
       });
     },

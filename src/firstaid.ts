@@ -25,6 +25,8 @@ export type Triage = {
   sources: Source[];
   /** Answered without assuming the heat, because it is not hot where they are. */
   mild?: boolean;
+  /** An emergency whatever the cause (not breathing, chest pain, a stroke), not answered as the heat. */
+  anyCause?: boolean;
 };
 
 const NWS = { name: 'National Weather Service, Heat Illness', url: 'https://www.weather.gov/safety/heat-illness' };
@@ -200,6 +202,7 @@ export function triage(description: string, p?: Profile, lastedMinutes?: number,
         (how.length ? ` ${how.join(' ')}` : '') +
         (p?.insulin ? ` ${SUGAR}` : ' Give them nothing to eat or drink until help arrives.'),
       sources: [NHS_FAINT, AHA_CPR, ...(stroke.includes('a seizure') ? [CDC_SEIZURE] : [])],
+      anyCause: true,
     };
   }
   const exhaustion = EXHAUSTION_SIGNS.filter(([re]) => described(text, re)).map(([, s]) => s);

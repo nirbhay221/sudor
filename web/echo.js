@@ -461,3 +461,29 @@ function setUpFree() {
   });
 }
 setUpFree();
+
+/* ---------------------------------------------------------------- lines played from a link */
+
+/*
+ * A link can carry what to say: /echo.html?say=I+live+in+Phoenix...&say=Is+it+safe+for+me+to+go+out%3F
+ * The README's "try it" links use this, so a reader lands on the live server with the line already being said.
+ * Each link starts its own profile, so the answer is the one the README describes and not one shaped by whatever this
+ * browser said before. At most three lines, the stand-in's burst for one caller, each through the same model as a
+ * typed sentence. The query is taken off the address first, so a reload does not say it again.
+ */
+async function playFromLink() {
+  const lines = new URLSearchParams(location.search).getAll('say').map((s) => s.trim().slice(0, 300)).filter(Boolean).slice(0, 3);
+  if (!lines.length) return;
+  history.replaceState(null, '', location.pathname);
+  session = newSession();
+  try { localStorage.setItem(SESSION_KEY, session); } catch { /* private mode: this page keeps it in memory */ }
+  const box = el('free-text');
+  for (const [i, words] of lines.entries()) {
+    if (i) await new Promise((r) => setTimeout(r, 2500));
+    if (box) box.value = words;
+    await sayAnything(words);
+  }
+  if (box) box.value = '';
+  box?.focus();
+}
+void playFromLink();

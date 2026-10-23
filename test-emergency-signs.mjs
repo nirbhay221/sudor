@@ -72,6 +72,7 @@ for (const [label, temp] of [['a hot day', 100], ['a freezing day', 5]]) {
   }
   const notBreathing = await call('warning_signs', { symptoms: "She's not breathing" });
   check('...and not breathing is told to push on the chest', /push hard and fast/.test(notBreathing.said), notBreathing.said);
+  check('...and the card on the screen says the same, not "move them somewhere cool"', notBreathing.data.card && notBreathing.data.card.lines.some((l) => /push hard and fast/.test(l)) && !notBreathing.data.card.lines.some((l) => /somewhere cool|wet cloths/.test(l)), JSON.stringify(notBreathing.data.card?.lines));
   const chest = await call('warning_signs', { symptoms: "he's having chest pain" });
   check('...chest pain is not called heat stroke', !/heat stroke/.test(chest.said), chest.said);
   const strokeSigns = await call('warning_signs', { symptoms: "his face is drooping and he can't lift his arm" });
