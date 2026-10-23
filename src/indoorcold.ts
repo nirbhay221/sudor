@@ -164,6 +164,27 @@ export function coldHomeRisk(snap: LocationSnapshot, home: Home, now = new Date(
   return null;
 }
 
+/**
+ * The other half of the answer, for somebody whose heating is out on a night that is not cold. "Is it safe to
+ * stay home tonight?" from an 80 year old in Minneapolis with no heating was answered with a line about going
+ * outside, because coldHomeRisk had nothing to warn about and said nothing. Nothing to warn about is an answer.
+ */
+export function coldHomeFine(snap: LocationSnapshot, home: Home, now = new Date()): string | null {
+  if (home.heating !== 'broken' && home.heating !== 'none') return null;
+  if (coldHomeRisk(snap, home, now)) return null;
+  const t = now.getTime();
+  const ahead = snap.hourly.filter((h) => {
+    const at = new Date(h.time).getTime();
+    return at >= t - 3_600_000 && at <= t + 24 * 3_600_000 && Number.isFinite(h.tempF);
+  });
+  if (ahead.length < 6) return null;
+  const low = Math.round(Math.min(snap.tempF, ...ahead.map((h) => h.tempF)));
+  return (
+    `${home.heating === 'broken' ? 'Your heating is not working' : 'You have no heating'}, but tonight only goes down to ${low} degrees outside, which is not cold enough to make your home unsafe by morning. ` +
+    `If it feels cold indoors, tell me how warm it is inside and I will tell you what to do, and get the heating fixed before colder nights.`
+  );
+}
+
 export const SOURCES = [
   'https://www.nih.gov/news-events/news-releases/hypothermia-cold-weather-hazard-seniors',
   'https://www.ncbi.nlm.nih.gov/books/NBK535294/',

@@ -253,6 +253,10 @@ export const profileFor = (person: store.Person) =>
  * change how a body handles heat), so it arrives here as a name on the recall watch list.
  */
 const NEEDS_FRIDGE = /insulin|humalog|novolog|lantus|levemir|tresiba|toujeo|basaglar|admelog|fiasp|lyumjev|semglee|apidra|humulin|novolin/i;
+/** Whether a spoken name is an insulin, which has to be kept cool. */
+export function needsFridge(name: string): boolean {
+  return NEEDS_FRIDGE.test(name);
+}
 const FRIDGE_GENERICS = new Set(['semaglutide', 'liraglutide', 'dulaglutide', 'tirzepatide', 'exenatide']);
 export function fridgeMedicines(person: store.Person): { insulin: boolean; injectables: string[] } {
   const names = [...person.medications.map((m) => m.spoken), ...person.medications.map((m) => m.generic), ...person.recallWatch];

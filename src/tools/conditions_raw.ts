@@ -13,7 +13,7 @@ import { GUIDANCE } from '../domain.js';
 import { sentences } from '../brief.js';
 import { thunderstormAsthma, migrainePressure } from '../weatherhealth.js';
 import { indoorRisk, LIMIT_F } from '../indoor.js';
-import { coldHomeRisk, CHILLY_NIGHT_F } from '../indoorcold.js';
+import { coldHomeRisk, coldHomeFine, CHILLY_NIGHT_F } from '../indoorcold.js';
 import { smokeDay } from '../smoke.js';
 import { nextQuestion } from '../setup.js';
 import * as flow from '../flow.js';
@@ -292,6 +292,8 @@ export function register(server: McpServer, personOf: () => string): void {
       // A mild afternoon can still have a freezing night, and an unheated house follows the night. See indoorcold.ts.
       const chill = inside ? null : coldHomeRisk(snap, person);
       if (chill) parts.push(chill.line);
+      const fine = inside || chill ? null : coldHomeFine(snap, person);
+      if (fine) parts.push(fine);
       // Smoke from the hourly forecast, whether or not a warning was issued. See smoke.ts.
       const smoke = smokeWarned(person, snap.timezone) ? null : smokeDay(snap, person);
       if (smoke) parts.push(smoke.line);

@@ -159,5 +159,21 @@ console.log('\nWith no model running, the word rules answer the demo and every e
   check('"I have hay fever" is a condition', pick('I have hay fever').args.conditions?.[0] === 'hay fever');
 }
 
+console.log('\nTwo answers that said "I don\'t know" when there was something to say');
+{
+  const { coldHomeFine, coldHomeRisk } = await import('./dist/indoorcold.js');
+  const snap = (low) => {
+    const now = Date.now();
+    const hourly = Array.from({ length: 24 }, (_, i) => ({ time: new Date(now + i * 3_600_000).toISOString(), tempF: i === 12 ? low : 56 }));
+    return { tempF: 56, hourly };
+  };
+  const old = { heating: 'broken', conditions: ['older_adult'], medications: [], age: 80, country: 'US' };
+  check('no heating on a 48 degree night is told it is not unsafe', /not cold enough to make your home unsafe/.test(coldHomeFine(snap(48), old) ?? ''), coldHomeFine(snap(48), old));
+  check('...but on a 40 degree night the warning is given instead', coldHomeFine(snap(40), old) === null && coldHomeRisk(snap(40), old) !== null);
+  check('...and working heating says nothing', coldHomeFine(snap(48), { ...old, heating: 'working' }) === null);
+  const { needsFridge } = await import('./dist/tools/shared.js');
+  check('insulin and its brands are known to need keeping cool', ['insulin', 'my Lantus', 'Humalog pen'].every(needsFridge) && !needsFridge('lisinopril'));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

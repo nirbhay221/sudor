@@ -42,6 +42,7 @@ import {
   sameName,
   say,
   checkLabel,
+  needsFridge,
 } from './shared.js';
 
 /** "telma am" to "Telma AM": each word capitalised, short all-letter suffixes upper case. */
@@ -352,6 +353,17 @@ export function register(server: McpServer, personOf: () => string): void {
           recalls.watch(name);
           // Nothing here classifies it. Its own label may still state a heat risk outright. See labels.ts.
           checkLabel(id, name.toLowerCase(), name);
+        }
+        if (needsFridge(name)) {
+          // Insulin does not change how a body handles heat, but heat and power cuts spoil it. Saying "I don't
+          // know it" to somebody who has just named their insulin was the wrong answer.
+          return say(
+            `I've noted your ${name}. It doesn't change how your body handles heat, but heat spoils it: keep it ` +
+              'cool, out of a hot car and out of the sun, and in the fridge if it is meant to be. If the power goes, ask me ' +
+              'how to get ready and I will tell you how to keep it cold.' +
+              (watchable ? " I'll also watch the FDA recall list for it." : ''),
+            { recognized: true, needsFridge: true, recallWatch: watchable },
+          );
         }
         return say(
           `I don't have "${name}" in my list yet, so I can't say whether it changes how you handle heat. ` +
