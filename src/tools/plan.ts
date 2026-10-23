@@ -14,7 +14,7 @@ import { CONDITIONS, findCondition } from '../conditions.js';
 import { windChillF, coldCategory, coldMeaning, COLD_WORDS, matchColdFirstAid } from '../cold.js';
 import { profileOf, judgeHour, planDay, planShift, precautions, indoorAllowance, hourLabel, INDOOR_HEAT, acclimatization } from '../personal.js';
 import * as wbgt from '../wbgt.js';
-import { triage, asksInGeneral } from '../firstaid.js';
+import { triage, asksInGeneral, anyEmergency } from '../firstaid.js';
 import { whoIsUnwell, tellOperator, memberProfile } from '../household.js';
 import { weekAhead } from '../week.js';
 import { emergencyNumber } from '../world.js';
@@ -315,7 +315,10 @@ export function register(server: McpServer, personOf: () => string): void {
       const tell = tellOperator(person, unwell);
       const theirProfile = unwell.who === 'member' && unwell.member ? memberProfile(unwell.member, !!person.privacy) : unwell.who === 'self' ? profile : undefined;
 
-      if (isCold) {
+      // Not breathing, chest pain, a stroke, a seizure: an emergency in the cold as much as in the heat. When the cold
+      // first aid has nothing that serious for what was said, the answer that calls 911 is the one given.
+      const lifeThreat = anyEmergency(symptoms ?? '');
+      if (isCold && !(lifeThreat.length && !matchColdFirstAid(symptoms ?? '')?.emergency)) {
         const matched = matchColdFirstAid(symptoms ?? '');
         if (!matched) {
           return say(
@@ -327,6 +330,8 @@ export function register(server: McpServer, personOf: () => string): void {
           );
         }
         let spoken = placed(matched.say);
+        // Hypothermia and a person who is not breathing: the warming waits for the chest compressions.
+        if (matched.emergency && lifeThreat.some((s) => s === 'trouble breathing' || s === 'hard to wake' || s === 'blue or grey lips')) spoken += ' If they are not breathing normally, push hard and fast in the middle of their chest until help comes.';
         if (matched.emergency && tell) spoken += ` ${tell}`;
         // Where to go, straight after what to do. Never in place of 911, which the first aid already said.
         const hospital = care.sentence(atLat, atLon);
@@ -394,7 +399,7 @@ export function register(server: McpServer, personOf: () => string): void {
       });
       // A mild day, or somebody who has been somewhere cool on a hot one: then it is not called heat stroke.
       const coolNow = where === 'cool_indoors' && !heatContext;
-      const mild = !heatContext && !hotInside && ((feels != null && feels < 80 && !hotEarlier) || coolNow);
+      const mild = (isCold && lifeThreat.length > 0) || (!heatContext && !hotInside && ((feels != null && feels < 80 && !hotEarlier) || coolNow));
       const result = triage(symptoms ?? '', theirProfile, lastedMinutes, { mild, tell, why: feels != null && feels < 80 ? 'mild' : 'cool' });
       let spoken = placed(result.spoken);
       // For the two answers that say to get medical help, say where. Cramps and general questions do not need it.

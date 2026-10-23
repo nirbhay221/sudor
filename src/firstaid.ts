@@ -54,7 +54,11 @@ export type Setting = { mild?: boolean; tell?: string; why?: 'mild' | 'cool' };
 function steps(stroke: string[], p: Profile | undefined, mild: boolean): string[] {
   const out: string[] = [];
   const faint = stroke.includes('fainting or collapse');
+  const breathing = stroke.includes('trouble breathing') || stroke.includes('blue or grey lips') || stroke.includes('hard to wake');
   if (stroke.includes('a seizure')) out.push('If they are shaking or jerking, turn them on their side, put nothing in their mouth, and time it.');
+  if (stroke.includes('signs of a stroke')) out.push('Note the time the signs started; the hospital will ask.');
+  if (stroke.includes('chest pain') && !faint && !breathing) out.push('Have them sit down and keep still, and loosen anything tight.');
+  if (breathing && !faint) out.push('If they are not breathing normally, push hard and fast in the middle of their chest until help comes.');
   if (faint) {
     out.push(
       mild
@@ -69,12 +73,38 @@ function steps(stroke: string[], p: Profile | undefined, mild: boolean): string[
 const SUGAR = 'Because of the insulin: if they are awake and can swallow, give them juice or something sugary. If not, put nothing in their mouth.';
 
 const STROKE_SIGNS: [RegExp, string][] = [
-  [/confus|disorient|not making sense|altered/, 'confusion'],
+  [/confus|disorient|not making sense|altered|acting (weird|strange|odd|funny|drunk)|not (him|her|them)sel(f|ves)|(doesn'?t|does not|don'?t) know where|delirious|incoherent|mumbl|babbl|out of it|combative/, 'confusion'],
   [/slur/, 'slurred speech'],
-  [/faint|passed out|passing out|black(ed)? out|unconscious|unresponsive|collapse/, 'fainting or collapse'],
-  [/seizure|convuls/, 'a seizure'],
+  [/faint|pass(ed|ing)? out|black(ed)? out|unconscious|unresponsive|collapse/, 'fainting or collapse'],
+  [/seiz|convuls|having a fit|\bfitting\b|shaking uncontrollab|jerking/, 'a seizure'],
   [/hot,? (and )?dry skin|stopped sweating|not sweating|no sweat/, 'hot skin without sweating'],
 ];
+
+/*
+ * Signs that are an emergency whatever the weather and whatever the cause.
+ *
+ * Found by saying what frightened people say, 22 October 2026: "she's not breathing", "my dad won't wake up", "he's
+ * having chest pain", "her lips are turning blue", "his face is drooping" and "she's seizing" all came back as the
+ * general description of heat illness, with no "call 911 now", because none of them is a sign of heat stroke as
+ * such. Each is on the American Heart Association's, the American Stroke Association's or the NHS's list of reasons
+ * to call an ambulance at once, and none of them waits for the weather to explain it.
+ *   https://cpr.heart.org/en/cpr-courses-and-kits/hands-only-cpr
+ *   https://www.stroke.org/en/about-stroke/stroke-symptoms
+ *   https://www.nhs.uk/nhs-services/urgent-and-emergency-care-services/when-to-call-999/
+ */
+const ANY_EMERGENCY: [RegExp, string][] = [
+  [/(not|isn'?t|aren'?t|stopped|no longer) breathing|can'?t (breathe|breath\b)|cannot breathe|can'?t catch (his|her|my|their) breath|struggling to breathe|(trouble|difficulty) breathing|hard to breathe|gasping|choking/, 'trouble breathing'],
+  [/won'?t wake|can'?t wake|cannot wake|hard to wake|not waking|(isn'?t|not|stopped) respond|won'?t respond|barely conscious|drifting in and out|very drowsy/, 'hard to wake'],
+  [/chest pain|pain in (his|her|my|their|the) chest|chest (is |feels )?(tight|heavy|crushing)|tight(ness)? in (his|her|my|their) chest/, 'chest pain'],
+  [/(lips?|face|mouth) (are |is |look |looks |turning |went |gone |has gone |have gone )*(blue|grey|gray)|turning blue|blue lips/, 'blue or grey lips'],
+  [/seiz|convuls|having a fit|\bfitting\b|shaking uncontrollab/, 'a seizure'],
+  [/face (is )?droop|drooping|one side of (his|her|my|their) face|can'?t (lift|move|raise) (his|her|my|their) arm|(arm|leg) (is |went |has gone )?(weak|limp) on one side|sudden(ly)? can'?t (speak|talk)|speech is garbled/, 'signs of a stroke'],
+];
+/** The life-threatening signs described, for the cold first aid as much as the heat. */
+export function anyEmergency(description: string): string[] {
+  const text = description.toLowerCase().replace(/[‘’]/g, "'");
+  return ANY_EMERGENCY.filter(([re]) => described(text, re)).map(([, s]) => s);
+}
 
 /**
  * A body temperature of 103 or more, as opposed to any number in that range.
@@ -84,11 +114,15 @@ const STROKE_SIGNS: [RegExp, string][] = [
  * emailed to the family as a heat stroke. A number only counts when the words say it is the person's own
  * temperature, and never when the same clause is about outside, the forecast or the heat index.
  */
-const FEVER = /(?:\b(?:my|his|her|their|your|body|a) (?:temperature|temp)\b|\bfever\b|\bthermometer\b|\brunning a temp)[^.;!?]{0,40}?\b(?:10[3-9]|11\d)\b|\b(?:10[3-9]|11\d)\b(?: degree)?s? (?:fever|temperature)\b/;
+// Celsius too, which is how a temperature is read out in every other country Alexa+ is in: 39.4 C is 103 F, and a
+// body is never 40 Fahrenheit, so 39.4 to 44.9 after the same words is Celsius. "Her temperature is 40 degrees"
+// used to be answered with the general description.
+const FEVER = /(?:\b(?:my|his|her|their|your|body|a) (?:temperature|temp)\b|\bfever\b|\bthermometer\b|\brunning a temp)[^;!?]{0,40}?\b(?:10[3-9]|11\d|39\.[4-9]|4[0-4](?:\.\d)?)(?![\d.])|\b(?:10[3-9]|11\d)\b(?: degree)?s? (?:fever|temperature)\b/;
 const WEATHER_WORDS = /\b(outside|out there|outdoors|heat index|forecast|weather|in the shade|in the sun|today's high)\b/;
 
 function fever(text: string): boolean {
-  return text.split(/[.;!?]/).some((clause) => FEVER.test(clause) && !WEATHER_WORDS.test(clause));
+  // A full stop inside a number (39.8) is not the end of a clause.
+  return text.split(/[;!?]|\.(?!\d)/).some((clause) => FEVER.test(clause) && !WEATHER_WORDS.test(clause));
 }
 
 /**
@@ -140,7 +174,7 @@ const EXHAUSTION_SIGNS: [RegExp, string][] = [
   [/weak|tired|exhaust|fatigue/, 'weakness'],
   [/headache/, 'a headache'],
   [/clammy|pale/, 'cool, clammy skin'],
-  [/fast pulse|racing heart|heart racing/, 'a fast pulse'],
+  [/fast pulse|racing heart|heart (is )?racing|heart (is )?pounding|pounding heart|palpitat/, 'a fast pulse'],
 ];
 const VOMIT = /vomit|throw(ing)? up|threw up|being sick/;
 const CRAMPS = /cramp|spasm/;
@@ -149,9 +183,25 @@ export function triage(description: string, p?: Profile, lastedMinutes?: number,
   const mild = !!setting.mild;
   const tell = setting.tell ? ` ${setting.tell}` : '';
   const notHeat = setting.why === 'cool' ? 'They have been somewhere cool, so this may not be the heat' : "It isn't hot there, so this may not be the heat";
-  const text = description.toLowerCase();
+  const text = description.toLowerCase().replace(/[‘’]/g, "'");
   const stroke = STROKE_SIGNS.filter(([re]) => described(text, re)).map(([, s]) => s);
   if (fever(text)) stroke.push('a temperature above 103');
+  // What is an emergency whatever the cause. Said as heat stroke only when a sign of heat stroke is there too.
+  const anyCause = anyEmergency(text).filter((s) => !stroke.includes(s));
+  const heatSigns = stroke.length > 0;
+  stroke.push(...anyCause);
+  if (!heatSigns && anyCause.length && !mild) {
+    const how = steps(stroke, p, true);
+    return {
+      level: 'emergency',
+      matched: stroke,
+      spoken:
+        `This is an emergency. Call 911 now.${tell} Tell them exactly what happened and do what they say.` +
+        (how.length ? ` ${how.join(' ')}` : '') +
+        (p?.insulin ? ` ${SUGAR}` : ' Give them nothing to eat or drink until help arrives.'),
+      sources: [NHS_FAINT, AHA_CPR, ...(stroke.includes('a seizure') ? [CDC_SEIZURE] : [])],
+    };
+  }
   const exhaustion = EXHAUSTION_SIGNS.filter(([re]) => described(text, re)).map(([, s]) => s);
   const vomiting = described(text, VOMIT);
   const cramps = described(text, CRAMPS);
