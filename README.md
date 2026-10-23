@@ -16,6 +16,7 @@ medicines, conditions, home and town, and answers for that body, not for everybo
 [![Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-lightgrey)](LICENSE)
 
 **[▶ Try it live](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html)** ·
+**[▶ Watch the video](https://vimeo.com/1238680413)** ·
 [Connect any MCP client](#running-it) ·
 [Architecture](docs/ARCHITECTURE.md) ·
 [Agent Skill](skills/sudor-heat-safety/SKILL.md) ·
