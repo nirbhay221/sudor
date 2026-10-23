@@ -1,39 +1,192 @@
+<div align="center">
+
+<a href="https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html?say=I%20live%20in%20Phoenix%2C%20Arizona&say=She%27s%20not%20breathing"><img src="media/hero.png" alt="The live demo. Asked 'He's not breathing', the Echo screen answers: This is an emergency. Call 911 now. Tell them Dad is 82 and takes furosemide, and tell them exactly what happened. If he isn't breathing normally, push hard and fast in the middle of his chest until help comes. A card underneath says Call 911 now, with three short lines. Beside it, Priya's phone, where messages to the family appear." width="100%"></a>
+
 # Sudor
 
-**Heat, cold and disasters, checked against your own medicines.**
+**Heat, cold and disasters, checked against your own medicines. An Alexa+ add-on that remembers one person's
+medicines, conditions, home and town, and answers for that body, not for everybody.**
 
-> **You:** Alexa, is it safe for me to go out?<br>
-> **Alexa:** For you, it is better to stay in right now if you can. It feels like 109 degrees out, which the
-> weather service calls danger. Your metoprolol blocks your sweating, so you may not feel overheating until it
-> is serious. Keep taking it unless your doctor says otherwise. Staying in only helps if your cooling works.
-> Is it working?
+[![tests](https://github.com/nirbhay221/sudor/actions/workflows/tests.yml/badge.svg)](https://github.com/nirbhay221/sudor/actions/workflows/tests.yml)
+![MCP 2025-11-25](https://img.shields.io/badge/MCP-2025--11--25-1ac3eb)
+![Streamable HTTP](https://img.shields.io/badge/transport-Streamable%20HTTP-1ac3eb)
+![tools](https://img.shields.io/badge/tools-18-e08f1a)
+![p95 under 40 ms](https://img.shields.io/badge/p95-under%2040%20ms-2ea44f)
+![checks](https://img.shields.io/badge/checks-2835%20passing-2ea44f)
+[![Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-lightgrey)](LICENSE)
 
-**Try it:** [talk to it on a screen, with the family's phone beside it](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html)
-(press **Speak**, or type) ·
-MCP endpoint `https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/mcp` (account linking) ·
-[health](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/health)
+**[▶ Try it live](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html)** ·
+[Connect any MCP client](#running-it) ·
+[Agent Skill](skills/sudor-heat-safety/SKILL.md) ·
+[Friction log](FRICTION.md) ·
+[Latency](LATENCY.md) ·
+[For the judges](#for-the-judges)
+
+<sub>Self-hosted MCP server (spec 2025-11-25, Streamable HTTP, OAuth 2.1 with PKCE) with an MCP Apps panel for the
+Echo Show and an Agent Skill. Built for the Build, Ship, Shape: Amazon Developer Hackathon, Alexa+ track.
+18 tools by default.</sub>
+
+<br>
+
+<img src="media/demo.gif" alt="The live demo, typed and answered: Dolores in Phoenix, on metoprolol, asks whether it is safe to go out; her air conditioner stops; she is pointed to the nearest open cooling centre by name and hours; she says she feels dizzy and gets first aid with the signs that mean calling 911." width="100%">
+
+<sub>Recorded from the live server in October 2026. Nothing is sped up except the waiting.</sub>
+
+</div>
+
+## In 20 seconds
 
 Water pills, beta blockers, some antidepressants and seventeen conditions change what heat and cold do to a
-body. A weather app tells everybody the same thing. Sudor is an Alexa+ add-on that remembers one person's
-medicines, conditions, home and town, and answers for that person:
+body. A weather app tells everybody the same thing. Sudor holds one person's medicines and conditions against
+their own local forecast and turns that into what to do.
 
-| Ask | What happens |
+- **"Is it safe for me to go out?"** A verdict for this body, with the reason: "your metoprolol blocks your
+  sweating, so you may not feel overheating until it is serious. Keep taking it."
+- **"My air conditioner just stopped working."** It stops saying "stay in" when indoors is the danger, and names the
+  nearest cooling centre open today, from the county's own list.
+- **"She's not breathing."** Call 911 first, then push on the chest. Every emergency, heat or not, leads with the
+  number for the country and never with a model's guess.
+- **"I live alone."** On a dangerous day with no word by 2 pm, a family member who agreed is asked to check on them.
+- **"How do I get ready for a power cut?"** with insulin, oxygen or dialysis: the steps for that body, and the
+  warning in force where they live.
+- **The model talks; code decides.** Every answer, number and safety line is written by code from live public data
+  and published guidance, so no model can soften "call 911" or turn "stay in" into "probably fine".
+
+## Try it now, no Echo needed
+
+Every ▶ opens the [live demo](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html) and says the
+lines for you, as a new person of its own. A Claude model reads this server's real tool list and plays Alexa+; the
+tools run on AWS against today's weather, so the answers follow today's forecast.
+
+| Who | Say | What comes back |
+|---|---|---|
+| Somebody frightened | ▶ [She's not breathing](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html?say=I%20live%20in%20Phoenix%2C%20Arizona&say=She%27s%20not%20breathing) | Call 911 now, push hard and fast on the chest, nothing to eat or drink, and a card that says the same |
+| Dolores, 74, on metoprolol | ▶ [Is it safe for me to go out?](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html?say=I%20live%20in%20Phoenix%2C%20Arizona&say=I%27m%2074%20and%20I%20take%20metoprolol&say=Is%20it%20safe%20for%20me%20to%20go%20out%3F) | The answer for her, and why: her medicine blocks sweating |
+| The same afternoon | ▶ [My air conditioner just stopped working](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html?say=I%20live%20in%20Phoenix%2C%20Arizona&say=My%20air%20conditioner%20just%20stopped%20working.&say=Where%20can%20I%20go%20then%3F) | Noted, then the nearest cooling centre open today, by name, address and hours |
+| On insulin, in Miami | ▶ [How do I get ready for a power cut?](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html?say=I%20live%20in%20Miami%2C%20Florida.%20I%20take%20insulin.&say=How%20do%20I%20get%20ready%20for%20a%20power%20cut%3F) | Insulin keeps best between 36 and 46 degrees, what to do when the power goes, and the warning in force there |
+| 80, in Minneapolis, heating broken | ▶ [Is it safe to stay home tonight?](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html?say=I%20live%20in%20Minneapolis%2C%20Minnesota&say=I%20am%2080%20and%20my%20heating%20is%20broken&say=Is%20it%20safe%20to%20stay%20home%20tonight%3F) | Tonight's low against the line where an unheated home gets dangerous for an older body, and where to go if it does |
+| Multiple sclerosis | ▶ [What does the next week look like?](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html?say=I%20live%20in%20Phoenix%2C%20Arizona&say=I%20have%20multiple%20sclerosis&say=What%20does%20the%20next%20week%20look%20like%3F) | The days and hours to stay in, judged for MS, and the days that are fine all day |
+| A water pill, in Delhi | ▶ [When should I walk the dog?](https://2f2opzcjui.execute-api.us-east-1.amazonaws.com/echo.html?say=I%20live%20in%20Delhi%2C%20India&say=I%20take%20hydrochlorothiazide&say=When%20should%20I%20walk%20the%20dog%3F) | The safest window today in Fahrenheit and Celsius, and why: the medicine can send sodium too low |
+
+Or type anything into the box on the page, or press **Speak**. The public demo never sends email; what the family
+would get appears on the phone beside the screen, with the real agreement links.
+
+## See it
+
+<table>
+<tr>
+<td width="50%"><img src="media/safe-screen.png" alt="Echo screen, asked 'Is it safe for me to go out today?': Yes, right now is a fine time for you to be outside. It feels like 72 degrees out. I'm still watching the heat closely for you because your medication blocks your sweating."><br><b>For this body.</b> The same 72 degrees, with the reason it is watched more closely for her.</td>
+<td width="50%"><img src="media/ac-screen.png" alt="Echo screen: the air conditioner is noted as broken, and Sudor says it will not tell her to stay in without also saying where else to go."><br><b>When indoors is the danger.</b> A broken air conditioner changes every answer after it.</td>
+</tr>
+<tr>
+<td><img src="media/where-screen.png" alt="Echo screen, asked 'Where can I go then?': If you can get to a relative or a friend who has power, do that first. The nearest cooling centre open today is Phoenix Dining room, at 1075 W. Jackson St., less than a mile away, from 1:30 pm to 5 pm. There are 23 more within 10 miles."><br><b>Somewhere to go.</b> From 27 published cooling-centre lists, open today, by name and hours.</td>
+<td><img src="media/dizzy-screen.png" alt="Echo screen: first aid for dizziness in the heat, and the signs that mean calling 911."><br><b>First aid at once.</b> The steps, then the signs that turn it into a 911 call.</td>
+</tr>
+<tr>
+<td><img src="media/emergency-screen.png" alt="Echo screen: an emergency answer that leads with Call 911 now."><br><b>Emergencies lead with the number.</b> For the country they are in, and the nearest emergency department.</td>
+<td><img src="media/panel.png" alt="The Echo Show panel for Phoenix, Arizona: 80 degrees peak heat index, Fine for you, judged with multiple sclerosis; an hourly strip where each hour is labelled ok or care with a hatched fill as well as colour; best 4 to 10 pm."><br><b>The Echo Show panel.</b> An MCP App. Every hour carries a word and a pattern, never colour alone.</td>
+</tr>
+</table>
+
+## Why it matters
+
+- **Heat kills the people Sudor is built for.** Of Multnomah County's 72 heat deaths in the 2021 heat dome, 78
+  percent were 60 or older, 71 percent lived alone, 94 percent died at home, and almost none had working cooling
+  ([Multnomah County](https://multco.us/news/2021-heat-killed-72-people-multnomah-county-most-were-older-lived-alone-had-no-ac)).
+  Phoenix recorded 645 heat deaths in 2023.
+- **Medicines move the line.** The CDC's clinical guidance names beta blockers and some antipsychotics for blocking
+  sweating, ACE inhibitors and some antidepressants for blunting thirst, and diuretics for disturbing electrolytes.
+  Heat sensitivity affects 60 to 80 percent of people with multiple sclerosis.
+- **Nobody joins the two.** The NWS and CDC HeatRisk scale says heat "tolerated by most" already carries risk for
+  the heat sensitive. Replaying July 2026, the answer for a person on metoprolol and furosemide differs from the
+  answer for anybody in 36 to 86 percent of waking hours, and in Phoenix 24 of 31 days had no fine hour for them
+  against 5 for anybody ([BACKTEST.md](BACKTEST.md)).
+- **"Stay in" is wrong when home is the danger.** A broken air conditioner, a power cut, a broken boiler: every
+  answer changes, and the family who agreed is told.
+
+## Not a Q&A bot
+
+The hackathon's rules name what makes an Alexa+ entry creative rather than obvious. Each is here, and used for a
+reason:
+
+| The rules say | Sudor |
 |---|---|
-| "Is it safe for me to go out?" | A verdict for this body, with what is driving it |
-| "When should I walk the dog?" | The safest hours today or tomorrow |
-| "I feel dizzy and confused" | First aid at once; heat stroke signs get the emergency number for the country and the nearest hospital, and the family is emailed |
-| "What do I do about this hurricane warning?" | The official warning where they live, turned into steps for them: insulin, oxygen, dialysis, whether to leave |
-| "My air conditioning is broken" or "the power keeps cutting out" | Stops saying "stay in" when indoors is the danger, and warns about nights that stay too hot to recover |
-| "I live alone" | On a dangerous day with no word from them by 2 pm, a family member who agreed is asked to check on them |
-| "I'm keeping the Ramadan fast" | Drinking between sunset and dawn, the hottest hours indoors, and "break your fast" in first aid |
-| "I have hay fever" | A thunderstorm in pollen season is warned about, because it can set off a severe asthma attack |
-| "Tell my daughter I need help" / "Tell them I'm safe" | Email, and a text if she added her number, only after she agreed |
+| Agentic workflow across services | Every answer names the next step (`nextAction`): the AC breaks, so where to go, so who to tell. The stand-in follows read-only steps on its own; a [Strands agent](#a-strands-agent-that-follows-the-chain) follows the whole chain and waits for a yes before anything is saved or sent |
+| Context-aware, state across sessions | Medicines, conditions, home, cooling and heating, the household, trips, a doctor's plan, a learned limit that only tightens, and family contacts who agreed to hear from it |
+| Media support, cards | Cards for emergencies, plans and confirmations (`ui/card.html`) |
+| MCP Apps | The Echo Show panel (`ui/window.html`): the full MCP Apps handshake, display modes, and the host's theme |
+| Agent Skills | [`skills/sudor-heat-safety`](skills/sudor-heat-safety/SKILL.md), checked by the format's own validator, and readable from the server itself as `skill://` resources |
+| Beyond the list | Elicitation to ask which medicine was meant instead of guessing; recalls on the medicines and equipment a person relies on; and a heat check for a farm crew from the sister add-on [Orbita](https://github.com/nirbhay221/orbita), over MCP, with nothing about anyone's health crossing |
 
-Built for the [Build, Ship, Shape: Amazon Developer Hackathon](https://amazonappdev2026.devpost.com),
-Alexa+ track. Self-hosted MCP server, spec 2025-11-25,
-Streamable HTTP, 18 tools by default, with an MCP Apps panel for the Echo Show. Its sister add-on
-[Orbita](https://github.com/nirbhay221/orbita) does the same for GPS-guided field work, and the two talk to
-each other.
+## How it decides
+
+```mermaid
+flowchart LR
+  P(("A person,<br/>or their family")) --> H["Alexa+<br/>or the stand-in: a Claude model<br/>reading the real tools/list"]
+  H -- "MCP 2025-11-25<br/>Streamable HTTP, OAuth 2.1 + PKCE" --> S["Sudor MCP server<br/>18 tools, MCP App, Agent Skill"]
+  S --> M["The answer, in code<br/>forecast x this body's medicines and conditions<br/>x the home, from memory"]
+  F["Background feeds, never inside a turn<br/>Open-Meteo weather, UV, air quality<br/>NWS, MeteoAlarm and WMO warnings<br/>27 cooling-centre lists, openFDA recalls"] --> M
+  S -- "email via SES, texts via SNS,<br/>only after the family agrees" --> C["Family"]
+  S -- "nearest emergency department" --> L["Amazon Location Service"]
+  S -- "Lambda every 10 min (EventBridge)" --> D[("DynamoDB<br/>people, sealed AES-256-GCM")]
+```
+
+Three things sit between the forecast and an answer, and none of them is a model:
+
+- **The body sets the threshold.** Each medicine is read by mechanism (blocks sweating, blunts thirst, fluid loss,
+  burns faster), from the CDC's guidance, its FDA label and the National Library of Medicine's drug classes.
+- **The home decides whether "stay in" is safe.** Working cooling, a fan only, broken, too costly to run or power
+  cuts; and the same for heating in the cold.
+- **What is in force outranks what is usual.** An official warning where they live becomes steps for this person:
+  insulin, oxygen, dialysis, whether to leave. A source that could not be read is never counted as safe.
+
+## Measured, not claimed
+
+| What | Result | Where |
+|---|---|---|
+| Speed, every tool over HTTP | p95 under 40 ms from memory; three tools in a row 35 ms at p95, against Alexa+'s roughly 500 ms | [LATENCY.md](LATENCY.md) |
+| One person against everybody, July 2026 replayed | The answers differ in 36 to 86 percent of waking hours across six cities | [BACKTEST.md](BACKTEST.md) |
+| Real disasters replayed | The Portland heat dome and Phoenix, July 2023: "your home is too hot to stay in" and the family told | `evals/heatwaves.mjs` |
+| Whole conversations | 38 of 38 turns right in the patterns older adults were recorded in | `evals/conversations-last-run.json` |
+| Tool choice, from spoken sentences | 98 percent of 98 on Opus 5.5, a regression baseline rather than a blind score | `evals/golden.json` |
+| Medicines recognised | 134 of the 286 most prescribed ingredients in the US | `evals/coverage.mjs` |
+| Automated checks | 2,835 on every push, on Node 20 and 22, plus the stack, DynamoDB Local and the Strands agent | [`.github/workflows/tests.yml`](.github/workflows/tests.yml) |
+
+## For the judges
+
+The detail below is long because the reasoning is the work. This is the map, in the order of the judging criteria.
+
+- **Tech Implementation.** A self-hosted MCP server on spec 2025-11-25 over Streamable HTTP, the official SDK called
+  at runtime (`src/server.ts`, `src/tools.ts`). Account linking is OAuth 2.1 with PKCE. Elicitation, tool
+  annotations, output schemas and structured results that name the next step. Feeds are polled in the background, so
+  every answer is arithmetic from memory.
+- **Design.** Written to be heard once, often by somebody frightened: the verdict, the reason in this body's terms,
+  the next step, the rest held for "tell me more". Questions say why before they ask, one at a time
+  ([How the conversation is designed](#how-the-conversation-is-designed)).
+- **Potential Impact.** A measured, recurring killer, concentrated in a group that can be named
+  ([Why it matters](#why-it-matters), [Who this is actually for](#who-this-is-actually-for)).
+- **Quality of the Idea.** Not a native Alexa+ feature, not a wrapper around a weather app, and every item on the
+  rules' creative list ([Not a Q&A bot](#not-a-qa-bot),
+  [Why it is not a wrapper around a weather app](#why-it-is-not-a-wrapper-around-a-weather-app)).
+
+The requirements, one by one:
+
+- **Alexa+ track.** A working self-hosted MCP server, and the simulated Alexa+ experience the rules allow while MCP
+  add-on access is in preview: the demo page, where a Claude model reads the real tool list, calls the tools over MCP
+  and shows the reply ([An Alexa+ stand-in](#an-alexa-stand-in)). The server is the one Alexa+ would call.
+- **Under 500 ms.** Under 40 ms at p95 for every in-memory tool ([LATENCY.md](LATENCY.md)).
+- **Setup and run instructions.** [Running it](#running-it), and [`deploy/README.md`](deploy/README.md) for AWS.
+- **Built in the window.** First commit 15 September 2026, after the 31 August start.
+- **Third-party data.** Every source in [What is real, and what is not](#what-is-real-and-what-is-not), and the terms
+  of data from other countries in [Outside the United States](#outside-the-united-states).
+- **AWS.** EC2 behind an API Gateway HTTP API, S3 and SSM Run Command for deploys, SSM Parameter Store for keys, a
+  DynamoDB table for people, the alert check as a Lambda started by EventBridge Scheduler every ten minutes, CloudWatch
+  alarms, SES for family email, SNS for urgent texts, Amazon Location Service for the nearest hospital, all in CDK
+  ([`infra/`](infra/)). The agent in [`strands/`](strands/) is built on AWS's Strands Agents SDK. Summary in
+  [PRODUCT_FEEDBACK.md](PRODUCT_FEEDBACK.md).
+- **Friction log.** [FRICTION.md](FRICTION.md): dated entries from building against the Alexa+ documentation, each
+  with what was expected, what happened, the workaround and a suggested fix.
+
 
 ## One afternoon
 
@@ -66,7 +219,7 @@ Nothing here is mocked for the demo. Where something stands in for a thing we co
 
 | Part | Status |
 |---|---|
-| MCP server, 18 tools by default | **Real and deployed** on AWS, behind account linking. 2,833 automated checks, run on every push |
+| MCP server, 18 tools by default | **Real and deployed** on AWS, behind account linking. 2,835 automated checks, run on every push |
 | Agent Skill | **Real**: `skills/sudor-heat-safety`, to the open Agent Skills format, passing the format's own validator. Installable as a folder, and readable from the server as `skill://` resources |
 | Strands agent | **Real**: `strands/agent.mjs`, on AWS's Strands Agents SDK. It reads the skill from the server and follows each next step. The chain, the yes before a write and the step cap are checked with a scripted model at no cost; the path through Claude needs a key and is not in the automated checks |
 | Weather, UV, air quality | **Real, live**: Open-Meteo, worldwide |
@@ -87,23 +240,13 @@ Alexa+ is sold. Outside it, the emergency number is the local one (999 in London
 Australia), temperatures are said in Celsius as well, and the US shelter list and 211 line are replaced by the local
 council.
 
-## Start here
+## The full write-up
 
-This file is long because the reasoning is the work. If you are evaluating the project:
+Every part of the design, with the reasoning and the sources. Each section opens on its own.
 
-| If you want | Read |
-|---|---|
-| To try it in two minutes | [The demo page](#the-demo-page) |
-| What it does, in one exchange | [What it does](#what-it-does) |
-| Why it is not a wrapper around a weather app | [Why it is not a wrapper around a weather app](#why-it-is-not-a-wrapper-around-a-weather-app) |
-| Disasters, for one person | [Warnings, and what a storm means for a medicine cabinet](#warnings-and-what-a-storm-means-for-a-medicine-cabinet) |
-| When home is the problem | [When the house is the problem](#when-the-house-is-the-problem) |
-| Where it is wrong, or cannot know | [Honest limitations](#honest-limitations) |
-
-Free sources, no API keys for the data. Every tool call is answered from memory; nothing external is called
-inside a turn. `npm test` runs 2,833 checks.
-
-## The problem
+<a id="the-problem"></a>
+<details>
+<summary><b>The problem</b></summary>
 
 A heat advisory is written for everyone, and everyone is the wrong threshold for a lot of people.
 
@@ -122,7 +265,11 @@ The NWS and CDC HeatRisk scale says it plainly: heat that is "tolerated by most"
 risk for extremely heat-sensitive people. Nothing holds a person's own medications and conditions
 against their own local forecast and turns that into a plan for the day.
 
-## What it does
+</details>
+
+<a id="what-it-does"></a>
+<details>
+<summary><b>What it does</b></summary>
 
 Real output from `probe.mjs`, against live Phoenix, Arizona weather on 12 September 2026, for
 someone who said they take metoprolol and lisinopril and have multiple sclerosis:
@@ -153,7 +300,11 @@ someone who said they take metoprolol and lisinopril and have multiple sclerosis
  Do not give them anything to drink."
 ```
 
-## Why it is not a wrapper around a weather app
+</details>
+
+<a id="why-it-is-not-a-wrapper-around-a-weather-app"></a>
+<details>
+<summary><b>Why it is not a wrapper around a weather app</b></summary>
 
 **Who you are decides the threshold.** Sensitivity is graded the way HeatRisk grades people, one
 level apart: everyone else, sensitive, and extremely sensitive. The same hour at heat index 84 is
@@ -178,7 +329,11 @@ temperature above 103 get "call 911, nothing to drink" immediately. Heat exhaust
 sipping water, and help if it lasts past an hour or they vomit. Fainting appears in both official
 lists and is treated as the emergency.
 
-## Conditions
+</details>
+
+<a id="conditions"></a>
+<details>
+<summary><b>Conditions</b></summary>
 
 | Condition | Group | What changes | Source |
 |---|---|---|---|
@@ -204,7 +359,11 @@ Plus 72 medications in Sudor's own table, classified by heat mechanism: 57 from 
 heat and medications, 14 added from the CDC's classes and FDA labels, and acetaminophen from the CDC's September
 2025 revision of that guidance, with anything else looked up by class.
 
-## Data
+</details>
+
+<a id="data"></a>
+<details>
+<summary><b>Data</b></summary>
 
 Free sources, no API keys.
 
@@ -250,7 +409,11 @@ their own mechanism here, and it outranks the general electrolyte line, so someo
 told to sip through the day and take something salty rather than to drink more water. A loop
 diuretic, whose problem is a different one, still gets the ordinary advice.
 
-## The two classes that were missing
+</details>
+
+<a id="the-two-classes-that-were-missing"></a>
+<details>
+<summary><b>The two classes that were missing</b></summary>
 
 Until recently this table had 48 medications and none of them were GLP-1 agonists or
 SGLT2 inhibitors. Between them that is Ozempic, Wegovy, Mounjaro, Zepbound, Jardiance
@@ -283,7 +446,11 @@ feel like it, and one escalation: not being able to keep fluids down in heat is 
 reason to call somebody rather than wait it out. Forty eight tests exist to hold those
 two pieces of advice apart.
 
-## The number that knows the sun is out
+</details>
+
+<a id="the-number-that-knows-the-sun-is-out"></a>
+<details>
+<summary><b>The number that knows the sun is out</b></summary>
 
 Sudor answered with the NWS heat index for a long time. The heat index is the right tool for a great
 many things and it is the scale the public knows, and the Rothfusz regression it comes from assumes a
@@ -319,7 +486,11 @@ index and never offered as a temperature to compare with the one on somebody's p
 say is the difference between sun and shade, because that is one scale, and it is the only part a
 person can act on: stand somewhere else.
 
-## Equipment, not only medicines
+</details>
+
+<a id="equipment-not-only-medicines"></a>
+<details>
+<summary><b>Equipment, not only medicines</b></summary>
 
 A drug recall is half of what can be pulled out from under this customer. The other half is the
 equipment a power cut already makes dangerous, and this README already names it: insulin that has to
@@ -347,7 +518,11 @@ either frighten somebody whose device is fine or reassure somebody whose is not.
 exist only to hold that line, because a false alarm lands hardest on exactly the person least able to
 absorb one. Only Class I is ever volunteered inside an answer about going outside.
 
-## Tools
+</details>
+
+<a id="tools"></a>
+<details>
+<summary><b>Tools</b></summary>
 
 18 tools by default. Related actions share one tool, because tool choice gets worse as the list
 grows: everything about the person is `about_me`, every change to the family list is `contact`.
@@ -411,7 +586,11 @@ With `SUDOR_SCOPE=all` the original, finer-grained tools are listed instead.
   ([CDC](https://www.cdc.gov/heat-health/risk-factors/infants-and-children.html)). HeatWatch, from the University
   of Sydney, lets its users add profiles for family members for the same reason
 
-## When the house is the problem
+</details>
+
+<a id="when-the-house-is-the-problem"></a>
+<details>
+<summary><b>When the house is the problem</b></summary>
 
 A power cut in winter is not an inconvenience for everyone. The CDC puts the indoor floor at 68F and
 says a house sitting at 60 to 65F can bring on hypothermia in an older adult, which is a temperature
@@ -577,7 +756,11 @@ Sources: [Texas DSHS via the Texas Tribune](https://www.texastribune.org/2022/01
 [Tarifa Social](https://www.folhape.com.br/economia/tarifa-social-de-energia-veja-como-familias-com-cadastro/482584/),
 [India heat action plans](https://www.undrr.org/news/heatwaves-lessons-india-dealing-growing-hazard).
 
-## Outside the United States
+</details>
+
+<a id="outside-the-united-states"></a>
+<details>
+<summary><b>Outside the United States</b></summary>
 
 Alexa+ is sold in the United States, Canada and the UK, and in early access in Brazil, Mexico, Germany, Austria,
 France, Italy, Spain, Australia and India. A place is matched in the US first when it is ambiguous ("Lyon" is Lyon,
@@ -634,7 +817,11 @@ Mississippi), and anywhere else when a country is said ("Lyon, France").
 The brand lists are rebuilt with `scripts/build-india-brands.py` and `scripts/build-country-brands.py`, and the
 warning areas with `scripts/build-meteoalarm-areas.py`.
 
-## The sun, from NOAA
+</details>
+
+<a id="the-sun-from-noaa"></a>
+<details>
+<summary><b>The sun, from NOAA</b></summary>
 
 The National Weather Service does not forecast the sun. A severe geomagnetic storm is the other way
 a power grid gets into trouble, and NOAA's own scale says a G4 can bring "possible widespread
@@ -671,7 +858,11 @@ So the line is a nudge to charge things, never a forecast about anyone's street,
 base rate every time it is said, and it comes at the end of the answer rather than in front of the
 insulin. A test fails the build if it ever leads.
 
-## Asking, instead of guessing
+</details>
+
+<a id="asking-instead-of-guessing"></a>
+<details>
+<summary><b>Asking, instead of guessing</b></summary>
 
 `findMedication` is an exact lookup. Anything it does not recognise is told, honestly, that it is not
 in the table and might still matter. That is the right answer for a drug this genuinely does not know,
@@ -694,7 +885,11 @@ on the honest unknown answer without ever naming the drug that was suspected. Su
 somebody did not say is the worst failure this product could have, and the tests exist to hold that
 line rather than to demonstrate the feature.
 
-## An Alexa+ stand-in
+</details>
+
+<a id="an-alexa-stand-in"></a>
+<details>
+<summary><b>An Alexa+ stand-in</b></summary>
 
 MCP add-on support is in preview and access has to be requested, so this cannot be demonstrated on a
 real Echo. The demo page's answer until now was a catalogue of buttons, each hardcoded to a tool and a
@@ -739,7 +934,11 @@ emergency number the tool said is replaced by the tool's own words. With no mode
 "no" or "not sure" against the question just asked, and a "yes" takes the step the last answer named
 (`bareAnswer()` in `src/rules.ts`).
 
-## Hearing it
+</details>
+
+<a id="hearing-it"></a>
+<details>
+<summary><b>Hearing it</b></summary>
 
 Every sentence this server produces is written to be heard once, and here the listener is often the
 reason. Somebody with multiple sclerosis deciding whether to go out. Somebody whose medication has
@@ -762,7 +961,11 @@ angle brackets refused outright rather than escaped, because passing caller text
 let anyone who can reach the endpoint change the voice, insert silence, or spell text out at a
 different rate and price.
 
-## Family, privacy, and learning from a bad afternoon
+</details>
+
+<a id="family-privacy-and-learning-from-a-bad-afternoon"></a>
+<details>
+<summary><b>Family, privacy, and learning from a bad afternoon</b></summary>
 
 **Telling someone.** An add-on cannot make an Echo speak first, so the server does it. When warning
 signs describe heat stroke, the answer says to call 911 first, then confirmed emergency contacts are
@@ -787,7 +990,11 @@ will be safe, so feeling fine never loosens anything.
 **Taking things back out.** Medications, conditions and contacts can all be removed. Before this, a
 stopped medication kept shaping every answer forever.
 
-## Warnings, and what a storm means for a medicine cabinet
+</details>
+
+<a id="warnings-and-what-a-storm-means-for-a-medicine-cabinet"></a>
+<details>
+<summary><b>Warnings, and what a storm means for a medicine cabinet</b></summary>
 
 Sudor does not write safety advice for a flood. The forecast office that issued the alert already did, and their
 words are better than anything this project would invent, so the weather service is quoted and the personal half
@@ -817,7 +1024,11 @@ comes with the live air quality index and the EPA's name for its band. The answe
 family they are safe, and the family is emailed once, with nothing about health, when a warning starts where they
 live.
 
-## Recalls on the medicines you take
+</details>
+
+<a id="recalls-on-the-medicines-you-take"></a>
+<details>
+<summary><b>Recalls on the medicines you take</b></summary>
 
 Sudor already holds the one thing a recall notice needs to be useful: the list. A recall is published
 against a drug name and a set of lot numbers, and the person who needs to hear it is whoever has that
@@ -842,7 +1053,11 @@ Three rules shape it:
 Medicines the heat table does not recognise are watched by name anyway. Heat advice needs a known
 mechanism; a recall only needs the name on the bottle.
 
-## The Echo Show panel
+</details>
+
+<a id="the-echo-show-panel"></a>
+<details>
+<summary><b>The Echo Show panel</b></summary>
 
 `ui://sudor/window.html` is an MCP App, specification 2026-01-26: nested `_meta.ui.resourceUri` on
 the tools, `ui/initialize` declaring inline and fullscreen, `ui/notifications/initialized`, then
@@ -850,7 +1065,11 @@ tool results. It shows the heat index for this person, and an hourly strip where
 a word (ok, care, stay in) and a fill pattern as well as a colour. Until data arrives it shows a
 labelled example day. `test-panel.mjs` runs it against a simulated host.
 
-## The Agent Skill
+</details>
+
+<a id="the-agent-skill"></a>
+<details>
+<summary><b>The Agent Skill</b></summary>
 
 The tools say what each one does. They do not say how to carry somebody through a bad day: which tool answers
 which sentence, when to follow the next step without asking and when to wait for a yes, and how to say an answer
@@ -881,7 +1100,11 @@ the skill names exists, every tool the server offers is in the skill, the tool r
 list exactly, each chain in it is one the code really names, and the example of `flow` is what the server
 returns. The format is checked against the specification and by its reference validator, `skills-ref`.
 
-## A Strands agent that follows the chain
+</details>
+
+<a id="a-strands-agent-that-follows-the-chain"></a>
+<details>
+<summary><b>A Strands agent that follows the chain</b></summary>
 
 Every answer names the step that follows. `strands/agent.mjs` is the agent that follows them, built on the
 [Strands Agents SDK](https://strandsagents.com), AWS's open agent framework. It lives in its own folder with
@@ -910,7 +1133,11 @@ that one request runs from the weather, to the safest hour, to going out anyway 
 The path through Claude uses Strands' Anthropic provider and needs a key. It costs a few cents a run, so it is
 not part of the automated checks.
 
-## On a screen, with the family's phone beside it
+</details>
+
+<a id="on-a-screen-with-the-familys-phone-beside-it"></a>
+<details>
+<summary><b>On a screen, with the family's phone beside it</b></summary>
 
 `/echo.html` is a stand-in for an Echo Show. Down the page are the lines somebody might say; each is a real tool
 call with real arguments (`web/echo-scenes.json`), and a test calls every one. Under them, **Or say anything**
@@ -922,7 +1149,11 @@ contact would have been sent is kept, word for word, against that visitor's own 
 (`/demo/phone`). The buttons on it post to the same pages a link in a real email opens: pressing yes is the real
 agreement, and pressing "I'm on my way" is the real answer, which the screen says the next time it speaks.
 
-## The demo page
+</details>
+
+<a id="the-demo-page"></a>
+<details>
+<summary><b>The demo page</b></summary>
 
 `npm start` also serves a page at http://localhost:8789 for anyone who wants to try this without an Echo.
 It is not a mock. Every request on it is a real tool call against this server and the live forecast for
@@ -943,7 +1174,11 @@ The requests live in `web/requests.json` rather than inside the page's code, so 
 every one of them against a running server. A renamed tool or a changed argument fails a test instead of
 failing quietly in front of someone.
 
-## Running it
+</details>
+
+<a id="running-it"></a>
+<details>
+<summary><b>Running it</b></summary>
 
 ```bash
 npm install
@@ -995,12 +1230,12 @@ Moving a running server over is `node scripts/copy-to-table.mjs` once on the hos
 every record in and changes nothing if run twice, then the `/sudor/store` parameter set to
 `dynamodb` and a restart. The file is kept, so going back is the parameter and a restart.
 
-`npm test` runs everything, 2,833 checks. It is also what CI runs on every push, on Node 20 and 22,
+`npm test` runs everything, 2,835 checks. It is also what CI runs on every push, on Node 20 and 22,
 with the live suite in its own job so an outage at a weather service is never mistaken for a
 regression here.
 
 ```bash
-npm run test:unit           # 2,479 checks, no live data
+npm run test:unit           # 2,481 checks, no live data
 npm run test:live           # 354 checks, against a running server and the real forecast
 
 node test.mjs               # heat index formula, categories, medications, how the lines read aloud
@@ -1046,7 +1281,11 @@ Expose it with `cloudflared tunnel --url http://localhost:8789`, then link it th
 [`KayLerch/alexa-skill-mcp-bridge`](https://github.com/KayLerch/alexa-skill-mcp-bridge), the same
 way as its sibling project [Orbita](https://github.com/nirbhay221/orbita).
 
-## What it keeps, and for how long
+</details>
+
+<a id="what-it-keeps-and-for-how-long"></a>
+<details>
+<summary><b>What it keeps, and for how long</b></summary>
 
 A public endpoint holds records for anyone who calls it, so three limits exist and each one is tested:
 
@@ -1092,7 +1331,11 @@ nothing.
   is ignored, so an invented address does not buy a fresh allowance. `SUDOR_TRUST_PROXY=1` counts one hop, and the origin secret is armed only after
   the gateway sends it. See `deploy/README.md` for the order.
 
-## Asking for help, and where to go
+</details>
+
+<a id="asking-for-help-and-where-to-go"></a>
+<details>
+<summary><b>Asking for help, and where to go</b></summary>
 
 Three things were added for the day the weather is most dangerous, which is the day the power is out.
 
@@ -1114,7 +1357,11 @@ Three things were added for the day the weather is most dangerous, which is the 
 What is not there: a text message or a phone call. Both need a registered sending number, and neither has been set
 up or tested, so neither is claimed. The role the server runs under needs `geo-places:SearchNearby`.
 
-## A named place, the days ahead, and the power
+</details>
+
+<a id="a-named-place-the-days-ahead-and-the-power"></a>
+<details>
+<summary><b>A named place, the days ahead, and the power</b></summary>
 
 Five things added from the 2026 research and the heat plans cities published this year.
 
@@ -1164,7 +1411,11 @@ Five things added from the 2026 research and the heat plans cities published thi
 | Duke Energy power outages | Duke Energy, published outage areas | Public open data |
 | BC Hydro power outages | BC Hydro, published outage areas | Public open data |
 
-## What the 2026 research said was still missing
+</details>
+
+<a id="what-the-2026-research-said-was-still-missing"></a>
+<details>
+<summary><b>What the 2026 research said was still missing</b></summary>
 
 A sweep of this year's heat deaths, trials and city plans found six gaps. Each is closed here, and each is tested
 in `test-gaps.mjs`.
@@ -1187,7 +1438,11 @@ Sources: [Maryland 2026 season](https://marylandmatters.org/?p=101456),
 [INSPQ evaluation guide](https://www.inspq.qc.ca/en/publications/1794),
 [review of heat health warning systems](https://www.preventionweb.net/quick/99463).
 
-## What the October 2026 sweep changed
+</details>
+
+<a id="what-the-october-2026-sweep-changed"></a>
+<details>
+<summary><b>What the October 2026 sweep changed</b></summary>
 
 A second pass, checked against the papers themselves rather than their summaries, and each tested in
 `test-research.mjs` and `test-heatwaves.mjs`.
@@ -1236,7 +1491,11 @@ Sources: [Wolf et al. 2023](https://doi.org/10.1038/s43247-023-01159-9),
 [Multnomah County 2021](https://multco.us/news/2021-heat-killed-72-people-multnomah-county-most-were-older-lived-alone-had-no-ac),
 [CDC, heat and medications, September 2025](https://www.cdc.gov/heat-health/hcp/clinical-guidance/heat-and-medications-guidance-for-clinicians.html).
 
-## Who agrees to be emailed
+</details>
+
+<a id="who-agrees-to-be-emailed"></a>
+<details>
+<summary><b>Who agrees to be emailed</b></summary>
 
 A contact used to be confirmed by the account holder alone. Now the account holder's yes sends one invitation, and
 nothing else goes to that address until the person who owns it opens the link and presses yes (`src/consent.ts`). The
@@ -1248,20 +1507,32 @@ Two more corrections in the same pass. A question about the signs ("is confusion
 the 911 advice, and no longer emails the family that heat stroke was described. And wrong passphrases are counted per
 address, so five wrong guesses lock out the address that made them and not the person whose name was typed.
 
-## The answer comes back
+</details>
+
+<a id="the-answer-comes-back"></a>
+<details>
+<summary><b>The answer comes back</b></summary>
 
 The help email carries a link. The family member presses "I'm on my way" or "Ask them to ring me", and the next
 thing the person hears from Sudor, whatever they ask, starts with it: "Priya answered: they are on the way." The link
 works once, lasts six hours, and only its hash is stored. It does not replace ringing them, and the page says so.
 
-## People who work outside
+</details>
+
+<a id="people-who-work-outside"></a>
+<details>
+<summary><b>People who work outside</b></summary>
 
 `plan_my_day` takes a shift (`shiftStart`, `shiftEnd`) for somebody who cannot choose their hours. It says when the
 heat index passes 80 and 90, the two lines in the workplace heat rule OSHA proposed in 2024, when to take the
 fifteen minute breaks, and, where it is earlier, the hour that is risky for this person given what they take.
 The rule is described as proposed, because that is what it is.
 
-## One decision for the machines and the people
+</details>
+
+<a id="one-decision-for-the-machines-and-the-people"></a>
+<details>
+<summary><b>One decision for the machines and the people</b></summary>
 
 Of outdoor workers who died of heat between 2011 and 2016, 79 percent were in their first two weeks on the job or just
 back from time away. So somebody who says they have started outdoor work, or come back to it, is remembered as that,
@@ -1275,7 +1546,11 @@ gets, when it turns risky for this person, and how many hours of heat they shoul
 or a reason, and the link dies the moment they stop sharing. Orbita then says it in the same breath as the job:
 "Clear for planting. Dana is on day 2 in the heat: 4 hours of it today, done by 11 am."
 
-## How the conversation is designed
+</details>
+
+<a id="how-the-conversation-is-designed"></a>
+<details>
+<summary><b>How the conversation is designed</b></summary>
 
 * **Short answers.** A read-only answer is spoken as its first three sentences, led by the answer for this person
   ("For you, it is better to stay in right now"). The rest is returned as `more` in the structured result and spoken
@@ -1320,7 +1595,11 @@ or a reason, and the link dies the moment they stop sharing. Orbita then says it
   own account and can ask how the day is looking (`check_on`). They hear whether it is a fine day, a day to take care
   or a day to stay in, and never a medicine, a condition or a reason.
 
-## Is the answer worth having
+</details>
+
+<a id="is-the-answer-worth-having"></a>
+<details>
+<summary><b>Is the answer worth having</b></summary>
 
 [BACKTEST.md](BACKTEST.md) replays the measured hourly weather for July 2026 in six American cities through the same
 code the server runs, for two people: one with nothing registered, and one on metoprolol and furosemide with heart
@@ -1328,7 +1607,11 @@ disease. The two answers differ in 36 to 86 percent of waking hours. In Tampa th
 fine hour to be outside, and the first had none; in Phoenix it was 24 days against 5. It counts how often the answers
 differ, from heat alone. It does not show that anybody was harmed or protected. `node evals/backtest.mjs` regenerates it.
 
-## What a replay of the conversations found, and what changed
+</details>
+
+<a id="what-a-replay-of-the-conversations-found-and-what-changed"></a>
+<details>
+<summary><b>What a replay of the conversations found, and what changed</b></summary>
 
 Playing the sixteen test conversations through the real tools with the arguments a host would fill in, and reading
 every answer, found four faults no test had caught, because the tests checked which tool was chosen and not what it
@@ -1344,7 +1627,11 @@ then said. Each is fixed and pinned in `test-disasters.mjs`.
 And one found by reading the code: the family alerts judged a cold day without the medicines that blunt shivering,
 which the spoken answer counts. They count them now.
 
-## How it asks, and what it asks for consent
+</details>
+
+<a id="how-it-asks-and-what-it-asks-for-consent"></a>
+<details>
+<summary><b>How it asks, and what it asks for consent</b></summary>
 
 Health details are sensitive personal information, and Amazon's rules for Alexa+ add-ons are specific about them.
 Each rule below is in the code and checked in `test-disasters.mjs` and `test-auth.mjs`.
@@ -1368,7 +1655,11 @@ Sources: [Alexa+ add-on policy requirements](https://developer.amazon.com/en-US/
 [functional requirements](https://developer.amazon.com/en-US/docs/alexa/alexaplus/add-ons/functional-requirements.html),
 [Alexa design guide](https://developer.amazon.com/en-US/docs/alexa/alexa-design/get-started.html).
 
-## What it asks, who can check, and where to go in the cold
+</details>
+
+<a id="what-it-asks-who-can-check-and-where-to-go-in-the-cold"></a>
+<details>
+<summary><b>What it asks, who can check, and where to go in the cold</b></summary>
 
 Four things that were missing, each tested in `test-disasters.mjs`.
 
@@ -1399,7 +1690,11 @@ Sources: [Mahmood and others, 2024](https://arxiv.org/pdf/2403.02421),
 [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api),
 [EEA air quality index](https://www.eea.europa.eu/en/about/contact-us/faqs/what-do-the-air-quality-index-values-mean).
 
-## Evaluating tool selection
+</details>
+
+<a id="evaluating-tool-selection"></a>
+<details>
+<summary><b>Evaluating tool selection</b></summary>
 
 **The 18 tools a host is actually shown have their own set.** The golden set below tests the full list of
 tools, and that list has no tool for the cooling, the heating, an indoor reading, living alone or the check-in hour,
@@ -1450,7 +1745,11 @@ fixes were tool descriptions plus a few golden sentences that were not fair sing
 the customer knows, so asking back is correct), so 100% is a regression baseline and not a blind score. A golden set is also fixed, so it cannot notice a failure it does not contain, and cases should be
 added from real misses.
 
-## Performance
+</details>
+
+<a id="performance"></a>
+<details>
+<summary><b>Performance</b></summary>
 
 Alexa+ allows roughly 500 ms for a full round trip. Measured against live data on 12 September
 2026: every tool answered in 3 to 8 ms, and the slowest request in the whole probe, setting a
@@ -1458,7 +1757,11 @@ location by voice, took about 50 ms including starting its background lookup. On
 all seventeen tools it had then, the contact, privacy and outing tools answered in 4 to 7 ms. Emails are sent
 after the answer, never inside it.
 
-## Prior art
+</details>
+
+<a id="prior-art"></a>
+<details>
+<summary><b>Prior art</b></summary>
 
 Named deliberately, because it exists.
 
@@ -1477,7 +1780,11 @@ Named deliberately, because it exists.
   the abstract. It does not hold a person's medications and conditions against their own hourly
   forecast, and an add-on cannot speak first, so this answers when asked.
 
-## Who this is actually for
+</details>
+
+<a id="who-this-is-actually-for"></a>
+<details>
+<summary><b>Who this is actually for</b></summary>
 
 It reads like a consumer app and the buyer is probably not a consumer.
 
@@ -1502,7 +1809,11 @@ or WBGT, which is the pair of numbers this server already computes.
 None of that changes a line of code. It changes who the README is addressed to, and
 the honest answer is that a single person is the demo and an agency is the product.
 
-## It runs in more than Alexa+
+</details>
+
+<a id="it-runs-in-more-than-alexa"></a>
+<details>
+<summary><b>It runs in more than Alexa+</b></summary>
 
 MCP is client agnostic, and this server is remote and reachable over HTTPS, which is the
 shape every compliant host accepts. It works today in Claude Desktop, Claude Code,
@@ -1525,7 +1836,11 @@ Cursor has a soft ceiling of roughly 40 active tools across all connected server
 past it the agent quietly loses access to some. This publishes 18 and Orbita 18, so the
 pair is 36 before anything else is connected. On a host with a ceiling, connect one.
 
-## Honest limitations
+</details>
+
+<a id="honest-limitations"></a>
+<details>
+<summary><b>Honest limitations</b></summary>
 
 * The one level offset between sensitivity groups follows HeatRisk's own grouping, applied to the NWS
   heat index categories. That is an approximation, not a clinical threshold for any one person. For people 65 and
@@ -1590,10 +1905,17 @@ pair is 36 before anything else is connected. On a host with a ceiling, connect 
 * Spoken answers on the public demo come from the browser's own voice; Polly is built in but switched off there
   to keep the demo free. Alexa+ does its own speech.
 
-## Licence
+</details>
+
+<a id="licence"></a>
+<details>
+<summary><b>Licence</b></summary>
 
 Apache-2.0. Permissive, deliberately, and the same change of mind as Orbita, for the same reason
 recorded there: copyleft protects the code and taxes the people best placed to make it useful. Here
 that is a pharmacy system, a home care provider, or whoever ends up putting heat advice in front of
 somebody whose medication has taken their sweating away. Apache rather than MIT for the patent
 grant.
+
+</details>
+
